@@ -185,7 +185,7 @@ export function SystemSection() {
             <SettingsGroup title="Behaviour">
                 <SettingRow
                     title="Restore clipboard after pasting"
-                    description="Text is pasted through the clipboard; put back what was there before."
+                    description="Text is pasted through the clipboard. Off keeps the dictated text there; on puts back what was there before."
                 >
                     <Toggle
                         label="Restore clipboard after pasting"

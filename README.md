@@ -21,7 +21,7 @@ to keep everything on your machine.
 ## Features
 
 - **Dictation anywhere.** Works in any app that accepts text. The result is pasted where your
-  cursor is, and your clipboard is left as it was.
+  cursor is and stays on the clipboard; Settings can restore the previous clipboard instead.
 - **Two shortcuts.** _Hold to speak_ records while the keys are held; _toggle to speak_ starts
   on one press and stops on the next. Both are configurable, and Esc cancels a recording.
 - **Your choice of speech engine.**

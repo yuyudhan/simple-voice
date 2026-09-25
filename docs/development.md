@@ -110,8 +110,12 @@ may forget a grant or show a stale entry that no longer matches:
   then grant it again from the app's Settings → Permissions.
 - `tccutil reset Accessibility dev.yuyudhan.simplevoice` (or `Microphone`,
   `SpeechRecognition`) clears a grant from the command line.
-- Launch the app from `just dev` or the built bundle, not from a terminal that already holds its
-  own grants, or macOS attributes the permission to the terminal instead.
+- `just dev` runs the bare binary, not an app bundle, so macOS attributes its permissions to
+  the terminal that started it (with tmux, the terminal that started the tmux server). Grant
+  Accessibility and Microphone to that terminal, then restart `just dev`; a "Simple Voice" entry
+  in System Settings has no effect on a development run. `swift -e 'import ApplicationServices;
+  print(AXIsProcessTrusted())'` run from the same terminal prints `true` once paste will work.
+- Only the built bundle, opened from Finder or `open`, is attributed to Simple Voice itself.
 
 Release builds signed with a Developer ID keep a stable identity, so grants survive upgrades.
 Ad-hoc signed releases behave like development builds; the cask's caveat explains this to users.

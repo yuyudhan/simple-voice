@@ -14,7 +14,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | P-3 | It is built for other people to use, not only the owner: no hard-coded personal paths, keys, or vocabulary.                                                                         |
 | P-4 | macOS first and only for now (Apple Silicon, macOS 14+; Apple Speech requires macOS 26+).                                                                                           |
 | P-5 | Installation and updates happen through Homebrew (`brew install --cask yuyudhan/tap/simple-voice`); the repo carries the cask and the release automation that publishes to the tap. |
-| P-6 | The UI must be elegant, simple and functional. Visual references: Wispr Flow (layout, warm palette, serif headings) and FluidVoice (model picker).                                  |
+| P-6 | The UI must be elegant, simple and functional, in the product's own design language, Signal (`docs/design.md`); it must not imitate another product's visual identity. |
 | P-7 | Everything the owner's Hammerspoon dictation module does today must be done by this app instead (see § 3).                                                                          |
 
 ## 2. Storage
@@ -48,6 +48,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | D-12 | Audio cues on start and stop.                                                                                                                                                                                                                                                                                                                                                      |
 | D-13 | A watchdog stops and transcribes after a maximum recording length (default 5 minutes).                                                                                                                                                                                                                                                                                             |
 | D-14 | A failed dictation keeps its audio so it can be retried from history; a dictation is never silently lost.                                                                                                                                                                                                                                                                          |
+| D-15 | The dictated text is placed on the clipboard and stays there by default, so it is never lost when pasting fails; a setting restores the previous clipboard after a successful paste instead.                                                                                                                                                                                    |
 
 ## 4. Transcription engines and models
 
@@ -60,7 +61,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | M-5 | Local models are downloaded on demand from within the app, with progress, and can be deleted.                                                                                                                                                                                                                                                        |
 | M-6 | Post-processing (the LLM formatting pass) has local and remote providers: Groq (remote, default), Apple Intelligence (on-device, macOS 26+), and any OpenAI-compatible endpoint (local Ollama / LM Studio, or a remote service), plus Off. Any transcription model combines with any post-processing provider, so a fully offline setup is possible. |
 | M-7 | The Groq API key is entered in Settings where the user chooses the voice model; one key serves Groq transcription and Groq post-processing.                                                                                                                                                                                                          |
-| M-8 | Inspired by Wispr Flow, but simpler: few choices, sensible defaults, great user experience.                                                                                                                                                                                                                                                          |
+| M-8 | Inspired by Wispr Flow and FluidVoice, but simpler: few choices, sensible defaults, great user experience.                                                                                                                                                                                                                                           |
 
 ## 5. Screens
 
@@ -74,7 +75,8 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | U-6 | **Settings → System**: launch at login, show the floating bar at all times, show app in Dock, dictation sounds on/off with 3–4 sound options, mute all audio while dictating. |
 | U-7 | **Settings → Models**: engine/model selection, downloads, Groq API key, AI formatting toggle.                                                                                 |
 | U-8 | **Settings → Data**: database location.                                                                                                                                       |
-| U-9 | While recording, a small floating pill shows (icon + live level bars), like Wispr Flow's Flow Bar.                                                                            |
+| U-9 | While recording, a small floating pill shows (icon + live level bars).                                                                                                        |
+| U-10 | **Settings → General → Appearance**: theme is System (follows macOS, live), Light or Dark; it applies instantly to every window surface including the title bar, persists across restarts, and the app never flashes the other theme on launch. |
 
 ## 6. Permissions
 
