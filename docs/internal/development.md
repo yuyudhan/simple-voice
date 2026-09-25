@@ -36,7 +36,7 @@ git clone https://github.com/yuyudhan/simple-voice.git
 cd simple-voice
 just setup     # bun install, core.hooksPath -> .githooks, toolchain report (just doctor)
 just dev       # debug engine helper + `bun run tauri dev`
-just build     # release .app and .dmg under target/aarch64-apple-darwin/release/bundle/
+just build     # release .app under target/aarch64-apple-darwin/release/bundle/macos/
 ```
 
 sqlx-cli must be built with SQLite support, or `sqlx database create` fails with "no driver

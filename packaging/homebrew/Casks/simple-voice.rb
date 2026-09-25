@@ -1,6 +1,6 @@
 # FilePath: packaging/homebrew/Casks/simple-voice.rb
 # Template for the cask published to yuyudhan/homebrew-tap. scripts/release/update-cask.sh
-# renders it for each release: it pins `version` and the real `sha256` of the uploaded DMG, and
+# renders it for each release: it pins `version` and the real `sha256` of the uploaded zip, and
 # drops every block between unsigned-build markers when the release was Developer ID signed and
 # notarized. Until a release renders it, the checksum is not pinned. Indented with two spaces,
 # as `brew style` requires; `just cask-check` runs Homebrew's style and audit checks on it.
@@ -8,7 +8,7 @@ cask "simple-voice" do
   version "0.1.0"
   sha256 :no_check
 
-  url "https://github.com/yuyudhan/simple-voice/releases/download/v#{version}/Simple-Voice_#{version}_aarch64.dmg"
+  url "https://github.com/yuyudhan/simple-voice/releases/download/v#{version}/Simple-Voice_#{version}_aarch64.zip"
   name "Simple Voice"
   desc "System-wide dictation: speak, and polished text lands in the focused app"
   homepage "https://github.com/yuyudhan/simple-voice"

@@ -19,7 +19,7 @@
     },
     "bundle": {
         "active": true,
-        "targets": ["app", "dmg"],
+        "targets": ["app"],
         "category": "public.app-category.productivity",
         "shortDescription": "System-wide dictation for macOS",
         "longDescription": "Speak anywhere on your Mac and polished text lands in the focused app.",

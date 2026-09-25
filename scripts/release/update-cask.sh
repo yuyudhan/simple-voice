@@ -3,7 +3,7 @@
 # Renders packaging/homebrew/Casks/simple-voice.rb for one release and, in publish mode, pushes
 # it to the tap repository so `brew upgrade` picks the release up.
 #
-# Rendering pins `version` and the DMG's real `sha256`, replaces the template's own header with
+# Rendering pins `version` and the zip's real `sha256`, replaces the template's own header with
 # a pointer back here, and - for a Developer ID signed and notarized build - removes every block
 # between `unsigned-build` markers (the quarantine-clearing postflight step and its caveat),
 # which only ad-hoc signed builds need. Blank lines left behind by a removed block are collapsed
@@ -13,10 +13,9 @@
 #   scripts/release/update-cask.sh render  VERSION SHA256 SIGNED    print the rendered cask
 #   scripts/release/update-cask.sh publish VERSION SHA256 SIGNED    commit it to the tap
 #
-# SIGNED is `true` or `false`. Publish needs HOMEBREW_TAP_DEPLOY_KEY: the private half of an SSH
-# deploy key with write access to the tap repository. GitHub's SSH host keys are fetched from
-# its HTTPS API and pinned, so the push never trusts an unverified host.
-# HOMEBREW_TAP_REPO overrides the default yuyudhan/homebrew-tap.
+# SIGNED is `true` or `false`. Publish pushes over HTTPS with the credentials of the logged-in
+# `gh` CLI, which needs push access to the tap repository. HOMEBREW_TAP_REPO overrides the
+# default yuyudhan/homebrew-tap.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -71,19 +70,19 @@ if [ "$mode" = "render" ]; then
     exit 0
 fi
 
-: "${HOMEBREW_TAP_DEPLOY_KEY:?HOMEBREW_TAP_DEPLOY_KEY must be set to publish the cask}"
 tap_repo="${HOMEBREW_TAP_REPO:-yuyudhan/homebrew-tap}"
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
-(umask 077 && printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" >"${workdir}/deploy-key")
-curl -fsSL https://api.github.com/meta |
-    jq -r '.ssh_keys[] | "github.com " + .' >"${workdir}/known_hosts"
-export GIT_SSH_COMMAND="ssh -i '${workdir}/deploy-key' -o IdentitiesOnly=yes \
--o UserKnownHostsFile='${workdir}/known_hosts' -o StrictHostKeyChecking=yes"
-
-git clone --depth 1 "git@github.com:${tap_repo}.git" "${workdir}/tap"
+gh auth status >/dev/null 2>&1 || {
+    echo "update-cask: log in with \`gh auth login\` first" >&2
+    exit 1
+}
+git -c credential.helper= -c credential.helper='!gh auth git-credential' \
+    clone --depth 1 "https://github.com/${tap_repo}.git" "${workdir}/tap"
+git -C "${workdir}/tap" config credential.helper ''
+git -C "${workdir}/tap" config --add credential.helper '!gh auth git-credential'
 mkdir -p "${workdir}/tap/Casks"
 render >"${workdir}/tap/Casks/simple-voice.rb"
 

@@ -10,73 +10,68 @@ brew install --cask yuyudhan/tap/simple-voice
 
 `brew` maps `yuyudhan/tap` to the GitHub repository `yuyudhan/homebrew-tap` and reads the cask
 from its `Casks/simple-voice.rb`. `packaging/homebrew/Casks/simple-voice.rb` in this repository
-is the template for that file; the release workflow renders and publishes it, so the tap never
-needs hand edits.
+is the template for that file; the release scripts render and publish it, so the tap never needs
+hand edits. Releases are built and published from a maintainer's Mac; no GitHub runner is
+involved.
 
-## One-time setup
+## Prerequisites
 
-1. Create a public GitHub repository named **`yuyudhan/homebrew-tap`** with a README (the first
-   release adds `Casks/`).
-2. Give the release workflow write access to it with an SSH deploy key, which is scoped to that
-   one repository and does not expire:
-
-    ```sh
-    ssh-keygen -t ed25519 -N "" -C "simple-voice release" -f /tmp/tap-key
-    gh repo deploy-key add /tmp/tap-key.pub -R yuyudhan/homebrew-tap --allow-write \
-        --title "simple-voice release"
-    gh secret set HOMEBREW_TAP_DEPLOY_KEY -R yuyudhan/simple-voice </tmp/tap-key
-    rm /tmp/tap-key /tmp/tap-key.pub
-    ```
-
-3. Optionally add the Apple signing and notarization secrets below, so releases are Developer ID
-   signed and notarized.
-4. Make sure GitHub Actions can run for the account: the release is built on a `macos-15`
-   runner.
-
-### Repository secrets
-
-| Secret                                        | Purpose                                                                           |
-| --------------------------------------------- | --------------------------------------------------------------------------------- |
-| `HOMEBREW_TAP_DEPLOY_KEY`                     | Required. Private key of the write-enabled deploy key on `yuyudhan/homebrew-tap`. |
-| `APPLE_CERTIFICATE`                           | Optional. Base64 of the Developer ID Application `.p12`.                          |
-| `APPLE_CERTIFICATE_PASSWORD`                  | Password of that `.p12`.                                                          |
-| `APPLE_SIGNING_IDENTITY`                      | e.g. `Developer ID Application: Name (TEAMID)`.                                   |
-| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarization: Apple ID, app-specific password, team ID.                           |
+- Everything in [development.md](development.md#setup), plus Homebrew (for the cask check).
+- `gh auth login` with push access to `yuyudhan/simple-voice` and `yuyudhan/homebrew-tap`. Both
+  the GitHub release and the tap push use these credentials.
+- Optionally, a Developer ID for signing and notarization (see below).
 
 ## Cutting a release
 
-1. Make sure `main` is green and the working tree is clean.
-2. `just release 0.2.0` sets the version in `package.json`, `src-tauri/tauri.conf.json` and the
-   root `Cargo.toml`, refreshes `Cargo.lock`, commits `🔖 Release v0.2.0`, and tags `v0.2.0`.
-3. `git push origin HEAD v0.2.0`.
+From a clean working tree on `main`, not behind `origin/main`:
 
-The tag starts `.github/workflows/release.yml`, which:
+```sh
+just release 0.2.0    # scripts/release/release.sh
+```
 
-1. checks that the tag matches every version field;
+which, in order:
+
+1. sets `0.2.0` in `package.json`, `src-tauri/tauri.conf.json` and the root `Cargo.toml`, and
+   refreshes `Cargo.lock`;
 2. runs `scripts/release/check-cask.sh` (see below), so a cask Homebrew would reject is never
    published;
-3. runs `bun run tauri build --target aarch64-apple-darwin`, whose `beforeBuildCommand` builds
-   the release engine helper first;
-4. signs with a Developer ID and notarizes when the signing secrets are configured, and signs
-   ad hoc (`APPLE_SIGNING_IDENTITY=-`) otherwise;
-5. uploads `Simple-Voice_<version>_aarch64.dmg` and its `.sha256` to the GitHub release;
-6. runs `scripts/release/update-cask.sh publish <version> <sha256> <signed>`, which renders the
-   cask - pinning `version` and the DMG's `sha256`, and dropping every block between the
-   `unsigned-build` markers when the build was signed and notarized - then commits and pushes it
+3. runs `scripts/release/build.sh`: `tauri build --bundles app` (its `beforeBuildCommand` builds
+   the release engine helper), verifies the signature, and packs the bundle with `ditto` into
+   `target/release-assets/0.2.0/Simple-Voice_0.2.0_aarch64.zip`;
+4. commits `🔖 Release v0.2.0`, tags `v0.2.0`, and pushes the branch and tag (the pre-push hook
+   runs `just check`);
+5. runs `scripts/release/publish.sh`, which uploads the zip and its `.sha256` to the GitHub
+   release `v0.2.0`, then `scripts/release/update-cask.sh publish`: it renders the cask -
+   pinning `version` and the zip's `sha256`, and dropping every block between the
+   `unsigned-build` markers when the build was signed and notarized - and commits and pushes it
    to the tap.
 
+If anything fails before step 4, the version files are restored and nothing is committed. If
+the push or publish fails after the commit, fix the cause, push if needed, then
+`just publish 0.2.0` (`scripts/release/publish-tag.sh`): it builds the pushed tag from a clean
+detached worktree, so uncommitted or later work never ships, and publishes it.
+
 Users get the release with `brew upgrade --cask simple-voice`; `livecheck` follows the latest
-GitHub release. The DMG is published under a hyphenated name because GitHub rewrites spaces in
-asset names; the cask URL spells that name exactly.
+GitHub release. The asset name is hyphenated because GitHub rewrites spaces in asset names; the
+cask URL spells that name exactly. The download is a zip made by `ditto`, which preserves the
+bundle's signature, and Homebrew unpacks it natively.
 
 ## Signed and unsigned builds
 
-Without the Apple secrets the release is ad-hoc signed. Gatekeeper refuses to open an
-un-notarized app downloaded with the quarantine flag, so the cask's `postflight_steps` clears
-`com.apple.quarantine` from `Simple Voice.app` only, and a caveat tells users why and how to
-re-grant permissions after an upgrade (macOS ties grants to the code signature, and an ad-hoc
-signature changes with every build). With the secrets, both blocks are removed from the published
-cask and grants survive upgrades.
+By default the release is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`). To sign with a Developer
+ID in your keychain and notarize, export these before `just release`:
+
+| Variable                                      | Purpose                                                 |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `APPLE_SIGNING_IDENTITY`                      | e.g. `Developer ID Application: Name (TEAMID)`.         |
+| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarization: Apple ID, app-specific password, team ID. |
+
+Gatekeeper refuses to open an un-notarized app downloaded with the quarantine flag, so for an
+ad-hoc release the cask's `postflight_steps` clears `com.apple.quarantine` from
+`Simple Voice.app` only, and a caveat tells users why and how to re-grant permissions after an
+upgrade (macOS ties grants to the code signature, and an ad-hoc signature changes with every
+build). A notarized release drops both blocks from the published cask, and grants survive
+upgrades.
 
 Homebrew keeps unsigned casks out of `homebrew/cask`, so Simple Voice stays in its own tap until
 releases are notarized. Since Homebrew 6.0 a non-official tap must be trusted before its casks
