@@ -34,7 +34,7 @@ impl Db {
                       COALESCE(SUM(audio_ms), 0) AS "audio_ms!: i64",
                       COALESCE(SUM(dictionary_fixes), 0) AS "dictionary_fixes!: i64",
                       COALESCE(SUM(words_corrected), 0) AS "words_corrected!: i64"
-               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')"#
+               FROM history WHERE status <> 'failed'"#
         )
         .fetch_one(&inner.pool)
         .await
@@ -44,7 +44,7 @@ impl Db {
             r#"SELECT (created_at + ?1) / 86400000 AS "day!: i64",
                       COUNT(*) AS "dictations!: i64",
                       COALESCE(SUM(word_count), 0) AS "words!: i64"
-               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')
+               FROM history WHERE status <> 'failed'
                GROUP BY 1 ORDER BY 1"#,
             offset_ms
         )
@@ -63,7 +63,7 @@ impl Db {
             r#"SELECT app_category AS "category!: String",
                       COUNT(*) AS "dictations!: i64",
                       COALESCE(SUM(word_count), 0) AS "words!: i64"
-               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')
+               FROM history WHERE status <> 'failed'
                GROUP BY app_category ORDER BY 2 DESC, 3 DESC"#
         )
         .fetch_all(&inner.pool)
@@ -83,7 +83,7 @@ impl Db {
                       MAX(bundle_id) AS "bundle_id?: String",
                       COALESCE(SUM(word_count), 0) AS "words!: i64"
                FROM history
-               WHERE status IN ('pasted', 'unformatted', 'dropped') AND app_name IS NOT NULL
+               WHERE status <> 'failed' AND app_name IS NOT NULL
                GROUP BY app_name ORDER BY 3 DESC, 1 LIMIT ?1"#,
             TOP_APPS
         )
@@ -271,14 +271,16 @@ mod tests {
     async fn aggregates_streaks_months_and_apps() {
         let (_dir, db) = open().await;
         let day = 24 * HOUR;
-        // Current streak: yesterday and the two days before (none today yet).
+        // Current streak: yesterday and the two days before (none today yet). Text that could
+        // not be pasted was still dictated, so it counts like pasted text.
         for back in 1..=3 {
-            let pasted = dictation(
-                NOW - back * day,
-                "one two three four",
-                HistoryStatus::Pasted,
-            );
-            db.insert_history(pasted).await.unwrap();
+            let status = if back == 1 {
+                HistoryStatus::NotPasted
+            } else {
+                HistoryStatus::Pasted
+            };
+            let spoken = dictation(NOW - back * day, "one two three four", status);
+            db.insert_history(spoken).await.unwrap();
         }
         // Longest streak: four consecutive days in February.
         for back in 20..=23 {

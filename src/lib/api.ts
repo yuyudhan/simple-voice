@@ -50,7 +50,7 @@ export interface Microphone {
     isBuiltIn: boolean;
 }
 
-export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped";
+export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped" | "not_pasted";
 
 export type AppCategory =
     "work_messages" | "personal_messages" | "email" | "documents" | "ai_prompts" | "code" | "other";
