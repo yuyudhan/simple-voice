@@ -4,7 +4,7 @@ import { Monitor, Moon, Sun } from "lucide-react";
 import { api, errorMessage, type Microphone, type Theme } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
 import { Segmented, Select, SettingRow, SettingsGroup, type SegmentedOption } from "../../../ui";
-import { FnKeyAccessWarning } from "../shortcuts/FnKeyAccessWarning";
+import { AccessibilityWarning } from "../permissions/AccessibilityWarning";
 import { ShortcutRecorder } from "../shortcuts/ShortcutRecorder";
 import { LanguagePicker } from "./LanguagePicker";
 import "../common.css";
@@ -118,7 +118,7 @@ export function GeneralSection() {
                     <ShortcutRecorder field="toggleShortcut" />
                 </SettingRow>
             </SettingsGroup>
-            <FnKeyAccessWarning placement="inline" />
+            <AccessibilityWarning placement="inline" />
 
             <SettingsGroup title="Microphone">
                 <SettingRow

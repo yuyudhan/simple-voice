@@ -261,11 +261,16 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
 `useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
 
-Fn key access: `settings/shortcuts/FnKeyAccessWarning.tsx` renders whenever `holdShortcut` or
-`toggleShortcut` is `"Fn"` and `permissions.accessibility !== "granted"`. It has no dismiss
-control: the shell pins it (sticky) above every page, and the General settings and the onboarding
-shortcut step show it inline. The helper gates its Fn event tap on the same Accessibility grant,
-so the warning and the tap agree.
+Accessibility access: `settings/permissions/AccessibilityWarning.tsx` has no dismiss control. The
+shell pins it (sticky) above every page whenever `permissions.accessibility !== "granted"`, saying
+that text is only copied, and that Fn does nothing when `holdShortcut` or `toggleShortcut` is
+`"Fn"`. The General settings and the onboarding shortcut step show it inline only while Fn is a
+shortcut. The helper gates paste and its Fn event tap on the same grant, so the warning, paste and
+the tap agree. `AXIsProcessTrusted()` can stay false inside a running process after the user
+grants access, so while it does the helper re-checks in a short-lived copy of itself
+(`simple-voice-engine --check-accessibility`, exit status 0 when trusted, reused for 1 s); the
+2 s permission poller then emits `permissions-changed` and the warning disappears without a
+relaunch.
 
 Appearance: `settings.theme` (`"system" | "light" | "dark"`) is applied by the UI, not the
 backend (`src/app/theme.ts`). The main window always carries the resolved theme as

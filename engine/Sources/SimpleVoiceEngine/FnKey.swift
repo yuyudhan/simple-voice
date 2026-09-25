@@ -71,19 +71,19 @@ final class FnKeyMonitor {
         }
         self.enabled = enabled
         if enabled {
-            install()
+            install(trusted: AXIsProcessTrusted())
         } else {
             uninstall()
         }
         return tap != nil
     }
 
-    private func install() {
+    private func install(trusted: Bool) {
         guard tap == nil else { return }
         // Without the permission macOS still creates the tap but delivers no key events, so the
         // permission is checked up front. It is the Accessibility grant paste needs as well, and
         // the one the UI warns about while Fn is configured.
-        guard AXIsProcessTrusted() else {
+        guard trusted else {
             scheduleRetry()
             return
         }
@@ -115,12 +115,16 @@ final class FnKeyMonitor {
         guard retry == nil else { return }
         Log.info("cannot watch the Fn key without Accessibility access; retrying")
         retry = Timer.scheduledTimer(withTimeInterval: Self.retryInterval, repeats: true) { _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor in
                 let monitor = FnKeyMonitor.shared
-                if monitor.enabled {
-                    monitor.install()
-                } else {
+                guard monitor.enabled else {
                     monitor.uninstall()
+                    return
+                }
+                // A grant made while running is only seen by a fresh check (AccessibilityTrust).
+                let trusted = await AccessibilityTrust.isTrusted()
+                if monitor.enabled {
+                    monitor.install(trusted: trusted)
                 }
             }
         }

@@ -8,7 +8,7 @@ import { HistoryPage } from "../features/history/HistoryPage";
 import { InsightsPage } from "../features/insights/InsightsPage";
 import { DictionaryPage } from "../features/dictionary/DictionaryPage";
 import { StylePage } from "../features/style/StylePage";
-import { FnKeyAccessWarning } from "../features/settings/shortcuts/FnKeyAccessWarning";
+import { AccessibilityWarning } from "../features/settings/permissions/AccessibilityWarning";
 import { useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
 import { ShellContext, type Page, type SettingsSection } from "./ShellContext";
@@ -65,7 +65,7 @@ export function App() {
                 <ThemeToggle resolved={resolvedTheme} />
                 <Sidebar page={page} onNavigate={setPage} onOpenSettings={openSettings} />
                 <main className="sv-shell__main">
-                    <FnKeyAccessWarning placement="shell" />
+                    <AccessibilityWarning placement="shell" />
                     <div className="sv-shell__content" key={page}>
                         {page === "home" && <HistoryPage />}
                         {page === "insights" && <InsightsPage />}

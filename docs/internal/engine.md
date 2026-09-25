@@ -89,7 +89,10 @@ The helper is launched by Simple Voice.app, so macOS attributes its permission c
 prompts to the app (the responsible process), not to the helper binary:
 
 - `permissions` reads microphone (`AVCaptureDevice`), accessibility (`AXIsProcessTrusted`) and
-  speech recognition (`SFSpeechRecognizer`) status for Simple Voice.
+  speech recognition (`SFSpeechRecognizer`) status for Simple Voice. `AXIsProcessTrusted` can
+  keep answering false in a running process after access is granted, so while it does, the
+  helper asks a short-lived copy of itself (`simple-voice-engine --check-accessibility`, exit
+  status 0 when trusted). The Fn key retry and `paste` use the same check.
 - `request_permission` shows the system prompt; for accessibility it opens the prompt that
   leads to System Settings, since that permission can only be granted there.
 - `open_settings` opens the matching Privacy & Security pane.

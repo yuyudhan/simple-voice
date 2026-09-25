@@ -10,8 +10,9 @@ import Foundation
 import Speech
 
 enum Permissions {
-    static func current() -> PermissionsResult {
-        PermissionsResult(microphone: microphone(), accessibility: accessibility(), speech: speech())
+    static func current() async -> PermissionsResult {
+        let accessibility: PermissionState = await AccessibilityTrust.isTrusted() ? .granted : .denied
+        return PermissionsResult(microphone: microphone(), accessibility: accessibility, speech: speech())
     }
 
     /// Shows the system prompt when the user has not decided yet; otherwise reports the state.
@@ -35,11 +36,7 @@ enum Permissions {
                 }
             }
         }
-        return current()
-    }
-
-    static func isAccessibilityTrusted() -> Bool {
-        AXIsProcessTrusted()
+        return await current()
     }
 
     private static func microphone() -> PermissionState {
@@ -55,11 +52,6 @@ enum Permissions {
         @unknown default:
             .denied
         }
-    }
-
-    /// Accessibility has no "not determined" state: the process is either trusted or not.
-    private static func accessibility() -> PermissionState {
-        AXIsProcessTrusted() ? .granted : .denied
     }
 
     private static func speech() -> PermissionState {
