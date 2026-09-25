@@ -6,6 +6,9 @@
 export const MODIFIER_ORDER = ["Control", "Alt", "Shift", "Super"] as const;
 export type Modifier = (typeof MODIFIER_ORDER)[number];
 
+/** The Fn (Globe) key on its own; the core watches it outside the global-shortcut plugin. */
+export const FN_KEY = "Fn";
+
 const NAMED_CODES: Record<string, string> = {
     Space: "Space",
     Quote: "Quote",

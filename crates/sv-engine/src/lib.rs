@@ -6,7 +6,9 @@
 #![forbid(unsafe_code)]
 
 mod client;
+mod event;
 mod protocol;
 
 pub use client::{EngineClient, ProgressCallback, Transport};
+pub use event::{EngineEvent, EventHandler, FnKeyAction};
 pub use protocol::{EngineTranscript, FrontmostApp, ModelStatusResult, PingResult, PolishReply};

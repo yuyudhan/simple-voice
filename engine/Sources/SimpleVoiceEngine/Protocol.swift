@@ -254,6 +254,12 @@ private struct ProgressLine: Encodable {
     let message: String
 }
 
+/// Unsolicited, so it carries no request id.
+private struct FnKeyLine: Encodable {
+    let event = "fn_key"
+    let action: FnKeyAction
+}
+
 /// Serializes every stdout line so concurrent requests never interleave bytes.
 actor Output {
     private let handle: FileHandle
@@ -276,6 +282,10 @@ actor Output {
 
     func progress(id: Int64, fraction: Double, message: String) {
         emit(ProgressLine(id: id, fraction: min(max(fraction, 0), 1), message: message))
+    }
+
+    func fnKey(_ action: FnKeyAction) {
+        emit(FnKeyLine(action: action))
     }
 
     private func emit(_ line: some Encodable) {

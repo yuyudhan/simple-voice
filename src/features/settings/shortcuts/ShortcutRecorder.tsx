@@ -2,11 +2,12 @@
 // Shows a configured global shortcut and records a replacement from the next key combination.
 // Global shortcuts are suspended while recording so pressing the current combination does not
 // start a dictation; they are always resumed afterwards, including on unmount and window blur.
+// The webview does not reliably report the Fn key on its own, so it is offered as a button.
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
 import { Button, ShortcutKeys } from "../../../ui";
-import { captureKey } from "./accelerator";
+import { FN_KEY, captureKey } from "./accelerator";
 import "./ShortcutRecorder.css";
 
 export type ShortcutField = "holdShortcut" | "toggleShortcut";
@@ -25,7 +26,7 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
     // Read through refs so a settings refresh mid-recording does not tear down the listeners
     // (which would resume global shortcuts while the user is still pressing keys).
     const contextRef = useRef({ settings, refresh });
-    const cancelRef = useRef<() => void>(() => undefined);
+    const finishRef = useRef<(accelerator: string | null) => void>(() => undefined);
 
     useEffect(() => {
         contextRef.current = { settings, refresh };
@@ -76,8 +77,8 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
                 });
             }
         };
-        cancelRef.current = () => {
-            void finish(null);
+        finishRef.current = (accelerator) => {
+            void finish(accelerator);
         };
 
         const onKeyDown = (event: KeyboardEvent) => {
@@ -137,15 +138,26 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
                     <ShortcutKeys accelerator={settings[field]} />
                 )}
                 {recording ? (
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                            cancelRef.current();
-                        }}
-                    >
-                        Cancel
-                    </Button>
+                    <>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                finishRef.current(FN_KEY);
+                            }}
+                        >
+                            Use fn
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                                finishRef.current(null);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                    </>
                 ) : (
                     <Button
                         size="sm"
@@ -160,6 +172,12 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
                 )}
             </div>
             {recording && !error && <p className="sv-shortcut-rec__hint">Esc to cancel</p>}
+            {!recording && settings[field] === FN_KEY && (
+                <p className="sv-shortcut-rec__note">
+                    If fn opens emoji or switches input source, set System Settings → Keyboard →
+                    “Press fn key to” → Do Nothing.
+                </p>
+            )}
             {error && (
                 <p className="sv-shortcut-rec__error" role="alert">
                     {error}

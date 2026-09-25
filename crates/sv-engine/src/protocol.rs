@@ -72,6 +72,11 @@ struct MutedResult {
     previous: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct FnKeyWatch {
+    active: bool,
+}
+
 /// Builds a flat parameter object, leaving out absent optional values.
 fn params<const N: usize>(pairs: [(&str, Option<Value>); N]) -> Value {
     let map: Map<String, Value> = pairs
@@ -204,6 +209,14 @@ impl EngineClient {
         let params = params([("muted", Some(Value::from(muted)))]);
         let result: MutedResult = self.request("set_output_muted", params, QUICK).await?;
         Ok(result.previous)
+    }
+
+    /// Starts or stops the Fn key events. Returns whether the key is being watched now; while
+    /// Accessibility access is missing the helper keeps retrying and reports `false`.
+    pub async fn watch_fn_key(&self, enabled: bool) -> AppResult<bool> {
+        let params = params([("enabled", Some(Value::from(enabled)))]);
+        let result: FnKeyWatch = self.request("watch_fn_key", params, QUICK).await?;
+        Ok(result.active)
     }
 
     /// Runs the post-processing prompt on Apple Intelligence. `shots` are `(user, assistant)`

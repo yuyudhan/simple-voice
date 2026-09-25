@@ -30,6 +30,8 @@ pub(crate) enum Control {
     Toggle,
     /// A global shortcut went down (`true`) or up (`false`).
     Shortcut(Binding, bool),
+    /// The held shortcut key turned out to be part of another key combination (Fn+Arrow).
+    ShortcutChord(Binding),
     /// The maximum recording length of this session elapsed.
     Watchdog(u64),
 }

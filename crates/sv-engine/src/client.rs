@@ -17,6 +17,8 @@ use serde_json::{Map, Value};
 use sv_domain::{AppError, AppResult};
 use tokio::sync::oneshot;
 
+use crate::event::{EngineEvent, EventHandler};
+
 /// Receives `(fraction 0..1, message)` for each progress event of a request.
 pub type ProgressCallback = Box<dyn Fn(f32, Option<String>) + Send + Sync>;
 
@@ -38,6 +40,7 @@ struct Inner {
     transport: Option<Arc<dyn Transport>>,
     next_id: u64,
     pending: HashMap<u64, Pending>,
+    on_event: Option<Arc<EventHandler>>,
 }
 
 /// Cheap to clone; all clones share one connection and one pending map.
@@ -67,6 +70,11 @@ impl EngineClient {
         self.lock().transport = Some(transport);
     }
 
+    /// Installs the receiver of unsolicited helper events; it survives helper restarts.
+    pub fn set_event_handler(&self, handler: EventHandler) {
+        self.lock().on_event = Some(Arc::new(handler));
+    }
+
     /// Handles one line the helper wrote to stdout.
     pub fn on_stdout_line(&self, line: &str) {
         let line = line.trim();
@@ -81,7 +89,7 @@ impl EngineClient {
             }
         };
         let Some(id) = message.get("id").and_then(Value::as_u64) else {
-            tracing::warn!(line = %preview(line), "ignoring engine output without an id");
+            self.dispatch_event(message, line);
             return;
         };
 
@@ -225,6 +233,21 @@ impl EngineClient {
             .and_then(Value::as_str)
             .map(str::to_owned);
         callback(fraction, text);
+    }
+
+    fn dispatch_event(&self, message: Value, line: &str) {
+        let event = match serde_json::from_value::<EngineEvent>(message) {
+            Ok(event) => event,
+            Err(error) => {
+                tracing::warn!(%error, line = %preview(line), "ignoring unknown engine output");
+                return;
+            }
+        };
+        let handler = self.lock().on_event.clone();
+        match handler {
+            Some(handler) => handler(event),
+            None => tracing::debug!(?event, "no receiver for an engine event"),
+        }
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -462,6 +485,29 @@ mod tests {
             .request("ping", Value::from(3), Duration::from_secs(1))
             .await;
         assert!(matches!(result, Err(AppError::InvalidInput(_))));
+    }
+
+    #[test]
+    fn delivers_fn_key_events_and_skips_unknown_ones() {
+        let client = EngineClient::new();
+        let seen = Arc::new(SyncMutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        client.set_event_handler(Box::new(move |event| sink.lock().push(event)));
+        client.on_stdout_line(r#"{"event":"fn_key","action":"press"}"#);
+        client.on_stdout_line(r#"{"event":"fn_key","action":"wiggle"}"#);
+        client.on_stdout_line(r#"{"event":"volume","level":3}"#);
+        client.on_stdout_line(r#"{"event":"fn_key","action":"release"}"#);
+        assert_eq!(
+            *seen.lock(),
+            vec![
+                EngineEvent::FnKey {
+                    action: crate::FnKeyAction::Press
+                },
+                EngineEvent::FnKey {
+                    action: crate::FnKeyAction::Release
+                },
+            ]
+        );
     }
 
     #[test]

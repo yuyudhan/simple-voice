@@ -50,8 +50,11 @@ pub enum PostProcessing {
     Off,
 }
 
-pub const DEFAULT_HOLD_SHORTCUT: &str = "Alt+Space";
-pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Shift+Space";
+/// The Fn (Globe) key on its own. Carbon hot keys cannot register a lone modifier, so the app
+/// watches this key through the engine helper instead of the global-shortcut plugin.
+pub const FN_KEY_ACCELERATOR: &str = "Fn";
+pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
+pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 pub const DEFAULT_TRANSCRIPTION_MODEL: &str = "groq-whisper";
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
