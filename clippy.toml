@@ -1,0 +1,6 @@
+# FilePath: clippy.toml
+# Test code may unwrap/expect/panic: a failing assertion is the point of a test.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-dbg-in-tests = false

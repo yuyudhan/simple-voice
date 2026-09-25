@@ -1,0 +1,27 @@
+# FilePath: .gitignore
+# Build output, dependencies, and machine-local state. `.sqlx/`, `Cargo.lock` and `bun.lock` are
+# committed on purpose: the offline query cache and both lockfiles make CI builds reproducible.
+
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+target/
+src-tauri/gen/
+src-tauri/binaries/
+engine/.build/
+engine/.swiftpm/
+
+# Logs and local environment
+*.log
+logs/
+.env
+.env.*
+*.local
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.sw?

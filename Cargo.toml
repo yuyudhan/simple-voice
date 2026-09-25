@@ -1,0 +1,102 @@
+# FilePath: Cargo.toml
+# One workspace, split by responsibility. Dependency direction is strictly downward:
+#
+#   src-tauri (simple-voice app: windows, shortcuts, tray, commands, dictation coordinator)
+#     ├── sv-storage  (SQLite via sqlx: settings, history, dictionary, insights, migrations)
+#     ├── sv-text     (vocabulary, deterministic formatting, polish prompt + guards, word diff)
+#     ├── sv-cloud    (Groq Whisper, OpenAI-compatible chat for post-processing)
+#     ├── sv-audio    (microphone capture, WAV encoding, level meter, cue sounds)
+#     ├── sv-engine   (client for the Swift engine helper sidecar)
+#     └── sv-domain   (shared serde types and the error type; depends on nothing internal)
+[workspace]
+resolver = "2"
+members = ["src-tauri", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+authors = ["yuyudhan <ankurkumarpandey@gmail.com>"]
+repository = "https://github.com/yuyudhan/simple-voice"
+
+[workspace.dependencies]
+sv-domain = { path = "crates/sv-domain" }
+sv-storage = { path = "crates/sv-storage" }
+sv-text = { path = "crates/sv-text" }
+sv-cloud = { path = "crates/sv-cloud" }
+sv-audio = { path = "crates/sv-audio" }
+sv-engine = { path = "crates/sv-engine" }
+
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+tauri-build = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.9", default-features = false, features = [
+    "sqlite",
+    "runtime-tokio",
+    "macros",
+    "migrate",
+] }
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "sync",
+    "time",
+    "fs",
+    "process",
+    "io-util",
+] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "multipart"] }
+bytes = "1"
+cpal = "0.18"
+rodio = { version = "0.22", default-features = false, features = ["playback"] }
+arboard = { version = "3", default-features = false }
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tempfile = "3"
+parking_lot = "0.12"
+
+# Every member opts in with `[lints] workspace = true`. `#![forbid(unsafe_code)]` at the top of
+# each lib.rs/main.rs documents the same intent in the file a reader opens first; this table makes
+# a new crate that forgets the attribute still fail to build. There is no suppression escape
+# hatch: `#[allow]` is denied, and scripts/guard/no-suppressions.sh rejects `#[expect]` too.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unreachable_pub = "deny"
+unused_qualifications = "deny"
+unused_import_braces = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unused_lifetimes = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+# A background dictation app must never abort on a bad response, a missing device, or a
+# malformed row. clippy.toml relaxes these inside #[cfg(test)] only.
+panic = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

@@ -1,0 +1,23 @@
+# FilePath: .typos.toml
+# Spellcheck configuration for `typos` (`just lint`, pre-commit, CI). Kept minimal: a word that
+# is correct in this codebase's own vocabulary goes into [default.extend-words] with a comment
+# saying why; the exclusions cover only machine-generated content nobody hand-writes, so a real
+# typo in prose or identifiers still gets caught.
+
+[files]
+extend-exclude = [
+    "bun.lock",
+    "Cargo.lock",
+    ".sqlx/",
+    "src-tauri/icons/",
+    "src-tauri/gen/",
+    "target/",
+    "node_modules/",
+    "dist/",
+    "engine/.build/",
+    "engine/Package.resolved",
+]
+
+[default.extend-words]
+# Microphone brand used in device-selection tests.
+Shure = "Shure"

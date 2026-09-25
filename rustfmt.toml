@@ -1,0 +1,8 @@
+# FilePath: rustfmt.toml
+# One formatter configuration for every crate in the workspace (src-tauri and crates/*), so
+# `cargo fmt --all` and editors agree with .editorconfig: 4 spaces, 100 columns.
+edition = "2021"
+max_width = 100
+tab_spaces = 4
+hard_tabs = false
+newline_style = "Unix"

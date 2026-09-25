@@ -1,0 +1,13 @@
+# FilePath: taplo.toml
+# taplo (TOML formatter/linter) configuration, driven by `just fmt` / `just fmt-check`.
+# 4-space indent and 100 columns match .editorconfig. Lockfiles are generated and excluded.
+include = ["*.toml", "crates/**/*.toml", "src-tauri/**/*.toml"]
+exclude = ["**/target/**", "**/node_modules/**", "engine/.build/**", "Cargo.lock"]
+
+[formatting]
+indent_string = "    "
+reorder_keys = false
+reorder_arrays = false
+column_width = 100
+compact_arrays = true
+compact_inline_tables = false

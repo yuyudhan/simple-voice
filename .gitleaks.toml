@@ -1,0 +1,17 @@
+# FilePath: .gitleaks.toml
+# gitleaks configuration for scripts/guard/no-secrets.sh (never commit a secret). It extends
+# the full default rule set; nothing is disabled. The extra rule below pins the Groq key shape
+# explicitly because a Groq key is the one credential every user of this app pastes in.
+# Allowlist a value here (or a fingerprint in .gitleaksignore) only when it is proven not to
+# be a live credential, with a comment stating why.
+
+title = "simple-voice"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "groq-api-key"
+description = "Groq API key"
+regex = '''\bgsk_[A-Za-z0-9]{20,}\b'''
+keywords = ["gsk_"]

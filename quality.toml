@@ -1,0 +1,22 @@
+# FilePath: quality.toml
+#
+# Every mechanical size ceiling this repo enforces, as one number each, plus the per-path
+# exceptions that record debt against a ceiling. scripts/guard/ratchet.sh makes both of the
+# following facts durable, not just documented:
+#
+#   - A ceiling here may only ever DECREASE. Raising [file_size].all to make a gate pass is
+#     exactly what ratchet.sh exists to block.
+#   - A [file_size.exceptions] entry is debt with a ceiling, never permission. A listed path may
+#     exceed the real ceiling only up to its own recorded number, and a listed path whose count
+#     has fallen back to or under the real ceiling still fails: the debt is paid off, so the
+#     entry is stale and must be deleted (see scripts/guard/file-size.sh). ratchet.sh also
+#     refuses any new exception entry outright; a file that needs one wants splitting.
+#
+# Read by shell (scripts/lib/quality.sh), so every value stays a plain `key = value` /
+# `"path" = N` line: no nested tables, no arrays, no inline comments after a value.
+
+[file_size]
+all = 500
+
+[file_size.exceptions]
+# "path/relative/to/repo-root.rs" = 620

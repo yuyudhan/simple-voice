@@ -1,0 +1,12 @@
+# FilePath: .prettierignore
+# Generated or vendored output that prettier must never rewrite.
+node_modules/
+dist/
+target/
+.sqlx/
+engine/.build/
+src-tauri/gen/
+src-tauri/icons/
+src-tauri/binaries/
+bun.lock
+Cargo.lock
