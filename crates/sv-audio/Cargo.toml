@@ -1,0 +1,21 @@
+# FilePath: crates/sv-audio/Cargo.toml
+[package]
+name = "sv-audio"
+description = "Microphone capture at 16 kHz mono, WAV encoding, level metering and cue sounds."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+sv-domain.workspace = true
+cpal.workspace = true
+rodio.workspace = true
+serde.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+
+[lints]
+workspace = true
