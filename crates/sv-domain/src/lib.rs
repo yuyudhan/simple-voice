@@ -24,4 +24,4 @@ pub use history::{HistoryEntry, HistoryStatus, NewHistory};
 pub use insights::{AppUsage, CategoryUsage, DayActivity, Insights};
 pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus};
 pub use permissions::{PermissionKind, PermissionStatus, Permissions};
-pub use settings::{PostProcessing, Settings, SettingsPatch, SoundTheme, Style};
+pub use settings::{PostProcessing, Settings, SettingsPatch, SoundTheme, Style, Theme};

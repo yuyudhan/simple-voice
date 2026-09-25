@@ -171,6 +171,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         custom_base_url,
         custom_model,
         show_in_dock,
+        theme,
         restore_clipboard,
         max_recording_seconds,
         onboarding_complete,
@@ -203,6 +204,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set_trimmed(&mut settings.custom_base_url, custom_base_url);
     set_trimmed(&mut settings.custom_model, custom_model);
     set(&mut settings.show_in_dock, show_in_dock);
+    set(&mut settings.theme, theme);
     set(&mut settings.restore_clipboard, restore_clipboard);
     set(&mut settings.max_recording_seconds, max_recording_seconds);
     set(&mut settings.onboarding_complete, onboarding_complete);
@@ -324,7 +326,7 @@ async fn store_key(pool: &SqlitePool, name: &str, key: Option<String>) -> AppRes
 
 #[cfg(test)]
 mod tests {
-    use sv_domain::{SoundTheme, Style};
+    use sv_domain::{SoundTheme, Style, Theme};
 
     use super::*;
 
@@ -352,6 +354,7 @@ mod tests {
         let patch = SettingsPatch {
             style: Some(Style::Casual),
             sound_theme: Some(SoundTheme::Chime),
+            theme: Some(Theme::Dark),
             sound_volume: Some(0.55),
             microphone: Some(Some("MacBook Pro Microphone".to_owned())),
             languages: Some(vec!["en".to_owned()]),
@@ -366,6 +369,7 @@ mod tests {
         assert_eq!(stored, returned);
         assert_eq!(stored.style, Style::Casual);
         assert_eq!(stored.sound_theme, SoundTheme::Chime);
+        assert_eq!(stored.theme, Theme::Dark);
         assert!((stored.sound_volume - 0.55).abs() < f32::EPSILON);
         assert_eq!(stored.microphone.as_deref(), Some("MacBook Pro Microphone"));
         assert_eq!(stored.languages, vec!["en"]);

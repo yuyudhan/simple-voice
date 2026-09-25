@@ -6,6 +6,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type Style = "formal" | "casual";
 export type SoundTheme = "soft" | "glass" | "pop" | "chime";
+export type Theme = "system" | "light" | "dark";
 export type PostProcessing = "groq" | "apple" | "custom" | "off";
 export type PermissionKind = "microphone" | "accessibility" | "speech";
 export type PermissionStatus = "granted" | "denied" | "not_determined" | "restricted";
@@ -31,6 +32,7 @@ export interface Settings {
     customModel: string;
     customApiKeyPresent: boolean;
     showInDock: boolean;
+    theme: Theme;
     restoreClipboard: boolean;
     maxRecordingSeconds: number;
     onboardingComplete: boolean;

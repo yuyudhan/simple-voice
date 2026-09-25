@@ -25,6 +25,16 @@ pub enum SoundTheme {
     Chime,
 }
 
+/// Appearance. `System` follows the macOS light/dark setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
 /// Which backend runs the LLM formatting pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -75,6 +85,7 @@ pub struct Settings {
     /// Derived: a key for the custom endpoint is stored.
     pub custom_api_key_present: bool,
     pub show_in_dock: bool,
+    pub theme: Theme,
     pub restore_clipboard: bool,
     pub max_recording_seconds: u32,
     pub onboarding_complete: bool,
@@ -105,7 +116,10 @@ impl Default for Settings {
             custom_model: String::new(),
             custom_api_key_present: false,
             show_in_dock: true,
-            restore_clipboard: true,
+            theme: Theme::System,
+            // Off by default: the dictated text stays on the clipboard, so it can be pasted
+            // again or by hand when the automatic paste could not reach the app.
+            restore_clipboard: false,
             max_recording_seconds: 300,
             onboarding_complete: false,
             database_dir: String::new(),
@@ -137,6 +151,7 @@ pub struct SettingsPatch {
     pub custom_base_url: Option<String>,
     pub custom_model: Option<String>,
     pub show_in_dock: Option<bool>,
+    pub theme: Option<Theme>,
     pub restore_clipboard: Option<bool>,
     pub max_recording_seconds: Option<u32>,
     pub onboarding_complete: Option<bool>,
@@ -184,7 +199,7 @@ mod tests {
     #[test]
     fn enums_use_the_wire_names_the_ui_sends() {
         let patch: Result<SettingsPatch, _> = serde_json::from_str(
-            r#"{"style":"casual","soundTheme":"chime","postProcessing":"apple"}"#,
+            r#"{"style":"casual","soundTheme":"chime","postProcessing":"apple","theme":"dark"}"#,
         );
         let patch = patch.ok();
         assert_eq!(patch.as_ref().and_then(|p| p.style), Some(Style::Casual));
@@ -192,6 +207,7 @@ mod tests {
             patch.as_ref().and_then(|p| p.sound_theme),
             Some(SoundTheme::Chime)
         );
+        assert_eq!(patch.as_ref().and_then(|p| p.theme), Some(Theme::Dark));
         assert_eq!(
             patch.and_then(|p| p.post_processing),
             Some(PostProcessing::Apple)

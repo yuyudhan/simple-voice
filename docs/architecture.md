@@ -110,11 +110,13 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 
 ```rust
 // ── sv-domain (exists) ─────────────────────────────────────────────────────────────────
-// Settings, SettingsPatch, Style, SoundTheme, PostProcessing, HistoryEntry, NewHistory,
+// Settings, SettingsPatch, Style, SoundTheme, Theme, PostProcessing, HistoryEntry, NewHistory,
 // HistoryStatus, DictionaryEntry, ImportSummary, Insights, DayActivity, CategoryUsage, AppUsage,
 // AppCategory + categorize(), ModelInfo/Kind/Provider/Status + model id consts, Permissions,
 // PermissionKind/Status, DictationState/Phase, ModelProgress, AppError/AppResult,
 // text_stats::{word_count, words_corrected}.
+// Theme = System (default) | Light | Dark, wire "system" | "light" | "dark"; Settings.theme and
+// SettingsPatch.theme, stored in the `settings` row keyed `theme` like every other field.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -254,6 +256,12 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 `SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Tauri events are
 consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
 `useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
+
+Appearance: `settings.theme` (`"system" | "light" | "dark"`) is applied by the UI, not the
+backend. For `light`/`dark` it sets `data-theme="light"|"dark"` on `<html>` and calls
+`getCurrentWindow().setTheme(theme)`; for `system` it removes `data-theme` and calls
+`setTheme(null)` so the window follows macOS. `src-tauri/capabilities/default.json` grants
+`core:window:allow-set-theme` for this.
 
 ## 3. Tauri commands (invoked from the UI; TypeScript types in `src/lib/api.ts`)
 

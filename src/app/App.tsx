@@ -8,13 +8,23 @@ import { HistoryPage } from "../features/history/HistoryPage";
 import { InsightsPage } from "../features/insights/InsightsPage";
 import { DictionaryPage } from "../features/dictionary/DictionaryPage";
 import { StylePage } from "../features/style/StylePage";
+import { useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
 import { ShellContext, type Page, type SettingsSection } from "./ShellContext";
 import { Sidebar } from "./Sidebar";
+import { useTheme } from "./theme";
 import "./App.css";
 
 export function App() {
     const { settings, refresh } = useSettings();
+    const { toast } = useToast();
+    const themeError = useCallback(
+        (message: string) => {
+            toast(`Could not apply the theme to the window: ${message}`, "danger");
+        },
+        [toast],
+    );
+    useTheme(settings.theme, themeError);
     const [page, setPage] = useState<Page>("home");
     const [dialog, setDialog] = useState<{ open: boolean; section?: SettingsSection }>({
         open: false,
