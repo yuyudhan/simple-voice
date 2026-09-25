@@ -1,6 +1,6 @@
 // FilePath: src/app/Sidebar.tsx
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Activity as Pulse, AudioLines, BookA, Settings as SettingsIcon, Type } from "lucide-react";
+import { Activity as Pulse, AudioLines, BookA, Type } from "lucide-react";
 import {
     api,
     errorMessage,
@@ -10,9 +10,10 @@ import {
     type Settings,
 } from "../lib/api";
 import { useTauriEvent } from "../lib/useTauriEvent";
+import { SETTINGS_PAGES } from "../features/settings/settingsPages";
 import { BrandMark, ShortcutKeys, useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
-import type { Page, SettingsSection } from "./ShellContext";
+import type { Page } from "./ShellContext";
 import "./Sidebar.css";
 
 type Activity = "idle" | "recording" | "processing";
@@ -52,14 +53,54 @@ function missingPermission(permissions: Permissions, settings: Settings): boolea
 export interface SidebarProps {
     page: Page;
     onNavigate: (page: Page) => void;
-    onOpenSettings: (section?: SettingsSection) => void;
 }
 
-export function Sidebar({ page, onNavigate, onOpenSettings }: SidebarProps) {
+interface NavItemProps {
+    id: Page;
+    label: string;
+    icon: ReactNode;
+    active: boolean;
+    alert?: boolean;
+    onNavigate: (page: Page) => void;
+}
+
+function NavItem({ id, label, icon, active, alert = false, onNavigate }: NavItemProps) {
+    return (
+        <button
+            type="button"
+            className={`sv-nav__item${active ? " is-active" : ""}`}
+            aria-current={active ? "page" : undefined}
+            aria-label={alert ? `${label}, a permission is missing` : undefined}
+            onClick={() => {
+                onNavigate(id);
+            }}
+        >
+            <span className="sv-nav__icon" aria-hidden="true">
+                {icon}
+                {alert && <span className="sv-nav__alert" />}
+            </span>
+            {label}
+        </button>
+    );
+}
+
+export function Sidebar({ page, onNavigate }: SidebarProps) {
     const { settings } = useSettings();
     const { toast } = useToast();
     const [activity, setActivity] = useState<Activity>("idle");
     const [permissions, setPermissions] = useState<Permissions | null>(null);
+    const [version, setVersion] = useState<string | null>(null);
+
+    useEffect(() => {
+        void api.appInfo().then(
+            (info) => {
+                setVersion(info.version);
+            },
+            (error: unknown) => {
+                console.error("app_info failed", error);
+            },
+        );
+    }, []);
 
     const loadPermissions = useCallback(
         () =>
@@ -96,42 +137,37 @@ export function Sidebar({ page, onNavigate, onOpenSettings }: SidebarProps) {
             <div className="sv-brand" data-tauri-drag-region>
                 <BrandMark className="sv-brand__mark" />
                 <span className="sv-brand__name">Simple Voice</span>
+                {version && <span className="sv-brand__version">v{version}</span>}
             </div>
 
             <nav className="sv-nav" aria-label="Main">
                 {NAV.map((item) => (
-                    <button
+                    <NavItem
                         key={item.id}
-                        type="button"
-                        className={`sv-nav__item${page === item.id ? " is-active" : ""}`}
-                        aria-current={page === item.id ? "page" : undefined}
-                        onClick={() => {
-                            onNavigate(item.id);
-                        }}
-                    >
-                        <span className="sv-nav__icon" aria-hidden="true">
-                            {item.icon}
-                        </span>
-                        {item.label}
-                    </button>
+                        {...item}
+                        active={page === item.id}
+                        onNavigate={onNavigate}
+                    />
                 ))}
             </nav>
 
             <div className="sv-sidebar__bottom">
-                <button
-                    type="button"
-                    className="sv-nav__item"
-                    aria-label={needsPermission ? "Settings, a permission is missing" : "Settings"}
-                    onClick={() => {
-                        onOpenSettings(needsPermission ? "permissions" : undefined);
-                    }}
-                >
-                    <span className="sv-nav__icon" aria-hidden="true">
-                        <SettingsIcon />
-                        {needsPermission && <span className="sv-nav__alert" />}
+                <nav className="sv-nav" aria-labelledby="sv-nav-settings">
+                    <span id="sv-nav-settings" className="sv-nav__label caps-label">
+                        Settings
                     </span>
-                    Settings
-                </button>
+                    {SETTINGS_PAGES.map((item) => (
+                        <NavItem
+                            key={item.id}
+                            id={item.id}
+                            label={item.label}
+                            icon={item.icon}
+                            active={page === item.id}
+                            alert={item.id === "permissions" && needsPermission}
+                            onNavigate={onNavigate}
+                        />
+                    ))}
+                </nav>
                 <div className={`sv-status sv-status--${activity}`}>
                     <span className="sv-status__line" role="status" aria-live="polite">
                         <span className="sv-status__dot" aria-hidden="true" />
@@ -139,6 +175,9 @@ export function Sidebar({ page, onNavigate, onOpenSettings }: SidebarProps) {
                     </span>
                     <span className="sv-status__hint">
                         Hold <ShortcutKeys accelerator={settings.holdShortcut} /> to speak
+                    </span>
+                    <span className="sv-status__hint">
+                        Press <ShortcutKeys accelerator={settings.toggleShortcut} /> to toggle
                     </span>
                 </div>
             </div>

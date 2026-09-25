@@ -32,6 +32,25 @@
     }
 }
 
+/* App-wide notices (Accessibility access, available update), pinned above every page in one
+   stack so they never overlap; clears the fixed window drag strip. */
+.sv-shell__notices {
+    position: sticky;
+    top: 32px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 32px auto 0;
+    /* The content column: 760px wide with 40px padding either side. */
+    max-width: 680px;
+    width: calc(100% - 80px);
+}
+
+.sv-shell__notices:empty {
+    display: none;
+}
+
 .sv-shell__content {
     max-width: 760px;
     margin: 0 auto;

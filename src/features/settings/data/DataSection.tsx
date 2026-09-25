@@ -1,5 +1,5 @@
 // FilePath: src/features/settings/data/DataSection.tsx
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -40,14 +40,23 @@ function PathRow({ title, description, path }: PathRowProps) {
     );
 }
 
-interface Props {
-    info: AppInfo | null;
-    onInfoChanged: () => Promise<void>;
-}
-
-export function DataSection({ info, onInfoChanged }: Props) {
+export function DataSection() {
     const { settings, refresh } = useSettings();
     const { toast } = useToast();
+    const [info, setInfo] = useState<AppInfo | null>(null);
+
+    const loadInfo = useCallback(
+        () =>
+            api.appInfo().then(setInfo, (e: unknown) => {
+                toast(errorMessage(e), "danger");
+            }),
+        [toast],
+    );
+
+    useEffect(() => {
+        void loadInfo();
+    }, [loadInfo]);
+
     const [targetDir, setTargetDir] = useState<string | null>(null);
     const [moving, setMoving] = useState(false);
     const [moveError, setMoveError] = useState<string | null>(null);
@@ -78,7 +87,7 @@ export function DataSection({ info, onInfoChanged }: Props) {
         try {
             await api.setDatabaseDir(targetDir);
             await refresh();
-            await onInfoChanged();
+            await loadInfo();
             setTargetDir(null);
             toast("Database moved.", "success");
         } catch (e) {

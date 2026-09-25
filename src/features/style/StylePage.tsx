@@ -63,7 +63,7 @@ function providerSummary(settings: Settings): { name: string; detail: string; wa
 
 export function StylePage() {
     const { settings, update } = useSettings();
-    const { openSettings } = useShell();
+    const { navigate } = useShell();
     const provider = providerSummary(settings);
 
     return (
@@ -131,7 +131,7 @@ export function StylePage() {
                         variant="secondary"
                         size="sm"
                         onClick={() => {
-                            openSettings("models");
+                            navigate("models");
                         }}
                     >
                         Change in Settings
