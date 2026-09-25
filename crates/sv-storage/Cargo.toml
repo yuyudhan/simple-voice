@@ -1,0 +1,25 @@
+# FilePath: crates/sv-storage/Cargo.toml
+[package]
+name = "sv-storage"
+description = "SQLite storage for Simple Voice: settings, history, dictionary, insights."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+sv-domain.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
