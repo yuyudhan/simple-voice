@@ -149,10 +149,10 @@ jobs:
 
             - name: Update the Homebrew cask
               env:
-                  HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+                  HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
               run: |
-                  if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
-                      echo "::error::HOMEBREW_TAP_TOKEN is not configured; the tap was not updated"
+                  if [ -z "$HOMEBREW_TAP_DEPLOY_KEY" ]; then
+                      echo "::error::HOMEBREW_TAP_DEPLOY_KEY is not configured; the tap was not updated"
                       exit 1
                   fi
                   scripts/release/update-cask.sh publish "${{ steps.version.outputs.version }}" \

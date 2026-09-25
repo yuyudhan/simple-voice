@@ -13,8 +13,10 @@
 #   scripts/release/update-cask.sh render  VERSION SHA256 SIGNED    print the rendered cask
 #   scripts/release/update-cask.sh publish VERSION SHA256 SIGNED    commit it to the tap
 #
-# SIGNED is `true` or `false`. Publish needs HOMEBREW_TAP_TOKEN (a token with contents:write on
-# the tap repository); HOMEBREW_TAP_REPO overrides the default yuyudhan/homebrew-tap.
+# SIGNED is `true` or `false`. Publish needs HOMEBREW_TAP_DEPLOY_KEY: the private half of an SSH
+# deploy key with write access to the tap repository. GitHub's SSH host keys are fetched from
+# its HTTPS API and pinned, so the push never trusts an unverified host.
+# HOMEBREW_TAP_REPO overrides the default yuyudhan/homebrew-tap.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -69,14 +71,19 @@ if [ "$mode" = "render" ]; then
     exit 0
 fi
 
-: "${HOMEBREW_TAP_TOKEN:?HOMEBREW_TAP_TOKEN must be set to publish the cask}"
+: "${HOMEBREW_TAP_DEPLOY_KEY:?HOMEBREW_TAP_DEPLOY_KEY must be set to publish the cask}"
 tap_repo="${HOMEBREW_TAP_REPO:-yuyudhan/homebrew-tap}"
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
-git clone --depth 1 \
-    "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${tap_repo}.git" "${workdir}/tap"
+(umask 077 && printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" >"${workdir}/deploy-key")
+curl -fsSL https://api.github.com/meta |
+    jq -r '.ssh_keys[] | "github.com " + .' >"${workdir}/known_hosts"
+export GIT_SSH_COMMAND="ssh -i '${workdir}/deploy-key' -o IdentitiesOnly=yes \
+-o UserKnownHostsFile='${workdir}/known_hosts' -o StrictHostKeyChecking=yes"
+
+git clone --depth 1 "git@github.com:${tap_repo}.git" "${workdir}/tap"
 mkdir -p "${workdir}/tap/Casks"
 render >"${workdir}/tap/Casks/simple-voice.rb"
 

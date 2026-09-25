@@ -17,20 +17,27 @@ needs hand edits.
 
 1. Create a public GitHub repository named **`yuyudhan/homebrew-tap`** with a README (the first
    release adds `Casks/`).
-2. Create a fine-grained personal access token limited to that repository with
-   **Contents: Read and write**.
-3. In `yuyudhan/simple-voice` → Settings → Secrets and variables → Actions, add it as
-   **`HOMEBREW_TAP_TOKEN`**.
-4. Optionally add the Apple signing and notarization secrets below, so releases are Developer ID
+2. Give the release workflow write access to it with an SSH deploy key, which is scoped to that
+   one repository and does not expire:
+
+    ```sh
+    ssh-keygen -t ed25519 -N "" -C "simple-voice release" -f /tmp/tap-key
+    gh repo deploy-key add /tmp/tap-key.pub -R yuyudhan/homebrew-tap --allow-write \
+        --title "simple-voice release"
+    gh secret set HOMEBREW_TAP_DEPLOY_KEY -R yuyudhan/simple-voice </tmp/tap-key
+    rm /tmp/tap-key /tmp/tap-key.pub
+    ```
+
+3. Optionally add the Apple signing and notarization secrets below, so releases are Developer ID
    signed and notarized.
-5. Make sure GitHub Actions can run for the account: the release is built on a `macos-15`
+4. Make sure GitHub Actions can run for the account: the release is built on a `macos-15`
    runner.
 
 ### Repository secrets
 
 | Secret                                        | Purpose                                                                           |
 | --------------------------------------------- | --------------------------------------------------------------------------------- |
-| `HOMEBREW_TAP_TOKEN`                          | Required. Fine-grained token with Contents read/write on `yuyudhan/homebrew-tap`. |
+| `HOMEBREW_TAP_DEPLOY_KEY`                     | Required. Private key of the write-enabled deploy key on `yuyudhan/homebrew-tap`. |
 | `APPLE_CERTIFICATE`                           | Optional. Base64 of the Developer ID Application `.p12`.                          |
 | `APPLE_CERTIFICATE_PASSWORD`                  | Password of that `.p12`.                                                          |
 | `APPLE_SIGNING_IDENTITY`                      | e.g. `Developer ID Application: Name (TEAMID)`.                                   |
