@@ -1,7 +1,7 @@
-/* FilePath: src/features/settings/shortcuts/FnKeyAccessWarning.css */
-/* A warning, not an error: dictation still works through the other shortcut and the tray. */
+/* FilePath: src/features/settings/permissions/AccessibilityWarning.css */
+/* A warning, not an error: dictated text still reaches the clipboard. */
 
-.sv-fn-warning {
+.sv-access-warning {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -14,22 +14,22 @@
     line-height: 1.45;
 }
 
-.sv-fn-warning__icon {
+.sv-access-warning__icon {
     flex: none;
     color: var(--warning);
 }
 
-.sv-fn-warning__text {
+.sv-access-warning__text {
     flex: 1;
     margin: 0;
 }
 
-.sv-fn-warning > :last-child {
+.sv-access-warning > :last-child {
     flex: none;
 }
 
 /* Pinned above every page; clears the fixed window drag strip. */
-.sv-fn-warning--shell {
+.sv-access-warning--shell {
     position: sticky;
     top: 32px;
     z-index: 4;
@@ -39,6 +39,6 @@
     width: calc(100% - 80px);
 }
 
-.sv-fn-warning--inline {
+.sv-access-warning--inline {
     margin: 12px 0 20px;
 }
