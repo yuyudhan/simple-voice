@@ -1,0 +1,44 @@
+# FilePath: src-tauri/Cargo.toml
+[package]
+name = "simple-voice"
+description = "System-wide dictation for macOS: speak, and polished text lands in the focused app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# The `_lib` suffix keeps the lib name distinct from the bin name.
+name = "simple_voice_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+sv-domain.workspace = true
+sv-storage.workspace = true
+sv-text.workspace = true
+sv-cloud.workspace = true
+sv-audio.workspace = true
+sv-engine.workspace = true
+tauri.workspace = true
+tauri-plugin-opener.workspace = true
+tauri-plugin-global-shortcut.workspace = true
+tauri-plugin-autostart.workspace = true
+tauri-plugin-shell.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-single-instance.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+arboard.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
