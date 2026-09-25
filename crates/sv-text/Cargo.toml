@@ -1,0 +1,16 @@
+# FilePath: crates/sv-text/Cargo.toml
+[package]
+name = "sv-text"
+description = "Pure text processing for Simple Voice: vocabulary prompt, deterministic formatting, polish prompt and guards."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+sv-domain.workspace = true
+
+[lints]
+workspace = true
