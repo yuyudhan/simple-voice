@@ -1,6 +1,11 @@
 // FilePath: src-tauri/src/platform/overlay.rs
 //! The floating pill shown while dictating. It must never take focus: the dictated text is
 //! pasted into whatever app was frontmost, so the overlay is non-focusable and click-through.
+//!
+//! The window is ordered in once at launch and never ordered out again: in a Dock-visible
+//! (Regular) app, ordering the pill out while another app is frontmost makes AppKit activate
+//! Simple Voice and pull focus away from the app being dictated into. "Hidden" therefore means
+//! parked beyond every display.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
@@ -8,6 +13,7 @@ use std::time::Duration;
 use sv_domain::DictationPhase;
 use tauri::{
     AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
 };
 
 pub(crate) const OVERLAY: &str = "overlay";
@@ -16,10 +22,15 @@ const HEIGHT: f64 = 56.0;
 /// Logical points between the pill and the bottom of the work area (above the Dock).
 const BOTTOM_MARGIN: f64 = 80.0;
 const HIDE_DELAY: Duration = Duration::from_millis(1200);
+/// Physical pixels between the parked pill and the nearest display edge; larger than the pill
+/// at any scale factor, so no part of it reaches a screen.
+const PARK_GAP: i32 = 1000;
 
 #[derive(Debug, Default)]
 pub(crate) struct OverlayState {
     always: AtomicBool,
+    /// Whether the pill is meant to be on screen; while false it is kept parked.
+    shown: AtomicBool,
     /// Bumped on every phase change so a pending hide is skipped once a newer phase arrives.
     generation: AtomicU64,
 }
@@ -40,6 +51,15 @@ pub(crate) fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .build()?;
     window.set_ignore_cursor_events(true)?;
+    park(app, &window)?;
+    window.show()?;
+    // A display change can make AppKit pull an off-screen window back onto a screen.
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::Moved(position) = event {
+            keep_parked(&handle, *position);
+        }
+    });
     Ok(())
 }
 
@@ -98,19 +118,61 @@ fn window(app: &AppHandle) -> Option<WebviewWindow> {
 
 fn show(app: &AppHandle) {
     let Some(window) = window(app) else { return };
+    app.state::<OverlayState>()
+        .shown
+        .store(true, Ordering::SeqCst);
     if let Err(error) = position_under_cursor(app, &window) {
         tracing::debug!(%error, "could not position the overlay");
-    }
-    if let Err(error) = window.show() {
-        tracing::warn!(%error, "could not show the overlay");
     }
 }
 
 fn hide(app: &AppHandle) {
     let Some(window) = window(app) else { return };
-    if let Err(error) = window.hide() {
+    app.state::<OverlayState>()
+        .shown
+        .store(false, Ordering::SeqCst);
+    if let Err(error) = park(app, &window) {
         tracing::warn!(%error, "could not hide the overlay");
     }
+}
+
+fn park(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
+    window.set_position(parked_position(app)?)
+}
+
+fn keep_parked(app: &AppHandle, position: PhysicalPosition<i32>) {
+    if app.state::<OverlayState>().shown.load(Ordering::SeqCst) {
+        return;
+    }
+    let Some(window) = window(app) else { return };
+    match parked_position(app) {
+        Ok(parked) if parked == position => {}
+        Ok(parked) => {
+            if let Err(error) = window.set_position(parked) {
+                tracing::warn!(%error, "could not re-park the overlay");
+            }
+        }
+        Err(error) => tracing::warn!(%error, "could not re-park the overlay"),
+    }
+}
+
+/// Above and to the left of every display, so the pill is on no screen.
+fn parked_position(app: &AppHandle) -> tauri::Result<PhysicalPosition<i32>> {
+    let monitors = app.available_monitors()?;
+    let left = monitors
+        .iter()
+        .map(|monitor| monitor.position().x)
+        .min()
+        .unwrap_or(0);
+    let top = monitors
+        .iter()
+        .map(|monitor| monitor.position().y)
+        .min()
+        .unwrap_or(0);
+    Ok(PhysicalPosition::new(
+        left.saturating_sub(PARK_GAP),
+        top.saturating_sub(PARK_GAP),
+    ))
 }
 
 /// Bottom-centre of the work area of the monitor the cursor is on, so the pill appears on the
