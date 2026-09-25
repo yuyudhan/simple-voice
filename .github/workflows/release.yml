@@ -1,0 +1,157 @@
+# FilePath: .github/workflows/release.yml
+# Publishes a release when a `vX.Y.Z` tag is pushed (see `just release`): builds the Apple
+# Silicon app and DMG, uploads the DMG and its checksum to the GitHub release, and updates the
+# cask in yuyudhan/homebrew-tap.
+#
+# Signing: when the APPLE_CERTIFICATE secret exists the build is Developer ID signed, and when
+# APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID also exist it is notarized - Tauri reads these
+# variables itself. Without them the app is ad-hoc signed (APPLE_SIGNING_IDENTITY=-) and the
+# cask keeps its quarantine-clearing postflight.
+name: Release
+
+on:
+    push:
+        tags: ["v*"]
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+permissions:
+    contents: write
+
+env:
+    CARGO_TERM_COLOR: always
+    SQLX_OFFLINE: "true"
+
+jobs:
+    release:
+        name: Build and publish
+        runs-on: macos-15
+        timeout-minutes: 90
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Select Xcode
+              uses: maxim-lobanov/setup-xcode@v1
+              with:
+                  xcode-version: latest-stable
+
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: aarch64-apple-darwin
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+
+            - name: Set up bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install JavaScript dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Check the tag matches every version field
+              id: version
+              run: |
+                  version="${GITHUB_REF_NAME#v}"
+                  for file in package.json src-tauri/tauri.conf.json; do
+                      declared=$(bun -e "console.log(JSON.parse(await Bun.file('${file}').text()).version)")
+                      if [ "$declared" != "$version" ]; then
+                          echo "::error file=${file}::version ${declared} does not match tag ${GITHUB_REF_NAME}"
+                          exit 1
+                      fi
+                  done
+                  declared=$(cargo metadata --no-deps --format-version 1 |
+                      bun -e "const m = JSON.parse(await Bun.stdin.text());
+                          console.log(m.packages.find((p) => p.name === 'simple-voice').version)")
+                  if [ "$declared" != "$version" ]; then
+                      echo "::error file=Cargo.toml::version ${declared} does not match tag ${GITHUB_REF_NAME}"
+                      exit 1
+                  fi
+                  echo "version=${version}" >>"$GITHUB_OUTPUT"
+
+            - name: Build engine helper
+              run: bash engine/build.sh release
+
+            - name: Build app
+              id: build
+              env:
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  # A secret that is not configured arrives as an empty string, which Tauri would
+                  # treat as set; unset it so each signing step is either fully on or fully off.
+                  for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+                      if [ -z "${!name}" ]; then
+                          unset "$name"
+                      fi
+                  done
+                  if [ -n "${APPLE_CERTIFICATE:-}" ] && [ -n "${APPLE_SIGNING_IDENTITY:-}" ]; then
+                      signed=true
+                      echo "Signing with Developer ID: ${APPLE_SIGNING_IDENTITY}"
+                      if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] ||
+                          [ -z "${APPLE_TEAM_ID:-}" ]; then
+                          echo "::warning::Notarization secrets missing; the build is signed but not notarized"
+                          unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+                          signed=false
+                      fi
+                  else
+                      signed=false
+                      unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD \
+                          APPLE_TEAM_ID
+                      export APPLE_SIGNING_IDENTITY="-"
+                      echo "No Developer ID certificate configured; ad-hoc signing"
+                  fi
+                  bun run tauri build --target aarch64-apple-darwin
+                  echo "signed=${signed}" >>"$GITHUB_OUTPUT"
+
+            - name: Collect the DMG
+              id: dmg
+              run: |
+                  version="${{ steps.version.outputs.version }}"
+                  dir="target/aarch64-apple-darwin/release/bundle/dmg"
+                  built="${dir}/Simple Voice_${version}_aarch64.dmg"
+                  if [ ! -f "$built" ]; then
+                      echo "::error::expected ${built}; found:"
+                      ls -la "$dir" || true
+                      exit 1
+                  fi
+                  # GitHub rewrites spaces in asset names, so publish under a stable hyphenated
+                  # name that the cask URL can spell exactly.
+                  asset="Simple-Voice_${version}_aarch64.dmg"
+                  mkdir -p release-assets
+                  cp "$built" "release-assets/${asset}"
+                  sha=$(shasum -a 256 "release-assets/${asset}" | cut -d' ' -f1)
+                  printf '%s  %s\n' "$sha" "$asset" >"release-assets/${asset}.sha256"
+                  echo "asset=${asset}" >>"$GITHUB_OUTPUT"
+                  echo "sha256=${sha}" >>"$GITHUB_OUTPUT"
+
+            - name: Publish the GitHub release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  tag="${GITHUB_REF_NAME}"
+                  if gh release view "$tag" >/dev/null 2>&1; then
+                      gh release upload "$tag" release-assets/* --clobber
+                  else
+                      gh release create "$tag" release-assets/* --title "Simple Voice ${tag}" \
+                          --generate-notes --verify-tag
+                  fi
+
+            - name: Update the Homebrew cask
+              env:
+                  HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+              run: |
+                  if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+                      echo "::error::HOMEBREW_TAP_TOKEN is not configured; the tap was not updated"
+                      exit 1
+                  fi
+                  scripts/release/update-cask.sh publish "${{ steps.version.outputs.version }}" \
+                      "${{ steps.dmg.outputs.sha256 }}" "${{ steps.build.outputs.signed }}"

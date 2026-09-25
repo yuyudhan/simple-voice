@@ -1,0 +1,106 @@
+# FilePath: .github/workflows/ci.yml
+# The same gate as `just check`, on every push and pull request: guards, formatting, clippy,
+# eslint, tsc, typos, shellcheck, tests, and the sqlx offline-cache check. Each gate is its own
+# step so a failure is labelled in the run summary. Apple Silicon runner only, like the app.
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+    workflow_dispatch:
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    CARGO_TERM_COLOR: always
+    SQLX_OFFLINE: "true"
+
+jobs:
+    check:
+        name: just check
+        runs-on: macos-15
+        timeout-minutes: 60
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+              with:
+                  # gitleaks scans the whole history.
+                  fetch-depth: 0
+
+            # The engine links FoundationModels and SpeechAnalyzer, which need the macOS 26 SDK.
+            - name: Select Xcode
+              uses: maxim-lobanov/setup-xcode@v1
+              with:
+                  xcode-version: latest-stable
+
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: aarch64-apple-darwin
+                  components: clippy, rustfmt
+
+            - name: Cache cargo
+              uses: Swatinem/rust-cache@v2
+
+            - name: Set up bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Cache bun
+              uses: actions/cache@v4
+              with:
+                  path: ~/.bun/install/cache
+                  key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+                  restore-keys: bun-${{ runner.os }}-
+
+            - name: Cache SwiftPM
+              uses: actions/cache@v4
+              with:
+                  path: engine/.build
+                  key: swiftpm-${{ runner.os }}-${{ hashFiles('engine/Package.swift', 'engine/Package.resolved') }}
+                  restore-keys: swiftpm-${{ runner.os }}-
+
+            - name: Install tools
+              run: brew install just taplo typos-cli gitleaks shellcheck
+
+            - name: Install cargo-nextest
+              uses: taiki-e/install-action@v2
+              with:
+                  tool: cargo-nextest
+
+            # Built from source with the SQLite driver; prebuilt binaries may lack it. rust-cache
+            # keeps ~/.cargo/bin, so this is a no-op on a warm cache.
+            - name: Install sqlx-cli
+              run: |
+                  if ! sqlx --version >/dev/null 2>&1; then
+                      cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
+                  fi
+
+            - name: Install JavaScript dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Verify Cargo.lock is committed and current
+              run: cargo fetch --locked
+
+            - name: Build engine helper
+              run: bash engine/build.sh debug
+
+            - name: Guards
+              run: just guard
+
+            - name: Formatting
+              run: just fmt-check
+
+            - name: Lint (clippy, eslint, tsc, typos, shellcheck)
+              run: just lint
+
+            - name: Tests
+              run: just test
+
+            - name: sqlx offline cache
+              run: just sqlx-check
