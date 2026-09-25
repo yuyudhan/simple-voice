@@ -21,7 +21,7 @@
     gap: 8px;
 }
 
-/* The level line: a hairline with a short signal segment at its start (docs/design.md). */
+/* The level line: a hairline with a short signal segment at its start (docs/internal/design.md). */
 .sv-level-line {
     position: relative;
     height: 1px;

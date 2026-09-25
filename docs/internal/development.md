@@ -1,18 +1,42 @@
-<!-- FilePath: docs/development.md -->
+<!-- FilePath: docs/internal/development.md -->
 
 # Simple Voice - Development
 
-How to build, check and release Simple Voice. The rules themselves are summarised in
-`AGENTS.md`; the contract between the pieces is `docs/architecture.md`.
+How to build and check Simple Voice. The rules themselves are summarised in `AGENTS.md`; the
+contract between the pieces is [architecture.md](architecture.md); releases are covered in
+[releasing.md](releasing.md).
+
+## Project layout
+
+| Path                  | What lives there                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/`          | The Tauri app: windows, tray, shortcuts, commands and the dictation pipeline.                                                           |
+| `crates/`             | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
+| `engine/`             | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
+| `src/`                | The React and TypeScript interface.                                                                                                     |
+| `packaging/homebrew/` | The Homebrew cask template.                                                                                                             |
+| `docs/`               | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
 
 ## Setup
 
-Install the prerequisites listed in the README (Xcode 26+ or its Command Line Tools, rustup, bun,
-just, sqlx-cli with the SQLite driver, taplo, typos, shellcheck, gitleaks), then:
+Prerequisites:
+
+- macOS 14 or later on Apple Silicon
+- Xcode 26 or later, or its Command Line Tools (Swift 6; the macOS 26 SDK is needed to build the
+  Apple Speech and Apple Intelligence support, while the app itself still runs on macOS 14)
+- Rust via [rustup](https://rustup.rs)
+- [bun](https://bun.sh), [just](https://just.systems)
+- sqlx-cli with SQLite support (below)
+- For the quality gates: `brew install taplo typos-cli shellcheck gitleaks`
+
+Then:
 
 ```sh
+git clone https://github.com/yuyudhan/simple-voice.git
+cd simple-voice
 just setup     # bun install, core.hooksPath -> .githooks, toolchain report (just doctor)
 just dev       # debug engine helper + `bun run tauri dev`
+just build     # release .app and .dmg under target/aarch64-apple-darwin/release/bundle/
 ```
 
 sqlx-cli must be built with SQLite support, or `sqlx database create` fails with "no driver
@@ -24,7 +48,8 @@ cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
 
 ## Quality gates
 
-`just check` is the full gate. Pre-push and CI run exactly this, serially:
+`just check` is the full gate. Pre-push and CI run exactly this, serially; CI also runs
+`just cask-check` ([releasing.md](releasing.md#checking-the-cask)):
 
 | Gate       | Recipe            | What it runs                                                                                       |
 | ---------- | ----------------- | -------------------------------------------------------------------------------------------------- |
@@ -65,7 +90,7 @@ Each guard in `scripts/guard/` checks one rule over `git ls-files`; `just guard 
 - **pre-commit**: the guards (gitleaks on the staged index), then rustfmt, taplo and prettier
   checks and typos on the staged files. It never rewrites files; run `just fmt` and re-stage.
 - **commit-msg**: one line, `<emoji> <Imperative verb> ...`, at most 72 characters, no trailing
-  period, no co-authorship or generated-by notes.
+  period, no co-authorship or generated-by notes (`✨ Add hold-to-speak shortcut`).
 - **pre-push**: `just check`, with the gitleaks scan narrowed to the commits being pushed. A push
   that adds no new commits (a tag on an already-pushed commit) skips the gate.
 
@@ -90,7 +115,8 @@ backs up the database before applying pending migrations on launch.
 
 ## Engine helper
 
-`engine/` is a SwiftPM executable that Tauri bundles as a sidecar. `just engine` (or
+`engine/` is a SwiftPM executable that Tauri bundles as a sidecar; [engine.md](engine.md)
+describes its protocol, models and permissions. `just engine` (or
 `bash engine/build.sh debug|release`) builds it and copies it to
 `src-tauri/binaries/simple-voice-engine-aarch64-apple-darwin`, where Tauri expects it. Every
 recipe that compiles `src-tauri` builds the debug helper first if it is missing, because the
@@ -114,40 +140,8 @@ may forget a grant or show a stale entry that no longer matches:
   the terminal that started it (with tmux, the terminal that started the tmux server). Grant
   Accessibility and Microphone to that terminal, then restart `just dev`; a "Simple Voice" entry
   in System Settings has no effect on a development run. `swift -e 'import ApplicationServices;
-  print(AXIsProcessTrusted())'` run from the same terminal prints `true` once paste will work.
+print(AXIsProcessTrusted())'` run from the same terminal prints `true` once paste will work.
 - Only the built bundle, opened from Finder or `open`, is attributed to Simple Voice itself.
 
 Release builds signed with a Developer ID keep a stable identity, so grants survive upgrades.
 Ad-hoc signed releases behave like development builds; the cask's caveat explains this to users.
-
-## Releasing
-
-1. Make sure `main` is green and the working tree is clean.
-2. `just release 0.2.0` sets the version in `package.json`, `src-tauri/tauri.conf.json` and the
-   root `Cargo.toml`, refreshes `Cargo.lock`, commits `🔖 Release v0.2.0`, and tags `v0.2.0`.
-3. `git push origin HEAD v0.2.0`.
-
-The tag starts `.github/workflows/release.yml`, which:
-
-1. checks that the tag matches every version field;
-2. builds the engine helper and `bun run tauri build --target aarch64-apple-darwin`;
-3. signs with a Developer ID and notarizes when the signing secrets are configured, and signs
-   ad hoc (`APPLE_SIGNING_IDENTITY=-`) otherwise;
-4. uploads `Simple-Voice_<version>_aarch64.dmg` and its `.sha256` to the GitHub release;
-5. runs `scripts/release/update-cask.sh publish`, which renders
-   `packaging/homebrew/Casks/simple-voice.rb` with the version and checksum and pushes it to
-   `yuyudhan/homebrew-tap`.
-
-### Repository secrets
-
-| Secret                                        | Purpose                                                                           |
-| --------------------------------------------- | --------------------------------------------------------------------------------- |
-| `HOMEBREW_TAP_TOKEN`                          | Required. Fine-grained token with Contents read/write on `yuyudhan/homebrew-tap`. |
-| `APPLE_CERTIFICATE`                           | Optional. Base64 of the Developer ID Application `.p12`.                          |
-| `APPLE_CERTIFICATE_PASSWORD`                  | Password of that `.p12`.                                                          |
-| `APPLE_SIGNING_IDENTITY`                      | e.g. `Developer ID Application: Name (TEAMID)`.                                   |
-| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | Notarization: Apple ID, app-specific password, team ID.                           |
-
-Without the Apple secrets the release is ad-hoc signed and the cask clears the download
-quarantine in a `postflight` step, with a caveat telling users why. With them, that block is
-removed from the published cask. See `packaging/homebrew/README.md` for the tap itself.

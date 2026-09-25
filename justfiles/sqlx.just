@@ -1,7 +1,7 @@
 # FilePath: justfiles/sqlx.just
 # Compile-time checked SQL. Code compiles with SQLX_OFFLINE=true against the committed .sqlx/
 # cache; these recipes regenerate and verify that cache against a throwaway database built from
-# the real migrations. See docs/development.md for the workflow.
+# the real migrations. See docs/internal/development.md for the workflow.
 
 # Recreate target/sqlx-dev.db from scratch and apply every migration.
 [group('sqlx')]

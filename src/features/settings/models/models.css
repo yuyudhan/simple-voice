@@ -1,6 +1,6 @@
 /* FilePath: src/features/settings/models/models.css */
 /* Voice model table, provider marks, key cards and the formatting provider picker. Selection
-   follows docs/design.md: a signal marker and outline, never a flooded row or card. */
+   follows docs/internal/design.md: a signal marker and outline, never a flooded row or card. */
 
 .sv-models {
     display: flex;

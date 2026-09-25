@@ -15,7 +15,7 @@ help:
     @echo ""
     @echo "DEVELOP"
     @echo "  just dev                  Build the engine helper (debug) and run the app with hot reload"
-    @echo "  just build                Release engine helper, then the app bundle and DMG"
+    @echo "  just build                Release app bundle and DMG (builds the release engine helper)"
     @echo "  just engine [MODE]        Build the Swift engine helper: debug (default) | release"
     @echo ""
     @echo "QUALITY GATES"
@@ -33,8 +33,9 @@ help:
     @echo ""
     @echo "RELEASE"
     @echo "  just release VERSION      Bump every version field, commit, and tag vVERSION"
+    @echo "  just cask-check           Run brew style and brew audit on the rendered Homebrew cask"
     @echo ""
-    @echo "See README.md, docs/development.md and docs/architecture.md."
+    @echo "See README.md and docs/internal/."
     @echo ""
 
 # Point core.hooksPath at .githooks/ so pre-commit, commit-msg and pre-push run automatically.

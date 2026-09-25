@@ -1,6 +1,7 @@
 /* FilePath: src/features/onboarding/Onboarding.css */
-/* First-launch flow in the Signal language (docs/design.md): a flat neutral page, a left-aligned
-   560px column, a segmented level line for progress and hairline panels for each step's state. */
+/* First-launch flow in the Signal language (docs/internal/design.md): a flat neutral page, a
+   left-aligned 560px column, a segmented level line for progress and hairline panels for each
+   step's state. */
 
 .sv-onb {
     position: fixed;

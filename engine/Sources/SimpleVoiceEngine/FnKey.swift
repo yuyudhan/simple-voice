@@ -1,7 +1,7 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/FnKey.swift
 // Watches the Fn (Globe) key for the dictation shortcuts. The app's global shortcuts are Carbon
 // hot keys, which cannot register a lone modifier, so a listen-only event tap reports Fn here as
-// unsolicited `fn_key` events instead (docs/architecture.md § 6).
+// unsolicited `fn_key` events instead (docs/internal/architecture.md § 6).
 
 import ApplicationServices
 import Foundation

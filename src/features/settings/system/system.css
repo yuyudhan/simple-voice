@@ -1,6 +1,6 @@
 /* FilePath: src/features/settings/system/system.css */
 /* Sound theme tiles and the volume control. The chosen tile gets an ink outline and a signal
-   marker (docs/design.md: selection is never a flooded card). */
+   marker (docs/internal/design.md: selection is never a flooded card). */
 
 .sv-themes {
     display: grid;

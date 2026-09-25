@@ -1,4 +1,4 @@
-<!-- FilePath: docs/requirements/requirements.md -->
+<!-- FilePath: docs/internal/requirements.md -->
 
 # Simple Voice — Requirements
 
@@ -14,7 +14,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | P-3 | It is built for other people to use, not only the owner: no hard-coded personal paths, keys, or vocabulary.                                                                         |
 | P-4 | macOS first and only for now (Apple Silicon, macOS 14+; Apple Speech requires macOS 26+).                                                                                           |
 | P-5 | Installation and updates happen through Homebrew (`brew install --cask yuyudhan/tap/simple-voice`); the repo carries the cask and the release automation that publishes to the tap. |
-| P-6 | The UI must be elegant, simple and functional, in the product's own design language, Signal (`docs/design.md`); it must not imitate another product's visual identity.              |
+| P-6 | The UI must be elegant, simple and functional, in the product's own design language, Signal (`docs/internal/design.md`); it must not imitate another product's visual identity.     |
 | P-7 | Everything the owner's Hammerspoon dictation module does today must be done by this app instead (see § 3).                                                                          |
 
 ## 2. Storage

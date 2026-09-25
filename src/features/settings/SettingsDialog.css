@@ -1,7 +1,7 @@
 /* FilePath: src/features/settings/SettingsDialog.css */
-/* Settings sheet in the Signal language (docs/design.md): a --surface section column with the
-   vertical level-line marker on the active item, and a --bg pane whose groups are hairline
-   panels. The sheet floats, so it is the one settings surface that carries a shadow. */
+/* Settings sheet in the Signal language (docs/internal/design.md): a --surface section column
+   with the vertical level-line marker on the active item, and a --bg pane whose groups are
+   hairline panels. The sheet floats, so it is the one settings surface that carries a shadow. */
 
 .sv-settings__backdrop {
     position: fixed;

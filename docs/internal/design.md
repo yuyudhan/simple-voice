@@ -1,4 +1,4 @@
-<!-- FilePath: docs/design.md -->
+<!-- FilePath: docs/internal/design.md -->
 
 # Signal: the Simple Voice design language
 
@@ -15,7 +15,7 @@ document; when the language changes, change it here in the same commit.
 
 1. **Instrument, not stationery.** Colourless neutral greys, a crisp sans-serif, hairlines instead
    of shadows. Nothing decorative that does not carry information.
-2. **One signal.** Signal orange is the only accent and means *live, selected, or focused*:
+2. **One signal.** Signal orange is the only accent and means _live, selected, or focused_:
    recording, the active page, the chosen option, the focus ring, the heatmap. It is never used
    for decoration or for large fills.
 3. **Ink acts.** Primary actions are filled with ink (near-black in light, near-white in dark),
@@ -38,32 +38,32 @@ document; when the language changes, change it here in the same commit.
 
 ## Tokens
 
-| Group      | Tokens                                                                    | Use                                                        |
-| ---------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Neutrals   | `--bg`, `--surface`, `--surface-hover`, `--panel`, `--border(-strong)`    | Page, sidebar and wells, hover, cards, hairlines           |
-| Text       | `--text`, `--muted`, `--faint`                                            | Body, secondary copy, placeholders and disabled            |
-| Ink        | `--ink`, `--ink-hover`, `--on-ink`, `--on-ink-success/danger`             | Primary buttons, toasts (inverted), brand mark             |
-| Signal     | `--accent`, `--accent-hover`, `--accent-2/3`, `--accent-soft/tint`        | Live state, selection, focus, charts (fills and graphics)  |
-| Signal ink | `--accent-text`                                                           | Accent-coloured text and links (AA contrast on light)      |
-| Status     | `--danger(-soft)`, `--on-danger`, `--success(-soft)`, `--warning(-soft)`  | Errors and destructive actions, confirmations, cautions    |
-| Heat       | `--heat-0` … `--heat-4`                                                   | Activity heatmap ramp                                      |
-| Shape      | `--radius-card` 10px, `--radius-control` 6px, `--radius-pill`             | Cards and groups, inputs and buttons, toggles              |
-| Type       | `--font-display`, `--font-sans`, `--font-mono`                            | Titles, body, figures and labels                           |
-| Motion     | `--dur` 150ms, `--ease`                                                   | All transitions                                            |
+| Group      | Tokens                                                                   | Use                                                       |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Neutrals   | `--bg`, `--surface`, `--surface-hover`, `--panel`, `--border(-strong)`   | Page, sidebar and wells, hover, cards, hairlines          |
+| Text       | `--text`, `--muted`, `--faint`                                           | Body, secondary copy, placeholders and disabled           |
+| Ink        | `--ink`, `--ink-hover`, `--on-ink`, `--on-ink-success/danger`            | Primary buttons, toasts (inverted), brand mark            |
+| Signal     | `--accent`, `--accent-hover`, `--accent-2/3`, `--accent-soft/tint`       | Live state, selection, focus, charts (fills and graphics) |
+| Signal ink | `--accent-text`                                                          | Accent-coloured text and links (AA contrast on light)     |
+| Status     | `--danger(-soft)`, `--on-danger`, `--success(-soft)`, `--warning(-soft)` | Errors and destructive actions, confirmations, cautions   |
+| Heat       | `--heat-0` … `--heat-4`                                                  | Activity heatmap ramp                                     |
+| Shape      | `--radius-card` 10px, `--radius-control` 6px, `--radius-pill`            | Cards and groups, inputs and buttons, toggles             |
+| Type       | `--font-display`, `--font-sans`, `--font-mono`                           | Titles, body, figures and labels                          |
+| Motion     | `--dur` 150ms, `--ease`                                                  | All transitions                                           |
 
 Components never hard-code colours. The overlay pill is the single exception: it floats over
 arbitrary apps, so it keeps a fixed graphite palette in both themes.
 
 ## Type scale
 
-| Role          | Font      | Size / weight           | Notes                                  |
-| ------------- | --------- | ----------------------- | -------------------------------------- |
-| Page title    | display   | 24px / 600, -0.02em     | `.page-title`, one per page            |
-| Section title | display   | 15px / 600, -0.01em     | Card and group headings                |
-| Body          | sans      | 13.5–14px / 400         | Line height 1.5–1.6                    |
-| Secondary     | sans      | 12–12.5px / 400         | `--muted`                              |
-| Label         | mono      | 10.5px / 500, uppercase | `.caps-label`, tracking 0.08em         |
-| Readout       | mono      | 20–36px / 500, tabular  | `.readout`, figures only, -0.02em      |
+| Role          | Font    | Size / weight           | Notes                             |
+| ------------- | ------- | ----------------------- | --------------------------------- |
+| Page title    | display | 24px / 600, -0.02em     | `.page-title`, one per page       |
+| Section title | display | 15px / 600, -0.01em     | Card and group headings           |
+| Body          | sans    | 13.5–14px / 400         | Line height 1.5–1.6               |
+| Secondary     | sans    | 12–12.5px / 400         | `--muted`                         |
+| Label         | mono    | 10.5px / 500, uppercase | `.caps-label`, tracking 0.08em    |
+| Readout       | mono    | 20–36px / 500, tabular  | `.readout`, figures only, -0.02em |
 
 ## Layout
 

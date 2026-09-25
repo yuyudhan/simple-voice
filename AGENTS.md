@@ -8,17 +8,22 @@ everything that needs Apple frameworks.
 
 ## Read first
 
-- `docs/requirements/requirements.md`: requirements with IDs. A feature is done only when it
+`docs/` holds user documentation; everything for contributors lives in `docs/internal/`.
+
+- `docs/internal/requirements.md`: requirements with IDs. A feature is done only when it
   satisfies its entries; update them whenever a requirement changes.
-- `docs/architecture.md`: the contract (crates, Tauri commands, events, windows, engine
+- `docs/internal/architecture.md`: the contract (crates, Tauri commands, events, windows, engine
   protocol, database schema, storage). Code to it; change it in the same commit when needed.
-- `docs/design.md`: the Signal design language. Colours come only from `src/styles/tokens.css`.
-- `docs/development.md`: gates, sqlx offline workflow, engine build, releases.
+- `docs/internal/design.md`: the Signal design language. Colours come only from
+  `src/styles/tokens.css`.
+- `docs/internal/development.md`: gates, sqlx offline workflow, engine build.
+- `docs/internal/releasing.md`: versioning, signing, the Homebrew cask and tap.
+- `docs/internal/engine.md`: the Swift helper's protocol, models and permissions.
 
 ## Inviolable
 
 - Rust forbids `unsafe`: `#![forbid(unsafe_code)]` in every crate root, `[lints] workspace =
-  true` in every member manifest. Objective-C or C APIs belong in the Swift helper.
+true` in every member manifest. Objective-C or C APIs belong in the Swift helper.
 - No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or `dbg!` outside `#[cfg(test)]`.
 - No suppressions: `#[allow]`, `#[expect]`, eslint-disable, `@ts-ignore`, `@ts-expect-error`,
   `swiftlint:disable`. Fix the code, or change lint configuration with a reason.
