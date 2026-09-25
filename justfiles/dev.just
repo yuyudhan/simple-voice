@@ -4,10 +4,11 @@
 
 # Run the app with hot reload (builds the debug engine helper first). Query macros check against
 # a freshly migrated target/sqlx-dev.db, so a new or edited query compiles before `just
-# sqlx-prepare` has refreshed the offline cache.
+# sqlx-prepare` has refreshed the offline cache. tauri.dev.conf.json names the run "Simple Voice
+# Dev" with its own bundle identifier, keeping it apart from the installed app.
 [group('develop')]
 dev: (engine "debug") sqlx-db
-    DATABASE_URL={{sqlx_db_url}} bun run tauri dev
+    DATABASE_URL={{sqlx_db_url}} bun run tauri dev --config src-tauri/tauri.dev.conf.json
 
 # Build the release app bundle for Apple Silicon; Tauri's beforeBuildCommand builds the
 # release engine helper first. Without a Developer ID the bundle is ad-hoc signed ("-"), which
