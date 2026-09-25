@@ -1,0 +1,44 @@
+/* FilePath: src/features/settings/shortcuts/FnKeyAccessWarning.css */
+/* A warning, not an error: dictation still works through the other shortcut and the tray. */
+
+.sv-fn-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+    border-radius: var(--radius-card);
+    background: var(--warning-soft);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.sv-fn-warning__icon {
+    flex: none;
+    color: var(--warning);
+}
+
+.sv-fn-warning__text {
+    flex: 1;
+    margin: 0;
+}
+
+.sv-fn-warning > :last-child {
+    flex: none;
+}
+
+/* Pinned above every page; clears the fixed window drag strip. */
+.sv-fn-warning--shell {
+    position: sticky;
+    top: 32px;
+    z-index: 4;
+    margin: 32px auto 0;
+    /* The content column: 760px wide with 40px padding either side. */
+    max-width: 680px;
+    width: calc(100% - 80px);
+}
+
+.sv-fn-warning--inline {
+    margin: 12px 0 20px;
+}

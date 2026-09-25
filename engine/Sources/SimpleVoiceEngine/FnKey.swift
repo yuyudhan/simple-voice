@@ -81,8 +81,9 @@ final class FnKeyMonitor {
     private func install() {
         guard tap == nil else { return }
         // Without the permission macOS still creates the tap but delivers no key events, so the
-        // permission is checked up front. Accessibility, which paste needs anyway, covers it.
-        guard AXIsProcessTrusted() || CGPreflightListenEventAccess() else {
+        // permission is checked up front. It is the Accessibility grant paste needs as well, and
+        // the one the UI warns about while Fn is configured.
+        guard AXIsProcessTrusted() else {
             scheduleRetry()
             return
         }

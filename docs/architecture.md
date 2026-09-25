@@ -68,7 +68,7 @@ CREATE TABLE dictionary (
 CREATE TABLE history (
     id               INTEGER PRIMARY KEY NOT NULL,
     created_at       INTEGER NOT NULL,   -- unix ms, recording start
-    status           TEXT NOT NULL,      -- 'pasted' | 'unformatted' | 'failed' | 'dropped'
+    status           TEXT NOT NULL,      -- 'pasted' | 'unformatted' | 'failed' | 'dropped' | 'not_pasted'
     raw_text         TEXT NOT NULL,      -- transcript as returned by the model
     final_text       TEXT NOT NULL,      -- what was pasted (or would have been)
     error            TEXT,
@@ -260,6 +260,12 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 `SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Tauri events are
 consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
 `useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
+
+Fn key access: `settings/shortcuts/FnKeyAccessWarning.tsx` renders whenever `holdShortcut` or
+`toggleShortcut` is `"Fn"` and `permissions.accessibility !== "granted"`. It has no dismiss
+control: the shell pins it (sticky) above every page, and the General settings and the onboarding
+shortcut step show it inline. The helper gates its Fn event tap on the same Accessibility grant,
+so the warning and the tap agree.
 
 Appearance: `settings.theme` (`"system" | "light" | "dark"`) is applied by the UI, not the
 backend (`src/app/theme.ts`). The main window always carries the resolved theme as

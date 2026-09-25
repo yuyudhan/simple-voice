@@ -90,7 +90,10 @@ arbitrary apps, so it keeps a fixed graphite palette in both themes.
 ## Themes
 
 Users pick **System**, **Light** or **Dark** in Settings → General → Appearance (setting
-`theme`). `src/app/theme.ts` resolves the choice to `data-theme="light" | "dark"` on `<html>`,
+`theme`), or flip between light and dark with the icon button in the window's top-right corner
+(`src/app/ThemeToggle.tsx`: a moon while light, a sun while dark; from System it pins the
+opposite of what is showing). `src/app/theme.ts` resolves the choice to
+`data-theme="light" | "dark"` on `<html>`,
 follows the OS live while the choice is System, sets the native window appearance so the title
 bar matches, and caches the choice so the first frame paints in the right theme. Styles select
 the dark palette with `:root[data-theme="dark"]` only; components never use

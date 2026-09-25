@@ -1,9 +1,9 @@
 // FilePath: src/app/theme.ts
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { errorMessage, type Theme } from "../lib/api";
 
-type Resolved = "light" | "dark";
+export type ResolvedTheme = "light" | "dark";
 
 // The database is the source of truth, but it is only readable after the backend answers; this
 // cache lets the first frame paint in the user's theme instead of flashing the other palette.
@@ -14,41 +14,52 @@ function isTheme(value: string | null): value is Theme {
     return value === "system" || value === "light" || value === "dark";
 }
 
-function resolve(theme: Theme): Resolved {
+function resolve(theme: Theme, osDark: boolean): ResolvedTheme {
     if (theme !== "system") return theme;
-    return darkQuery.matches ? "dark" : "light";
-}
-
-function paint(theme: Theme) {
-    document.documentElement.dataset.theme = resolve(theme);
+    return osDark ? "dark" : "light";
 }
 
 /** Paints the last chosen theme synchronously, before React mounts. */
 export function paintCachedTheme() {
     const cached = window.localStorage.getItem(CACHE_KEY);
-    paint(isTheme(cached) ? cached : "system");
+    document.documentElement.dataset.theme = resolve(
+        isTheme(cached) ? cached : "system",
+        darkQuery.matches,
+    );
 }
 
 /**
- * Applies the theme to the page and the native window chrome (title bar, traffic lights), and
- * follows the OS appearance live while the theme is "system".
+ * Applies the theme to the page and the native window chrome (title bar, traffic lights),
+ * follows the OS appearance live while the theme is "system", and returns what is showing.
  */
-export function useTheme(theme: Theme, onError: (message: string) => void) {
+export function useTheme(theme: Theme, onError: (message: string) => void): ResolvedTheme {
+    const [osDark, setOsDark] = useState(darkQuery.matches);
+    const resolved = resolve(theme, osDark);
+
+    // The webview reports the native window appearance, so this also fires after setTheme(null)
+    // hands the window back to macOS.
     useEffect(() => {
-        window.localStorage.setItem(CACHE_KEY, theme);
-        paint(theme);
-        getCurrentWindow()
-            .setTheme(theme === "system" ? null : theme)
-            .catch((error: unknown) => {
-                onError(errorMessage(error));
-            });
-        if (theme !== "system") return undefined;
         const follow = () => {
-            paint(theme);
+            setOsDark(darkQuery.matches);
         };
         darkQuery.addEventListener("change", follow);
         return () => {
             darkQuery.removeEventListener("change", follow);
         };
+    }, []);
+
+    useEffect(() => {
+        document.documentElement.dataset.theme = resolved;
+    }, [resolved]);
+
+    useEffect(() => {
+        window.localStorage.setItem(CACHE_KEY, theme);
+        getCurrentWindow()
+            .setTheme(theme === "system" ? null : theme)
+            .catch((error: unknown) => {
+                onError(errorMessage(error));
+            });
     }, [theme, onError]);
+
+    return resolved;
 }
