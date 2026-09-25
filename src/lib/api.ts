@@ -1,6 +1,6 @@
 // FilePath: src/lib/api.ts
 // Typed wrappers for every Tauri command and event. This file is the UI half of the contract
-// in docs/architecture.md; keep both in sync.
+// in docs/internal/architecture.md; keep both in sync.
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 

@@ -1,4 +1,4 @@
-<!-- FilePath: docs/requirements/requirements.md -->
+<!-- FilePath: docs/internal/requirements.md -->
 
 # Simple Voice — Requirements
 
@@ -14,7 +14,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | P-3 | It is built for other people to use, not only the owner: no hard-coded personal paths, keys, or vocabulary.                                                                         |
 | P-4 | macOS first and only for now (Apple Silicon, macOS 14+; Apple Speech requires macOS 26+).                                                                                           |
 | P-5 | Installation and updates happen through Homebrew (`brew install --cask yuyudhan/tap/simple-voice`); the repo carries the cask and the release automation that publishes to the tap. |
-| P-6 | The UI must be elegant, simple and functional, in the product's own design language, Signal (`docs/design.md`); it must not imitate another product's visual identity. |
+| P-6 | The UI must be elegant, simple and functional, in the product's own design language, Signal (`docs/internal/design.md`); it must not imitate another product's visual identity.     |
 | P-7 | Everything the owner's Hammerspoon dictation module does today must be done by this app instead (see § 3).                                                                          |
 
 ## 2. Storage
@@ -48,7 +48,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | D-12 | Audio cues on start and stop.                                                                                                                                                                                                                                                                                                                                                      |
 | D-13 | A watchdog stops and transcribes after a maximum recording length (default 5 minutes).                                                                                                                                                                                                                                                                                             |
 | D-14 | A failed dictation keeps its audio so it can be retried from history; a dictation is never silently lost.                                                                                                                                                                                                                                                                          |
-| D-15 | The dictated text is placed on the clipboard and stays there by default, so it is never lost when pasting fails; a setting restores the previous clipboard after a successful paste instead.                                                                                                                                                                                    |
+| D-15 | The dictated text is placed on the clipboard and stays there by default, so it is never lost when pasting fails; a setting restores the previous clipboard after a successful paste instead.                                                                                                                                                                                       |
 
 ## 4. Transcription engines and models
 
@@ -65,17 +65,17 @@ source of truth for scope: a feature is done only when it satisfies the matching
 
 ## 5. Screens
 
-| ID  | Requirement                                                                                                                                                                   |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| U-1 | **Home / Dictation history**: every dictation with time, app, text; copy, retry (failed), delete, search.                                                                     |
-| U-2 | **Insights**, simple and functional: words per minute, total words, fixes made (dictionary fixes, words corrected), streak and daily activity heatmap, usage by kind of app.  |
-| U-3 | **Dictionary**: personal dictionary only, no team mode. Add, edit, delete words and replacement rules; import from a vocabulary text file.                                    |
-| U-4 | **Style**: exactly two modes, **Formal** (caps + punctuation) and **Casual** (caps + less punctuation). One mode applies to everything — emails, messages, all apps.          |
-| U-5 | **Settings → General**: the two shortcuts, microphone, dictation languages.                                                                                                   |
-| U-6 | **Settings → System**: launch at login, show the floating bar at all times, show app in Dock, dictation sounds on/off with 3–4 sound options, mute all audio while dictating. |
-| U-7 | **Settings → Models**: engine/model selection, downloads, Groq API key, AI formatting toggle.                                                                                 |
-| U-8 | **Settings → Data**: database location.                                                                                                                                       |
-| U-9 | While recording, a small floating pill shows (icon + live level bars).                                                                                                        |
+| ID   | Requirement                                                                                                                                                                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| U-1  | **Home / Dictation history**: every dictation with time, app, text; copy, retry (failed), delete, search.                                                                                                                                       |
+| U-2  | **Insights**, simple and functional: words per minute, total words, fixes made (dictionary fixes, words corrected), streak and daily activity heatmap, usage by kind of app.                                                                    |
+| U-3  | **Dictionary**: personal dictionary only, no team mode. Add, edit, delete words and replacement rules; import from a vocabulary text file.                                                                                                      |
+| U-4  | **Style**: exactly two modes, **Formal** (caps + punctuation) and **Casual** (caps + less punctuation). One mode applies to everything — emails, messages, all apps.                                                                            |
+| U-5  | **Settings → General**: the two shortcuts, microphone, dictation languages.                                                                                                                                                                     |
+| U-6  | **Settings → System**: launch at login, show the floating bar at all times, show app in Dock, dictation sounds on/off with 3–4 sound options, mute all audio while dictating.                                                                   |
+| U-7  | **Settings → Models**: engine/model selection, downloads, Groq API key, AI formatting toggle.                                                                                                                                                   |
+| U-8  | **Settings → Data**: database location.                                                                                                                                                                                                         |
+| U-9  | While recording, a small floating pill shows (icon + live level bars).                                                                                                                                                                          |
 | U-10 | **Settings → General → Appearance**: theme is System (follows macOS, live), Light or Dark; it applies instantly to every window surface including the title bar, persists across restarts, and the app never flashes the other theme on launch. |
 
 ## 6. Permissions

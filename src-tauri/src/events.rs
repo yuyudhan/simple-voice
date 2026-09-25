@@ -1,5 +1,5 @@
 // FilePath: src-tauri/src/events.rs
-//! Event names of docs/architecture.md § 4 and the one place that emits them.
+//! Event names of docs/internal/architecture.md § 4 and the one place that emits them.
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};

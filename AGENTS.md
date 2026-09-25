@@ -8,14 +8,18 @@ Apple frameworks. Published through Homebrew for other people to use.
 
 ## Read first
 
-- `docs/requirements/requirements.md`: every requirement, with IDs. A feature is done only when
-  it satisfies its entries. Add or change an entry whenever a requirement is added or changed.
-- `docs/architecture.md`: the contract - crate map and public APIs, Tauri commands, events,
-  windows, the engine-helper protocol, the database schema and storage layout. Code to it; when
-  the contract must change, change the document in the same commit.
-- `docs/design.md`: Signal, the UI design language - tokens, type, layout, components, themes.
-  UI work follows it; styles read colours only from `src/styles/tokens.css`.
-- `docs/development.md`: gates, the sqlx offline workflow, engine build, releases.
+`docs/` holds user documentation; everything for contributors lives in `docs/internal/`.
+
+- `docs/internal/requirements.md`: every requirement, with IDs. A feature is done only when it
+  satisfies its entries. Add or change an entry whenever a requirement is added or changed.
+- `docs/internal/architecture.md`: the contract - crate map and public APIs, Tauri commands,
+  events, windows, the engine-helper protocol, the database schema and storage layout. Code to
+  it; when the contract must change, change the document in the same commit.
+- `docs/internal/design.md`: Signal, the UI design language - tokens, type, layout, components,
+  themes. UI work follows it; styles read colours only from `src/styles/tokens.css`.
+- `docs/internal/development.md`: gates, the sqlx offline workflow, engine build.
+- `docs/internal/releasing.md`: versioning, signing, the Homebrew cask and tap.
+- `docs/internal/engine.md`: the Swift helper's protocol, models and permissions.
 
 ## Inviolable
 
@@ -50,7 +54,7 @@ Apple frameworks. Published through Homebrew for other people to use.
 
 - Crates split horizontally by responsibility (`sv-domain`, `sv-storage`, `sv-text`,
   `sv-cloud`, `sv-audio`, `sv-engine`, the app); dependencies point strictly down the table in
-  `docs/architecture.md`.
+  `docs/internal/architecture.md`.
 - Inside a crate and in the UI, code is split vertically by feature (`features/<feature>/`).
 - Shared types live in `sv-domain`; do not duplicate them. The UI's view of the contract is
   `src/lib/api.ts`.

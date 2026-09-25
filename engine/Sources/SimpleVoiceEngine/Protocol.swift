@@ -1,5 +1,5 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/Protocol.swift
-// JSON-lines wire format shared with the Rust `sv-engine` crate (docs/architecture.md § 6).
+// JSON-lines wire format shared with the Rust `sv-engine` crate (docs/internal/architecture.md § 6).
 
 import Foundation
 

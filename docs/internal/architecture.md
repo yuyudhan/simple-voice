@@ -1,4 +1,4 @@
-<!-- FilePath: docs/architecture.md -->
+<!-- FilePath: docs/internal/architecture.md -->
 
 # Simple Voice — Architecture
 

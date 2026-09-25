@@ -1,4 +1,4 @@
-<!-- FilePath: engine/README.md -->
+<!-- FilePath: docs/internal/engine.md -->
 
 # simple-voice-engine
 
@@ -12,7 +12,7 @@ muting the output device.
 
 `simple-voice-engine --models-dir <path>` reads one JSON request per line on stdin and writes one
 JSON object per line on stdout. The commands, parameters and results are specified in
-[docs/architecture.md § 6](../docs/architecture.md#6-engine-helper-protocol-engine). In short:
+[architecture.md § 6](architecture.md#6-engine-helper-protocol-engine). In short:
 
 - request `{"id": 7, "cmd": "transcribe", "model": "parakeet-tdt-v3", "wavPath": "..."}`;
 - result `{"id": 7, "ok": true, "result": {...}}` or `{"id": 7, "ok": false, "error": "..."}`;
@@ -29,7 +29,7 @@ Quick check from a shell:
 
 ```sh
 printf '{"id":1,"cmd":"ping"}\n{"id":2,"cmd":"permissions"}\n' \
-    | .build/debug/simple-voice-engine --models-dir /tmp/sv-models
+    | engine/.build/debug/simple-voice-engine --models-dir /tmp/sv-models
 ```
 
 ## Build
@@ -50,7 +50,7 @@ is linked weakly so the helper still launches on macOS 14 and 15.
 
 Dependency: [FluidAudio](https://github.com/FluidInference/FluidAudio) pinned to `0.17.4`.
 
-`Info.plist` in this directory is embedded into the executable's `__TEXT,__info_plist` section by
+`engine/Info.plist` is embedded into the executable's `__TEXT,__info_plist` section by
 the linker. It carries the microphone and speech recognition usage descriptions, which the
 permission prompts require even for a helper binary.
 

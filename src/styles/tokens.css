@@ -1,5 +1,5 @@
 /* FilePath: src/styles/tokens.css */
-/* Design tokens for the "Signal" design language (docs/design.md). Every component reads
+/* Design tokens for the "Signal" design language (docs/internal/design.md). Every component reads
    colours, type, radii and motion from here so both themes stay consistent. Components never
    hard-code a colour; the overlay pill is the one surface with its own fixed palette.
 
