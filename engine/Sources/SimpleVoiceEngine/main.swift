@@ -72,7 +72,7 @@ final class Engine: Sendable {
             let params = try request.params(TranscribeParams.self)
             return try await transcribe(params)
         case "permissions":
-            return Permissions.current()
+            return await Permissions.current()
         case "request_permission":
             let kind = try PermissionKind.parse(request.params(KindParams.self).kind)
             return await Permissions.request(kind)
@@ -202,6 +202,10 @@ func modelsDirectoryArgument(_ arguments: [String]) -> String? {
     }
     let value = arguments[flag + 1]
     return value.isEmpty ? nil : value
+}
+
+if CommandLine.arguments.contains(AccessibilityTrust.checkFlag) {
+    AccessibilityTrust.runCheck()
 }
 
 guard let modelsPath = modelsDirectoryArgument(CommandLine.arguments) else {

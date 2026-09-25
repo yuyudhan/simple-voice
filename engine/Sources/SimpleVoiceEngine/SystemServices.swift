@@ -18,7 +18,7 @@ enum SystemServices {
 
     /// Posts Cmd+V to whichever app has focus. Requires Accessibility trust.
     static func paste() async throws {
-        guard Permissions.isAccessibilityTrusted() else {
+        guard await AccessibilityTrust.isTrusted() else {
             throw EngineError("accessibility permission missing")
         }
         let vKey: CGKeyCode = 9
