@@ -1,0 +1,96 @@
+<!-- FilePath: docs/requirements/requirements.md -->
+
+# Simple Voice — Requirements
+
+This document records every requirement the owner has stated for Simple Voice. It is the
+source of truth for scope: a feature is done only when it satisfies the matching entry here.
+
+## 1. Product
+
+| ID  | Requirement                                                                                                                                                                         |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P-1 | The app is called **Simple Voice**.                                                                                                                                                 |
+| P-2 | It is a Tauri 2 desktop app living in this repository (`yuyudhan/simple-voice`).                                                                                                    |
+| P-3 | It is built for other people to use, not only the owner: no hard-coded personal paths, keys, or vocabulary.                                                                         |
+| P-4 | macOS first and only for now (Apple Silicon, macOS 14+; Apple Speech requires macOS 26+).                                                                                           |
+| P-5 | Installation and updates happen through Homebrew (`brew install --cask yuyudhan/tap/simple-voice`); the repo carries the cask and the release automation that publishes to the tap. |
+| P-6 | The UI must be elegant, simple and functional. Visual references: Wispr Flow (layout, warm palette, serif headings) and FluidVoice (model picker).                                  |
+| P-7 | Everything the owner's Hammerspoon dictation module does today must be done by this app instead (see § 3).                                                                          |
+
+## 2. Storage
+
+| ID  | Requirement                                                                                                                                                                         |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S-1 | A local SQLite database stores all user configuration, the dictation history, and the personal dictionary.                                                                          |
+| S-2 | Default location: `~/.simplevoice/` (database file `~/.simplevoice/simple-voice.db`).                                                                                               |
+| S-3 | The database location can be changed in Settings. Changing it moves the database; the app remembers the location across restarts.                                                   |
+| S-4 | On first launch the app creates the directory and the database and applies the schema without any manual step.                                                                      |
+| S-5 | New app versions upgrade an existing database in place through versioned, forward-only migrations, taking a backup before migrating. Old data is never lost on upgrade.             |
+| S-6 | Every SQL statement is checked at compile time (sqlx query macros with a committed offline cache).                                                                                  |
+| S-7 | Opening a database written by a newer app version (a downgrade) is refused with a clear message rather than risking the data.                                                       |
+| S-8 | API keys (Groq, custom endpoint) are stored in the local database (file mode 0600) with the rest of the configuration; `GROQ_API_KEY` in the environment is honoured as a fallback. |
+
+## 3. Dictation (parity with the Hammerspoon module)
+
+| ID   | Requirement                                                                                                                                                                                                                                                                                                                                                                        |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-1  | System-wide dictation: record from the microphone, transcribe, paste into the focused input of any app.                                                                                                                                                                                                                                                                            |
+| D-2  | Two global shortcuts, both configurable in Settings: **hold to speak** (recording stops on release) and **toggle to speak** (press to start, press again to stop).                                                                                                                                                                                                                 |
+| D-3  | Esc cancels a recording in progress without transcribing.                                                                                                                                                                                                                                                                                                                          |
+| D-4  | Prefer the built-in microphone by default (Bluetooth headsets switch to low-quality HFP); the microphone is selectable in Settings.                                                                                                                                                                                                                                                |
+| D-5  | Languages: English, Hindi and Hinglish by default; Hinglish stays romanised, pure Hindi comes out in Devanagari. A detection outside the allowed languages is re-run pinned to the fallback language. Allowed languages are configurable.                                                                                                                                          |
+| D-6  | Personal dictionary words bias recognition (Whisper `prompt`, capped at 850 characters) and are passed to the formatter as preferred spellings.                                                                                                                                                                                                                                    |
+| D-7  | Replacement rules (`heard -> written`) are applied deterministically, longest phrase first, whole words, case-insensitive.                                                                                                                                                                                                                                                         |
+| D-8  | Deterministic formatting runs first: rules, internal-caps brand casing (`argocd` → `ArgoCD`), no space before punctuation, sentence capitalisation, standalone `i` → `I`.                                                                                                                                                                                                          |
+| D-9  | An LLM formatting pass (Groq `qwen/qwen3.8-27b`, reasoning off, temperature 0) then rewrites the text: drops fillers and self-corrections, keeps Hinglish word for word, writes shortcuts as `Ctrl+Shift+M`, uses conventional tech spellings, and decides the layout itself (prose, `- ` bullets, `1. ` steps). Dictated instructions or questions are formatted, never answered. |
+| D-10 | The formatting pass must stay fast (~0.25 s). If it fails, times out (2.5 s + 5 ms/word), is truncated, is empty, or grows beyond 1.5× the input + 10 words, the deterministic text is pasted and marked "unformatted". Transcripts under 3 words skip it. It can be turned off.                                                                                                   |
+| D-11 | Overlapping dictations never paste out of order and never share an audio file: each recording has an id and its own file; an older result arriving after a newer paste is dropped (kept in history).                                                                                                                                                                               |
+| D-12 | Audio cues on start and stop.                                                                                                                                                                                                                                                                                                                                                      |
+| D-13 | A watchdog stops and transcribes after a maximum recording length (default 5 minutes).                                                                                                                                                                                                                                                                                             |
+| D-14 | A failed dictation keeps its audio so it can be retried from history; a dictation is never silently lost.                                                                                                                                                                                                                                                                          |
+
+## 4. Transcription engines and models
+
+| ID  | Requirement                                                                                                                                                                                                                                                                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M-1 | **Groq** cloud Whisper (`whisper-large-v3-turbo`) with the user's API key.                                                                                                                                                                                                                                                                           |
+| M-2 | **Parakeet** local models, as in FluidVoice: Parakeet TDT v3 (multilingual), Parakeet TDT v2 (English only), Parakeet Flash (beta, streaming English).                                                                                                                                                                                               |
+| M-3 | **Apple Speech** (on-device, macOS 26+).                                                                                                                                                                                                                                                                                                             |
+| M-4 | Each model shows its speed and accuracy, and whether it is cloud, downloaded, or needs downloading.                                                                                                                                                                                                                                                  |
+| M-5 | Local models are downloaded on demand from within the app, with progress, and can be deleted.                                                                                                                                                                                                                                                        |
+| M-6 | Post-processing (the LLM formatting pass) has local and remote providers: Groq (remote, default), Apple Intelligence (on-device, macOS 26+), and any OpenAI-compatible endpoint (local Ollama / LM Studio, or a remote service), plus Off. Any transcription model combines with any post-processing provider, so a fully offline setup is possible. |
+| M-7 | The Groq API key is entered in Settings where the user chooses the voice model; one key serves Groq transcription and Groq post-processing.                                                                                                                                                                                                          |
+| M-8 | Inspired by Wispr Flow, but simpler: few choices, sensible defaults, great user experience.                                                                                                                                                                                                                                                          |
+
+## 5. Screens
+
+| ID  | Requirement                                                                                                                                                                   |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| U-1 | **Home / Dictation history**: every dictation with time, app, text; copy, retry (failed), delete, search.                                                                     |
+| U-2 | **Insights**, simple and functional: words per minute, total words, fixes made (dictionary fixes, words corrected), streak and daily activity heatmap, usage by kind of app.  |
+| U-3 | **Dictionary**: personal dictionary only, no team mode. Add, edit, delete words and replacement rules; import from a vocabulary text file.                                    |
+| U-4 | **Style**: exactly two modes, **Formal** (caps + punctuation) and **Casual** (caps + less punctuation). One mode applies to everything — emails, messages, all apps.          |
+| U-5 | **Settings → General**: the two shortcuts, microphone, dictation languages.                                                                                                   |
+| U-6 | **Settings → System**: launch at login, show the floating bar at all times, show app in Dock, dictation sounds on/off with 3–4 sound options, mute all audio while dictating. |
+| U-7 | **Settings → Models**: engine/model selection, downloads, Groq API key, AI formatting toggle.                                                                                 |
+| U-8 | **Settings → Data**: database location.                                                                                                                                       |
+| U-9 | While recording, a small floating pill shows (icon + live level bars), like Wispr Flow's Flow Bar.                                                                            |
+
+## 6. Permissions
+
+| ID  | Requirement                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| X-1 | Microphone, Accessibility (to paste), and Speech Recognition (Apple Speech) permissions are requested properly, with an onboarding flow on first launch and a Permissions section in Settings showing live status and a way to grant or open System Settings. |
+| X-2 | The app never fails silently when a permission is missing: it says which permission is needed and how to grant it.                                                                                                                                            |
+
+## 7. Engineering quality
+
+| ID  | Requirement                                                                                                                                                                                                           |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q-1 | `.editorconfig` with 4-space indentation everywhere.                                                                                                                                                                  |
+| Q-2 | Quality gates like the `moneytrace` and `kalki` repositories: git hooks (pre-commit, commit-msg, pre-push), guard scripts, `just` recipes, CI.                                                                        |
+| Q-3 | Rust: `unsafe` code is forbidden in every crate; strict clippy (no `unwrap`/`expect`/`panic`, no lint suppressions, no `todo!`).                                                                                      |
+| Q-4 | Compile-time checked SQL via sqlx; runtime SQL strings are banned by a guard.                                                                                                                                         |
+| Q-5 | Code is organized as a Cargo workspace split into crates by responsibility (`sv-domain`, `sv-storage`, `sv-text`, `sv-cloud`, `sv-audio`, `sv-engine`, app) and, inside each crate and the UI, vertically by feature. |
+| Q-6 | Rust code that needs `unsafe` (Objective-C / C APIs) lives in the Swift engine helper instead, so every Rust crate forbids `unsafe`.                                                                                  |
+| Q-7 | This requirements document is kept up to date as requirements are added or changed.                                                                                                                                   |
