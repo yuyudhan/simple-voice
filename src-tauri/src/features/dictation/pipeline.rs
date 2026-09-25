@@ -160,7 +160,10 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
     match &delivered {
         Delivery::Pasted => {}
         Delivery::Dropped => status = HistoryStatus::Dropped,
-        Delivery::NotPasted(message) => row.error = Some(message.clone()),
+        Delivery::NotPasted(message) => {
+            status = HistoryStatus::NotPasted;
+            row.error = Some(message.clone());
+        }
     }
     row.status = status;
     row.final_text = final_text;
@@ -250,15 +253,16 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
 
     let formatted = sv_text::format(&heard.text, &vocabulary, settings.style);
     let polish = post_process(&state, &settings, &vocabulary.terms, &formatted.text).await;
-    let (final_text, status) = match polish {
-        Polish::Polished(text) => (text, HistoryStatus::Pasted),
-        Polish::NotRun => (formatted.text, HistoryStatus::Pasted),
-        Polish::Unformatted(_) => (formatted.text, HistoryStatus::Unformatted),
+    let final_text = match polish {
+        Polish::Polished(text) => text,
+        Polish::NotRun | Polish::Unformatted(_) => formatted.text,
     };
+    // A retry only copies: the app the dictation was meant for is no longer focused.
     if let Err(error) = delivery::copy_to_clipboard(&final_text) {
         tracing::warn!(%error, "could not copy the retried text");
+        row.error = Some(format!("Could not copy to the clipboard: {error}"));
     }
-    row.status = status;
+    row.status = HistoryStatus::NotPasted;
     row.raw_text = heard.text;
     row.final_text = final_text;
     row.language = heard.language;

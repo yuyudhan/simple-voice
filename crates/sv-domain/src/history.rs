@@ -16,6 +16,9 @@ pub enum HistoryStatus {
     Failed,
     /// A newer dictation was already pasted, so this older result was not pasted.
     Dropped,
+    /// The text could not be pasted into the app (usually missing Accessibility); it was left on
+    /// the clipboard where possible, and `error` says what went wrong.
+    NotPasted,
 }
 
 impl HistoryStatus {
@@ -25,6 +28,7 @@ impl HistoryStatus {
             Self::Unformatted => "unformatted",
             Self::Failed => "failed",
             Self::Dropped => "dropped",
+            Self::NotPasted => "not_pasted",
         }
     }
 
@@ -34,6 +38,7 @@ impl HistoryStatus {
             "unformatted" => Some(Self::Unformatted),
             "failed" => Some(Self::Failed),
             "dropped" => Some(Self::Dropped),
+            "not_pasted" => Some(Self::NotPasted),
             _ => None,
         }
     }

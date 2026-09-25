@@ -67,9 +67,7 @@ enum AppleSpeech {
     static func transcribe(path: String, language: String?) async throws -> TranscriptResult {
         let locale = try await requireLocale(language)
         let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
-        guard await AssetInventory.status(forModules: [transcriber]) == .installed else {
-            throw EngineError(notDownloadedMessage(locale))
-        }
+        try await prepareAssets(for: transcriber, locale: locale)
         let file: AVAudioFile
         do {
             file = try AVAudioFile(forReading: URL(fileURLWithPath: path))
@@ -102,6 +100,34 @@ enum AppleSpeech {
         }
         let text = try await collector.value
         return TranscriptResult(text: text, language: locale.language.languageCode?.identifier)
+    }
+
+    /// `AssetInventory.status` stays below `.installed` until this app reserves the locale, even
+    /// when macOS already has its assets. Assets installed system-wide are reserved (and any
+    /// remaining installation step run) automatically; only genuinely missing assets fail.
+    private static func prepareAssets(for transcriber: SpeechTranscriber, locale: Locale) async throws {
+        if await AssetInventory.status(forModules: [transcriber]) == .installed {
+            return
+        }
+        let tag = locale.identifier(.bcp47)
+        let installed = await SpeechTranscriber.installedLocales
+        guard installed.contains(where: { $0.identifier(.bcp47) == tag }) else {
+            throw EngineError(notDownloadedMessage(locale))
+        }
+        let reserved = await AssetInventory.reservedLocales
+        if !reserved.contains(where: { $0.identifier(.bcp47) == tag }) {
+            do {
+                _ = try await AssetInventory.reserve(locale: locale)
+            } catch {
+                throw EngineError("cannot reserve Apple Speech for \(label(locale)): \(describe(error))")
+            }
+        }
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
+            try await request.downloadAndInstall()
+        }
+        guard await AssetInventory.status(forModules: [transcriber]) == .installed else {
+            throw EngineError(notDownloadedMessage(locale))
+        }
     }
 
     // MARK: - Locales

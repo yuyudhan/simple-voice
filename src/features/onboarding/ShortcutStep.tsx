@@ -7,6 +7,7 @@ import { events, type DictationState } from "../../lib/api";
 import { useTauriEvent } from "../../lib/useTauriEvent";
 import { useSettings } from "../../app/SettingsContext";
 import { Button, ShortcutKeys } from "../../ui";
+import { FnKeyAccessWarning } from "../settings/shortcuts/FnKeyAccessWarning";
 import { ShortcutRecorder } from "../settings/shortcuts/ShortcutRecorder";
 import { StepFooter } from "./StepFooter";
 
@@ -75,6 +76,7 @@ export function ShortcutStep({ onBack, onNext }: Props) {
                         <ShortcutRecorder field="toggleShortcut" />
                     </div>
                 </div>
+                <FnKeyAccessWarning placement="inline" />
 
                 <div className="sv-onb__try">
                     <div className="sv-onb__try-head">

@@ -32,7 +32,7 @@ pub struct AppUsage {
     pub words: i64,
 }
 
-/// Only dictations that produced text (`pasted`, `unformatted`, `dropped`) count.
+/// Only dictations that produced text (every status except `failed`) count.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Insights {

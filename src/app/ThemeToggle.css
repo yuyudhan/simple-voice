@@ -1,0 +1,16 @@
+/* FilePath: src/app/ThemeToggle.css */
+/* Sits in the title-bar band, above the window drag strip, level with the traffic lights. */
+.sv-theme-toggle {
+    position: fixed;
+    top: 10px;
+    right: 12px;
+    z-index: 10;
+}
+
+.sv-theme-toggle svg {
+    transition: transform var(--dur) var(--ease);
+}
+
+.sv-theme-toggle:hover svg {
+    transform: rotate(-15deg);
+}

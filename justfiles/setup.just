@@ -36,8 +36,14 @@ doctor:
     require cargo "https://rustup.rs"
     require bun "brew install oven-sh/bun/bun"
     require just "brew install just"
-    require swift "Xcode 16 or newer (xcode-select --install is not enough; install Xcode)"
-    require xcodebuild "Xcode 16 or newer from the App Store"
+    require swift "Xcode 26+ or its Command Line Tools (xcode-select --install)"
+    sdk=$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)
+    if [ "${sdk%%.*}" -ge 26 ] 2>/dev/null; then
+        printf 'OK       %-14s %s\n' "macOS SDK" "$sdk"
+    else
+        printf 'MISSING  %-14s install: %s\n' "macOS SDK" "26+ via Xcode 26 or its Command Line Tools"
+        missing=$((missing + 1))
+    fi
     require sqlx "cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked"
     require taplo "brew install taplo"
     require typos "brew install typos-cli"
@@ -55,7 +61,7 @@ doctor:
         echo "MISSING  git hooks      run: just hooks"
         missing=$((missing + 1))
     fi
-    if command -v xcodebuild >/dev/null 2>&1; then
+    if xcodebuild -version >/dev/null 2>&1; then
         echo ""
         xcodebuild -version | sed -n 1p
     fi

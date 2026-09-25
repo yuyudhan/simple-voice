@@ -358,7 +358,14 @@ mod tests {
         assert!(upgraded.is_ok());
         let backups = backups_in(dir.path());
         assert_eq!(backups.len(), 1);
-        assert!(backups[0].starts_with(BACKUP_PREFIX) && backups[0].ends_with("-v1.db"));
+        // The backup is named after the schema version the database had before upgrading.
+        let shipped = MIGRATOR
+            .iter()
+            .map(|migration| migration.version)
+            .max()
+            .unwrap();
+        let suffix = format!("-v{shipped}.db");
+        assert!(backups[0].starts_with(BACKUP_PREFIX) && backups[0].ends_with(&suffix));
 
         // Nothing pending on the next launch of the same version: no second backup.
         drop(upgraded);

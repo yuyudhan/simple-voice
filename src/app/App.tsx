@@ -8,11 +8,13 @@ import { HistoryPage } from "../features/history/HistoryPage";
 import { InsightsPage } from "../features/insights/InsightsPage";
 import { DictionaryPage } from "../features/dictionary/DictionaryPage";
 import { StylePage } from "../features/style/StylePage";
+import { FnKeyAccessWarning } from "../features/settings/shortcuts/FnKeyAccessWarning";
 import { useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
 import { ShellContext, type Page, type SettingsSection } from "./ShellContext";
 import { Sidebar } from "./Sidebar";
 import { useTheme } from "./theme";
+import { ThemeToggle } from "./ThemeToggle";
 import "./App.css";
 
 export function App() {
@@ -24,7 +26,7 @@ export function App() {
         },
         [toast],
     );
-    useTheme(settings.theme, themeError);
+    const resolvedTheme = useTheme(settings.theme, themeError);
     const [page, setPage] = useState<Page>("home");
     const [dialog, setDialog] = useState<{ open: boolean; section?: SettingsSection }>({
         open: false,
@@ -44,12 +46,15 @@ export function App() {
 
     if (!settings.onboardingComplete) {
         return (
-            <Onboarding
-                settings={settings}
-                onDone={() => {
-                    void refresh();
-                }}
-            />
+            <>
+                <Onboarding
+                    settings={settings}
+                    onDone={() => {
+                        void refresh();
+                    }}
+                />
+                <ThemeToggle resolved={resolvedTheme} />
+            </>
         );
     }
 
@@ -57,8 +62,10 @@ export function App() {
         <ShellContext.Provider value={shell}>
             <div className="sv-shell">
                 <div className="sv-shell__drag" data-tauri-drag-region />
+                <ThemeToggle resolved={resolvedTheme} />
                 <Sidebar page={page} onNavigate={setPage} onOpenSettings={openSettings} />
                 <main className="sv-shell__main">
+                    <FnKeyAccessWarning placement="shell" />
                     <div className="sv-shell__content" key={page}>
                         {page === "home" && <HistoryPage />}
                         {page === "insights" && <InsightsPage />}

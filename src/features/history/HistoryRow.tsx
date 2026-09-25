@@ -23,7 +23,9 @@ function StatusBadge({ entry }: { entry: HistoryEntry }) {
         case "failed":
             return <Badge tone="danger">Failed</Badge>;
         case "dropped":
-            return <Badge tone="neutral">Not pasted</Badge>;
+            return <Badge tone="neutral">Skipped</Badge>;
+        case "not_pasted":
+            return <Badge tone="warning">Not pasted</Badge>;
     }
 }
 
@@ -94,6 +96,11 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                 {entry.status === "dropped" && (
                     <p className="history-row__note">
                         A newer dictation was pasted first, so this one was kept here instead.
+                    </p>
+                )}
+                {entry.status === "not_pasted" && (
+                    <p className="history-row__note">
+                        {entry.error ?? "Copied to the clipboard instead of pasted."}
                     </p>
                 )}
                 {entry.status === "unformatted" && (

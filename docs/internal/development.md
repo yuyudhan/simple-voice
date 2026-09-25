@@ -22,8 +22,8 @@ contract between the pieces is [architecture.md](architecture.md); releases are 
 Prerequisites:
 
 - macOS 14 or later on Apple Silicon
-- Xcode 26 or later (Swift 6; the macOS 26 SDK is needed to build the Apple Speech and Apple
-  Intelligence support, while the app itself still runs on macOS 14)
+- Xcode 26 or later, or its Command Line Tools (Swift 6; the macOS 26 SDK is needed to build the
+  Apple Speech and Apple Intelligence support, while the app itself still runs on macOS 14)
 - Rust via [rustup](https://rustup.rs)
 - [bun](https://bun.sh), [just](https://just.systems)
 - sqlx-cli with SQLite support (below)
@@ -122,8 +122,8 @@ describes its protocol, models and permissions. `just engine` (or
 recipe that compiles `src-tauri` builds the debug helper first if it is missing, because the
 Tauri build script refuses to run without it. `just test` also runs `swift build` on the package.
 
-Building needs the macOS 26 SDK (Xcode 26+) for SpeechAnalyzer and FoundationModels; the
-binary links FoundationModels weakly and still runs on macOS 14.
+Building needs the macOS 26 SDK (Xcode 26+ or its Command Line Tools) for SpeechAnalyzer and
+FoundationModels; the binary links FoundationModels weakly and still runs on macOS 14.
 
 ## Permissions during development
 
