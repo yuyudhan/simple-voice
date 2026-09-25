@@ -72,9 +72,11 @@ jobs:
                   fi
                   echo "version=${version}" >>"$GITHUB_OUTPUT"
 
-            - name: Build engine helper
-              run: bash engine/build.sh release
+            # Before anything is uploaded, so a cask Homebrew would reject never gets published.
+            - name: Check the Homebrew cask
+              run: scripts/release/check-cask.sh "${{ steps.version.outputs.version }}"
 
+            # beforeBuildCommand in tauri.conf.json builds the release engine helper first.
             - name: Build app
               id: build
               env:

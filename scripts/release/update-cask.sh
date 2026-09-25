@@ -4,9 +4,10 @@
 # it to the tap repository so `brew upgrade` picks the release up.
 #
 # Rendering pins `version` and the DMG's real `sha256`, replaces the template's own header with
-# a pointer back here, and - for a Developer ID signed and notarized build - removes the block
-# between the `unsigned-build` markers (the quarantine-clearing postflight and its caveat),
-# which only ad-hoc signed builds need.
+# a pointer back here, and - for a Developer ID signed and notarized build - removes every block
+# between `unsigned-build` markers (the quarantine-clearing postflight step and its caveat),
+# which only ad-hoc signed builds need. Blank lines left behind by a removed block are collapsed
+# so the result still passes `brew style`.
 #
 # Usage:
 #   scripts/release/update-cask.sh render  VERSION SHA256 SIGNED    print the rendered cask
@@ -56,9 +57,10 @@ render() {
         /# unsigned-build:begin/ { skipping = (signed == "true"); next }
         /# unsigned-build:end/ { skipping = 0; next }
         skipping { next }
-        /^[[:space:]]*$/ { if (blank) next; blank = 1; print; next }
-        { blank = 0 }
-        { print }
+        # Hold a blank line until the next printed line: never two in a row, none before `end`.
+        /^[[:space:]]*$/ { blank = 1; next }
+        blank && !/^end$/ { print "" }
+        { blank = 0; print }
     ' "$template"
 }
 

@@ -6,3 +6,8 @@
 [group('release')]
 release VERSION:
     scripts/release/bump-version.sh {{VERSION}}
+
+# Render the Homebrew cask (ad-hoc and notarized variants) and run brew style and brew audit.
+[group('release')]
+cask-check:
+    scripts/release/check-cask.sh

@@ -2,6 +2,7 @@
 # The same gate as `just check`, on every push and pull request: guards, formatting, clippy,
 # eslint, tsc, typos, shellcheck, tests, and the sqlx offline-cache check. Each gate is its own
 # step so a failure is labelled in the run summary. Apple Silicon runner only, like the app.
+# The Homebrew cask is checked here too, so a broken cask is caught before a release tag.
 name: CI
 
 on:
@@ -104,3 +105,6 @@ jobs:
 
             - name: sqlx offline cache
               run: just sqlx-check
+
+            - name: Homebrew cask
+              run: just cask-check

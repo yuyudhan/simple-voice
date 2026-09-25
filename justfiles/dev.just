@@ -7,9 +7,10 @@
 dev: (engine "debug")
     bun run tauri dev
 
-# Build the release app bundle and DMG for Apple Silicon.
+# Build the release app bundle and DMG for Apple Silicon. Tauri's beforeBuildCommand builds the
+# release engine helper first.
 [group('develop')]
-build: (engine "release")
+build:
     bun run tauri build --target aarch64-apple-darwin
 
 # Build the Swift engine helper into src-tauri/binaries/. MODE: debug (default) | release
