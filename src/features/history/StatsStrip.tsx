@@ -50,11 +50,20 @@ export function StatsStrip() {
     });
 
     const items = [
-        { label: "Words today", value: stats ? formatCompact(stats.today) : "–" },
-        { label: "This week", value: stats ? formatCompact(stats.week) : "–" },
+        {
+            label: "Words today",
+            value: stats ? formatCompact(stats.today) : "–",
+            unit: stats ? pluralize(stats.today, "word") : "",
+        },
+        {
+            label: "This week",
+            value: stats ? formatCompact(stats.week) : "–",
+            unit: stats ? pluralize(stats.week, "word") : "",
+        },
         {
             label: "Streak",
-            value: stats ? `${String(stats.streak)} ${pluralize(stats.streak, "day")}` : "–",
+            value: stats ? String(stats.streak) : "–",
+            unit: stats ? pluralize(stats.streak, "day") : "",
         },
     ];
 
@@ -63,7 +72,10 @@ export function StatsStrip() {
             {items.map((item) => (
                 <div key={item.label} className="history-stats__item">
                     <dt className="caps-label">{item.label}</dt>
-                    <dd className="history-stats__value">{item.value}</dd>
+                    <dd className="history-stats__value">
+                        <span className="readout">{item.value}</span>
+                        {item.unit && <span className="history-stats__unit">{item.unit}</span>}
+                    </dd>
                 </div>
             ))}
         </dl>

@@ -1,4 +1,7 @@
 /* FilePath: src/features/settings/SettingsDialog.css */
+/* Settings sheet in the Signal language (docs/design.md): a --surface section column with the
+   vertical level-line marker on the active item, and a --bg pane whose groups are hairline
+   panels. The sheet floats, so it is the one settings surface that carries a shadow. */
 
 .sv-settings__backdrop {
     position: fixed;
@@ -9,20 +12,20 @@
     justify-content: center;
     padding: 24px;
     background: var(--backdrop);
-    animation: sv-settings-fade var(--dur) var(--ease);
+    animation: sv-fade-in var(--dur) var(--ease);
 }
 
 .sv-settings {
     display: grid;
-    grid-template-columns: 208px 1fr;
+    grid-template-columns: 200px 1fr;
     width: min(880px, 100%);
-    height: min(620px, 100%);
+    height: min(640px, 100%);
     overflow: hidden;
     border: 1px solid var(--border);
-    border-radius: 16px;
-    background: var(--panel);
+    border-radius: var(--radius-card);
+    background: var(--bg);
     box-shadow: var(--shadow-overlay);
-    animation: sv-settings-rise 220ms var(--ease);
+    animation: sv-rise-in var(--dur) var(--ease);
 }
 
 .sv-settings:focus {
@@ -32,20 +35,14 @@
 .sv-settings__nav {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 22px 12px 16px;
+    gap: 10px;
+    padding: 24px 12px 16px;
     border-right: 1px solid var(--border);
     background: var(--surface);
 }
 
 .sv-settings__eyebrow {
-    padding: 0 10px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    font-variant: small-caps;
-    text-transform: uppercase;
-    color: var(--faint);
+    padding: 0 10px;
 }
 
 .sv-settings__list {
@@ -58,11 +55,12 @@
 }
 
 .sv-settings__item {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
-    height: 34px;
+    height: 32px;
     padding: 0 10px;
     border: 0;
     border-radius: var(--radius-control);
@@ -70,10 +68,11 @@
     color: var(--muted);
     font: inherit;
     font-size: 13.5px;
+    font-weight: 500;
     text-align: left;
     cursor: pointer;
     transition:
-        background var(--dur) var(--ease),
+        background-color var(--dur) var(--ease),
         color var(--dur) var(--ease);
 }
 
@@ -90,14 +89,50 @@
 .sv-settings__item[aria-current="page"] {
     background: var(--panel);
     color: var(--text);
-    font-weight: 500;
-    box-shadow: var(--shadow-card);
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+/* The level line turned vertical: a short signal segment on the active item's leading edge. */
+.sv-settings__item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 2px;
+    height: 14px;
+    border-radius: 1px;
+    background: var(--accent);
+    transform: translateY(-50%);
+}
+
+.sv-settings__icon {
+    display: inline-flex;
+    color: var(--faint);
+    transition: color var(--dur) var(--ease);
+}
+
+.sv-settings__item:hover .sv-settings__icon {
+    color: var(--muted);
+}
+
+.sv-settings__item[aria-current="page"] .sv-settings__icon {
+    color: var(--accent);
 }
 
 .sv-settings__version {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     margin-top: auto;
     padding: 0 10px;
-    font-size: 11.5px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.sv-settings__build {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
     color: var(--faint);
 }
 
@@ -110,18 +145,39 @@
 
 .sv-settings__header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    padding: 20px 20px 8px 32px;
+    gap: 16px;
+    padding: 24px 20px 16px 32px;
+}
+
+.sv-settings__heading {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
 }
 
 .sv-settings__title {
     margin: 0;
-    font-family: var(--font-serif);
-    font-size: 28px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
     color: var(--text);
+}
+
+.sv-settings__description {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.sv-settings__rule {
+    flex: none;
+    margin: 0 32px;
 }
 
 .sv-settings__content {
@@ -129,19 +185,6 @@
     flex: 1;
     flex-direction: column;
     overflow-y: auto;
-    padding: 12px 32px 32px;
-    animation: sv-settings-fade 200ms var(--ease);
-}
-
-@keyframes sv-settings-fade {
-    from {
-        opacity: 0;
-    }
-}
-
-@keyframes sv-settings-rise {
-    from {
-        opacity: 0;
-        transform: translateY(8px) scale(0.985);
-    }
+    padding: 24px 32px 32px;
+    animation: sv-fade-in var(--dur) var(--ease);
 }

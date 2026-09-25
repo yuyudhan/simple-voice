@@ -51,7 +51,7 @@ export function ShortcutStep({ onBack, onNext }: Props) {
     return (
         <>
             <div className="sv-onb__icon">
-                <Command size={22} />
+                <Command size={20} />
             </div>
             <h1 className="sv-onb__title">Your shortcuts</h1>
             <p className="sv-onb__lead">
@@ -78,7 +78,7 @@ export function ShortcutStep({ onBack, onNext }: Props) {
 
                 <div className="sv-onb__try">
                     <div className="sv-onb__try-head">
-                        <span className="sv-onb__shortcut-title">Try it</span>
+                        <span className="caps-label">Try it</span>
                         <span className={`sv-onb__state is-${status.tone}`} aria-live="polite">
                             <span className="sv-onb__state-dot" />
                             {status.text}

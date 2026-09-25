@@ -7,6 +7,7 @@
     border: 1px solid transparent;
     border-radius: var(--radius-control);
     font-weight: 500;
+    letter-spacing: -0.005em;
     white-space: nowrap;
     transition:
         background-color var(--dur) var(--ease),
@@ -17,23 +18,23 @@
 }
 
 .sv-btn:active:not(:disabled) {
-    transform: translateY(0.5px) scale(0.99);
+    transform: translateY(0.5px);
 }
 
 .sv-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
 }
 
 .sv-btn--md {
-    height: 34px;
-    padding: 0 14px;
-    font-size: 13.5px;
+    height: 32px;
+    padding: 0 13px;
+    font-size: 13px;
 }
 
 .sv-btn--sm {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
+    height: 26px;
+    padding: 0 9px;
+    font-size: 12px;
     gap: 5px;
 }
 
@@ -42,8 +43,9 @@
 }
 
 .sv-btn__icon svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
+    stroke-width: 1.9;
 }
 
 .sv-btn--sm .sv-btn__icon svg {
@@ -51,13 +53,14 @@
     height: 13px;
 }
 
+/* Ink acts: the primary action is filled with ink, never with the signal colour. */
 .sv-btn--primary {
-    background: var(--accent);
-    color: var(--on-accent);
+    background: var(--ink);
+    color: var(--on-ink);
 }
 
 .sv-btn--primary:hover:not(:disabled) {
-    background: var(--accent-hover);
+    background: var(--ink-hover);
 }
 
 .sv-btn--secondary {
@@ -68,6 +71,7 @@
 
 .sv-btn--secondary:hover:not(:disabled) {
     background: var(--surface);
+    border-color: var(--faint);
 }
 
 .sv-btn--ghost {
@@ -81,7 +85,7 @@
 
 .sv-btn--danger {
     background: var(--danger);
-    color: #fff;
+    color: var(--on-danger);
 }
 
 .sv-btn--danger:hover:not(:disabled) {
@@ -92,8 +96,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: none;
     border-radius: var(--radius-control);
@@ -109,8 +113,9 @@
 }
 
 .sv-icon-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.8;
 }
 
 .sv-icon-btn:hover:not(:disabled) {

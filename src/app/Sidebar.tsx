@@ -1,6 +1,6 @@
 // FilePath: src/app/Sidebar.tsx
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { BookA, ChartColumn, Mic, PenLine, Settings as SettingsIcon } from "lucide-react";
+import { Activity as Pulse, AudioLines, BookA, Settings as SettingsIcon, Type } from "lucide-react";
 import {
     api,
     errorMessage,
@@ -10,7 +10,7 @@ import {
     type Settings,
 } from "../lib/api";
 import { useTauriEvent } from "../lib/useTauriEvent";
-import { ShortcutKeys, useToast } from "../ui";
+import { BrandMark, ShortcutKeys, useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
 import type { Page, SettingsSection } from "./ShellContext";
 import "./Sidebar.css";
@@ -34,10 +34,10 @@ const PHASE_ACTIVITY: Record<DictationPhase, Activity> = {
 };
 
 const NAV: { id: Page; label: string; icon: ReactNode }[] = [
-    { id: "home", label: "Home", icon: <Mic /> },
-    { id: "insights", label: "Insights", icon: <ChartColumn /> },
+    { id: "home", label: "History", icon: <AudioLines /> },
+    { id: "insights", label: "Insights", icon: <Pulse /> },
     { id: "dictionary", label: "Dictionary", icon: <BookA /> },
-    { id: "style", label: "Style", icon: <PenLine /> },
+    { id: "style", label: "Style", icon: <Type /> },
 ];
 
 /** Apple Speech needs the Speech Recognition grant; every setup needs mic + accessibility. */
@@ -91,25 +91,10 @@ export function Sidebar({ page, onNavigate, onOpenSettings }: SidebarProps) {
 
     return (
         <aside className="sv-sidebar">
-            <div className="sv-sidebar__top" data-tauri-drag-region>
-                <span
-                    className={`sv-status sv-status--${activity}`}
-                    role="status"
-                    aria-live="polite"
-                    data-tauri-drag-region
-                >
-                    <span className="sv-status__dot" aria-hidden="true" />
-                    {ACTIVITY_LABEL[activity]}
-                </span>
-            </div>
+            <div className="sv-sidebar__top" data-tauri-drag-region />
 
             <div className="sv-brand" data-tauri-drag-region>
-                <svg className="sv-brand__mark" viewBox="0 0 20 20" aria-hidden="true">
-                    <rect x="2" y="7.5" width="2.4" height="5" rx="1.2" />
-                    <rect x="6.2" y="4.5" width="2.4" height="11" rx="1.2" />
-                    <rect x="10.4" y="2" width="2.4" height="16" rx="1.2" />
-                    <rect x="14.6" y="6" width="2.4" height="8" rx="1.2" />
-                </svg>
+                <BrandMark className="sv-brand__mark" />
                 <span className="sv-brand__name">Simple Voice</span>
             </div>
 
@@ -147,8 +132,14 @@ export function Sidebar({ page, onNavigate, onOpenSettings }: SidebarProps) {
                     </span>
                     Settings
                 </button>
-                <div className="sv-hint">
-                    Hold <ShortcutKeys accelerator={settings.holdShortcut} /> to speak
+                <div className={`sv-status sv-status--${activity}`}>
+                    <span className="sv-status__line" role="status" aria-live="polite">
+                        <span className="sv-status__dot" aria-hidden="true" />
+                        {ACTIVITY_LABEL[activity]}
+                    </span>
+                    <span className="sv-status__hint">
+                        Hold <ShortcutKeys accelerator={settings.holdShortcut} /> to speak
+                    </span>
                 </div>
             </div>
         </aside>

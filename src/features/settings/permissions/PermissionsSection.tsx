@@ -111,13 +111,15 @@ export function PermissionsSection() {
                     >
                         <div className="sv-perm__control">
                             <StatusBadge status={permissions[p.kind]} />
-                            <PermissionAction
-                                kind={p.kind}
-                                status={permissions[p.kind]}
-                                busy={busy === p.kind}
-                                onRequest={request}
-                                onOpenSettings={openSettings}
-                            />
+                            {permissions[p.kind] !== "granted" && (
+                                <PermissionAction
+                                    kind={p.kind}
+                                    status={permissions[p.kind]}
+                                    busy={busy === p.kind}
+                                    onRequest={request}
+                                    onOpenSettings={openSettings}
+                                />
+                            )}
                         </div>
                     </SettingRow>
                 ))

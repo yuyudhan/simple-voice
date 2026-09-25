@@ -21,6 +21,7 @@ const MODIFIERS: Record<string, { symbol: string; name: string; order: number }>
 };
 
 const KEYS: Record<string, string> = {
+    fn: "fn",
     quote: "'",
     space: "Space",
     comma: ",",

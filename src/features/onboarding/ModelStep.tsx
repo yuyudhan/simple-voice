@@ -44,7 +44,7 @@ export function ModelStep({ onBack, onNext }: Props) {
     return (
         <>
             <div className="sv-onb__icon">
-                <AudioLines size={22} />
+                <AudioLines size={20} />
             </div>
             <h1 className="sv-onb__title">Choose a voice model</h1>
             <p className="sv-onb__lead">

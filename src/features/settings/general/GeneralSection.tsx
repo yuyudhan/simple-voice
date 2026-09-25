@@ -1,8 +1,9 @@
 // FilePath: src/features/settings/general/GeneralSection.tsx
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, type Microphone } from "../../../lib/api";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { api, errorMessage, type Microphone, type Theme } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import { Select, SettingRow, SettingsGroup } from "../../../ui";
+import { Segmented, Select, SettingRow, SettingsGroup, type SegmentedOption } from "../../../ui";
 import { ShortcutRecorder } from "../shortcuts/ShortcutRecorder";
 import { LanguagePicker } from "./LanguagePicker";
 import "../common.css";
@@ -10,6 +11,26 @@ import "./general.css";
 
 // Select values are strings; the empty string stands for automatic selection (null).
 const AUTOMATIC = "";
+
+const THEME_OPTIONS: SegmentedOption<Theme>[] = [
+    { value: "system", label: "System", icon: <Monitor /> },
+    { value: "light", label: "Light", icon: <Sun /> },
+    { value: "dark", label: "Dark", icon: <Moon /> },
+];
+
+function ThemeSelect() {
+    const { settings, update } = useSettings();
+    return (
+        <Segmented
+            label="Theme"
+            value={settings.theme}
+            options={THEME_OPTIONS}
+            onChange={(theme) => {
+                void update({ theme });
+            }}
+        />
+    );
+}
 
 function MicrophoneSelect() {
     const { settings, update } = useSettings();
@@ -76,6 +97,12 @@ function MicrophoneSelect() {
 export function GeneralSection() {
     return (
         <>
+            <SettingsGroup title="Appearance">
+                <SettingRow title="Theme" description="System follows your Mac's appearance.">
+                    <ThemeSelect />
+                </SettingRow>
+            </SettingsGroup>
+
             <SettingsGroup title="Shortcuts">
                 <SettingRow
                     title="Hold to speak"

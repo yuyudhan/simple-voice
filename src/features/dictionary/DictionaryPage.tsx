@@ -7,9 +7,9 @@ import { formatNumber, pluralize } from "../../lib/format";
 import {
     Button,
     EmptyState,
-    Hero,
     IconButton,
     Modal,
+    PageHeader,
     Spinner,
     TextField,
     useToast,
@@ -19,9 +19,7 @@ import "./dictionary.css";
 
 type EditorState = { entry: DictionaryEntry | null; key: number } | null;
 
-const HERO_SUBTITLE =
-    "Add names, jargon and brand spellings so they are recognised and written correctly. " +
-    "Replacement rules turn what you say into exactly what you want written, in every app.";
+const DESCRIPTION = "Terms to spell your way, and rules that rewrite what you say.";
 const EMPTY_DESCRIPTION =
     "Add a word you use often, or import a vocabulary file with one entry per line. Lines " +
     "written as “heard -> written” become replacement rules.";
@@ -113,34 +111,33 @@ export function DictionaryPage() {
 
     return (
         <>
-            <Hero
-                title={
+            <PageHeader
+                title="Dictionary"
+                description={DESCRIPTION}
+                actions={
                     <>
-                        Simple Voice spells the way <em>you</em> do.
+                        <Button
+                            variant="secondary"
+                            icon={<Upload />}
+                            loading={importing}
+                            onClick={() => {
+                                void importFile();
+                            }}
+                        >
+                            Import…
+                        </Button>
+                        <Button
+                            variant="primary"
+                            icon={<Plus />}
+                            onClick={() => {
+                                openEditor(null);
+                            }}
+                        >
+                            Add word
+                        </Button>
                     </>
                 }
-                subtitle={HERO_SUBTITLE}
-            >
-                <Button
-                    variant="primary"
-                    icon={<Plus />}
-                    onClick={() => {
-                        openEditor(null);
-                    }}
-                >
-                    Add word
-                </Button>
-                <Button
-                    variant="secondary"
-                    icon={<Upload />}
-                    loading={importing}
-                    onClick={() => {
-                        void importFile();
-                    }}
-                >
-                    Import…
-                </Button>
-            </Hero>
+            />
 
             <div className="dictionary-toolbar">
                 <div className="dictionary-search">
@@ -156,10 +153,16 @@ export function DictionaryPage() {
                     />
                 </div>
                 {entries !== null && entries.length > 0 && (
-                    <span className="dictionary-count">
-                        {formatNumber(wordCount)} {pluralize(wordCount, "word")} ·{" "}
-                        {formatNumber(ruleCount)} {pluralize(ruleCount, "rule")}
-                    </span>
+                    <dl className="dictionary-count">
+                        <div>
+                            <dt className="caps-label">{pluralize(wordCount, "Word")}</dt>
+                            <dd className="readout">{formatNumber(wordCount)}</dd>
+                        </div>
+                        <div>
+                            <dt className="caps-label">{pluralize(ruleCount, "Rule")}</dt>
+                            <dd className="readout">{formatNumber(ruleCount)}</dd>
+                        </div>
+                    </dl>
                 )}
             </div>
 
@@ -191,46 +194,57 @@ export function DictionaryPage() {
                     description={`Nothing in your dictionary matches “${filter.trim()}”.`}
                 />
             ) : (
-                <ul className="dictionary-list">
-                    {visible.map((entry) => (
-                        <li key={entry.id} className="dictionary-row">
-                            {entry.replacement === null ? (
-                                <span className="dictionary-row__phrase selectable">
-                                    {entry.phrase}
-                                </span>
-                            ) : (
-                                <span className="dictionary-row__rule">
-                                    <span className="dictionary-row__heard selectable">
-                                        {entry.phrase}
+                <div className="dictionary-table">
+                    <div className="dictionary-table__head" aria-hidden="true">
+                        <span className="caps-label">Entry</span>
+                        <span className="caps-label">Kind</span>
+                    </div>
+                    <ul className="dictionary-list">
+                        {visible.map((entry) => (
+                            <li key={entry.id} className="dictionary-row">
+                                {entry.replacement === null ? (
+                                    <span className="dictionary-row__entry">
+                                        <span className="dictionary-row__written selectable">
+                                            {entry.phrase}
+                                        </span>
                                     </span>
-                                    <ArrowRight
-                                        className="dictionary-row__arrow"
-                                        aria-label="is written as"
+                                ) : (
+                                    <span className="dictionary-row__entry">
+                                        <span className="dictionary-row__heard selectable">
+                                            {entry.phrase}
+                                        </span>
+                                        <ArrowRight
+                                            className="dictionary-row__arrow"
+                                            aria-label="is written as"
+                                        />
+                                        <span className="dictionary-row__written selectable">
+                                            {entry.replacement}
+                                        </span>
+                                    </span>
+                                )}
+                                <span className="dictionary-row__kind caps-label">
+                                    {entry.replacement === null ? "Word" : "Rule"}
+                                </span>
+                                <span className="dictionary-row__actions">
+                                    <IconButton
+                                        label={`Edit “${entry.phrase}”`}
+                                        icon={<Pencil />}
+                                        onClick={() => {
+                                            openEditor(entry);
+                                        }}
                                     />
-                                    <span className="dictionary-row__phrase selectable">
-                                        {entry.replacement}
-                                    </span>
+                                    <IconButton
+                                        label={`Delete “${entry.phrase}”`}
+                                        icon={<Trash2 />}
+                                        onClick={() => {
+                                            setPendingDelete(entry);
+                                        }}
+                                    />
                                 </span>
-                            )}
-                            <span className="dictionary-row__actions">
-                                <IconButton
-                                    label={`Edit “${entry.phrase}”`}
-                                    icon={<Pencil />}
-                                    onClick={() => {
-                                        openEditor(entry);
-                                    }}
-                                />
-                                <IconButton
-                                    label={`Delete “${entry.phrase}”`}
-                                    icon={<Trash2 />}
-                                    onClick={() => {
-                                        setPendingDelete(entry);
-                                    }}
-                                />
-                            </span>
-                        </li>
-                    ))}
-                </ul>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             )}
 
             {editor && (

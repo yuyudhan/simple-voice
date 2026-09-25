@@ -1,42 +1,41 @@
 // FilePath: src/features/style/StylePage.tsx
-import { Check, ListChecks, Sparkles, Keyboard, Eraser, ArrowRight } from "lucide-react";
+import { ArrowRight, Eraser, Keyboard, ListChecks, MessageCircleQuestionMark } from "lucide-react";
 import type { Settings, Style } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
 import { useShell } from "../../app/ShellContext";
-import { Badge, Button, Card, Hero } from "../../ui";
+import { Badge, Button, Card, PageHeader } from "../../ui";
 import "./style.css";
 
 interface StyleOption {
     value: Style;
     title: string;
     caption: string;
-    sample: string;
 }
 
 const OPTIONS: StyleOption[] = [
-    {
-        value: "formal",
-        title: "Formal.",
-        caption: "Caps + Punctuation",
-        sample: "Hey, are you free for lunch tomorrow? Let's do 12 if that works for you.",
-    },
-    {
-        value: "casual",
-        title: "Casual",
-        caption: "Caps + Less punctuation",
-        sample: "Hey are you free for lunch tomorrow? Let's do 12 if that works for you",
-    },
+    { value: "formal", title: "Formal", caption: "Capitals and full punctuation" },
+    { value: "casual", title: "Casual", caption: "Capitals, lighter punctuation" },
 ];
 
-const HERO_SUBTITLE =
-    "Emails, messages, documents, prompts: whatever app you are in, Simple Voice writes in " +
-    "the style you pick here.";
+/** One sample sentence; `mark` is punctuation Formal writes and Casual leaves out. */
+const SPECIMEN: { text: string; mark?: boolean }[] = [
+    { text: "Thanks" },
+    { text: ",", mark: true },
+    { text: " I’ll send the draft tonight" },
+    { text: ".", mark: true },
+];
+
+const DESCRIPTION =
+    "How dictated text is punctuated. One style applies everywhere: email, chat, documents.";
 
 const FORMATTING_POINTS = [
     { icon: <Eraser />, text: "Fillers, false starts and self-corrections are removed." },
     { icon: <ListChecks />, text: "Spoken lists become bullets, and steps become numbered lists." },
     { icon: <Keyboard />, text: "Shortcuts are written the way you type them, like Ctrl+Shift+M." },
-    { icon: <Sparkles />, text: "Questions and instructions are written down, never answered." },
+    {
+        icon: <MessageCircleQuestionMark />,
+        text: "Questions and instructions are written down, never answered.",
+    },
 ];
 
 function providerSummary(settings: Settings): { name: string; detail: string; warning?: string } {
@@ -69,14 +68,7 @@ export function StylePage() {
 
     return (
         <>
-            <Hero
-                title={
-                    <>
-                        One style for <em>everything</em> you write
-                    </>
-                }
-                subtitle={HERO_SUBTITLE}
-            />
+            <PageHeader title="Style" description={DESCRIPTION} />
 
             <div className="style-options" role="radiogroup" aria-label="Writing style">
                 {OPTIONS.map((option) => {
@@ -93,19 +85,21 @@ export function StylePage() {
                             }}
                         >
                             <span className="style-option__head">
-                                <span>
-                                    <span className="style-option__title">{option.title}</span>
-                                    <span className="style-option__caption">{option.caption}</span>
-                                </span>
-                                <span className="style-option__check" aria-hidden="true">
-                                    {selected && <Check />}
-                                </span>
+                                <span className="style-option__marker" aria-hidden="true" />
+                                <span className="style-option__title">{option.title}</span>
+                                <span className="style-option__caption">{option.caption}</span>
                             </span>
-                            <span className="style-option__chat" aria-hidden="true">
-                                <span className="style-option__avatar">
-                                    <span />
-                                </span>
-                                <span className="style-option__bubble">{option.sample}</span>
+                            <span className="style-specimen" aria-hidden="true">
+                                {SPECIMEN.map((part) => {
+                                    if (part.mark !== true) {
+                                        return <span key={part.text}>{part.text}</span>;
+                                    }
+                                    return option.value === "formal" ? (
+                                        <span key={part.text} className="style-specimen__mark">
+                                            {part.text}
+                                        </span>
+                                    ) : null;
+                                })}
                             </span>
                         </button>
                     );
@@ -113,7 +107,7 @@ export function StylePage() {
             </div>
 
             <Card className="style-note">
-                <h2 className="style-note__title">What AI formatting does in both styles</h2>
+                <h2 className="style-note__title caps-label">Applied in both styles</h2>
                 <ul className="style-note__list">
                     {FORMATTING_POINTS.map((point) => (
                         <li key={point.text}>

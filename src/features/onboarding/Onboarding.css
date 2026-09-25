@@ -1,4 +1,6 @@
 /* FilePath: src/features/onboarding/Onboarding.css */
+/* First-launch flow in the Signal language (docs/design.md): a flat neutral page, a left-aligned
+   560px column, a segmented level line for progress and hairline panels for each step's state. */
 
 .sv-onb {
     position: fixed;
@@ -7,7 +9,7 @@
     flex-direction: column;
     align-items: center;
     overflow-y: auto;
-    background: radial-gradient(circle at 50% -10%, var(--accent-tint), transparent 55%), var(--bg);
+    background: var(--bg);
     color: var(--text);
 }
 
@@ -20,129 +22,151 @@
     height: 36px;
 }
 
-.sv-onb__dots {
+/* Progress: one segment per step, the current one lit in signal orange. */
+
+.sv-onb__progress {
     display: flex;
-    gap: 8px;
-    margin: 56px 0 0;
+    align-items: center;
+    gap: 16px;
+    width: min(560px, calc(100% - 48px));
+    margin-top: 64px;
+}
+
+.sv-onb__steps {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    margin: 0;
     padding: 0;
     list-style: none;
 }
 
-.sv-onb__dots li {
-    width: 7px;
-    height: 7px;
-    border-radius: var(--radius-pill);
+.sv-onb__steps li {
+    flex: 1;
+    height: 2px;
+    border-radius: 1px;
     background: var(--border-strong);
-    transition:
-        width var(--dur) var(--ease),
-        background var(--dur) var(--ease);
+    transition: background var(--dur) var(--ease);
 }
 
-.sv-onb__dots li.is-done {
-    background: var(--accent-3);
+.sv-onb__steps li.is-done {
+    background: var(--ink);
 }
 
-.sv-onb__dots li.is-current {
-    width: 22px;
+.sv-onb__steps li.is-current {
     background: var(--accent);
+}
+
+.sv-onb__step-label {
+    display: inline-flex;
+    gap: 10px;
+    flex: none;
+    min-width: 152px;
+    justify-content: flex-end;
+}
+
+.sv-onb__step-count {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
 }
 
 .sv-onb__stage {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    width: min(620px, calc(100% - 48px));
+    align-items: flex-start;
+    width: min(560px, calc(100% - 48px));
     margin: auto 0;
-    padding: 32px 0 48px;
-    text-align: center;
-    animation: sv-onb-enter 320ms var(--ease);
+    padding: 40px 0 56px;
+    animation: sv-onb-enter var(--dur) var(--ease);
+}
+
+/* Step heading */
+
+.sv-onb__mark {
+    width: 48px;
+    height: 48px;
+    margin: 0 0 28px -5px;
 }
 
 .sv-onb__icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 52px;
-    height: 52px;
-    margin-bottom: 18px;
-    border-radius: 16px;
-    background: var(--accent-soft);
-    color: var(--accent);
+    width: 40px;
+    height: 40px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-card);
+    background: var(--panel);
+    color: var(--text);
 }
 
-.sv-onb__mark {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    height: 56px;
-    margin-bottom: 22px;
-}
-
-.sv-onb__mark span {
-    width: 6px;
-    border-radius: 3px;
-    background: var(--accent);
-    animation: sv-onb-wave 1.6s ease-in-out infinite;
-}
-
-.sv-onb__mark span:nth-child(1) {
-    height: 18px;
-    background: var(--accent-3);
-}
-.sv-onb__mark span:nth-child(2) {
-    height: 34px;
-    background: var(--accent-2);
-    animation-delay: 120ms;
-}
-.sv-onb__mark span:nth-child(3) {
-    height: 52px;
-    animation-delay: 240ms;
-}
-.sv-onb__mark span:nth-child(4) {
-    height: 34px;
-    background: var(--accent-2);
-    animation-delay: 360ms;
-}
-.sv-onb__mark span:nth-child(5) {
-    height: 18px;
-    background: var(--accent-3);
-    animation-delay: 480ms;
+.sv-onb__icon.is-success {
+    color: var(--success);
 }
 
 .sv-onb__title {
     margin: 0;
-    font-family: var(--font-serif);
-    font-size: 34px;
-    font-weight: 500;
-    letter-spacing: -0.015em;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
     line-height: 1.15;
 }
 
 .sv-onb__title--hero {
-    font-size: 48px;
+    font-size: 40px;
+    letter-spacing: -0.022em;
+    line-height: 1.05;
 }
 
 .sv-onb__lead {
     max-width: 520px;
-    margin: 14px 0 0;
-    font-size: 15px;
+    margin: 16px 0 0;
+    font-size: 14.5px;
     line-height: 1.6;
     color: var(--muted);
+    text-wrap: pretty;
 }
 
+/* Hairline panels */
+
 .sv-onb__panel {
+    width: 100%;
+    margin-top: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--panel);
+}
+
+.sv-onb__panel-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 72px;
+    padding: 16px;
+}
+
+.sv-onb__panel-status {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    max-width: 480px;
-    margin-top: 28px;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.sv-onb__panel-foot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
 }
 
 .sv-onb__actions {
     display: flex;
-    gap: 10px;
-    justify-content: center;
+    flex: none;
+    gap: 8px;
 }
 
 .sv-onb__granted {
@@ -150,33 +174,29 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    padding: 8px 14px;
-    border-radius: var(--radius-pill);
-    background: var(--success-soft);
     color: var(--success);
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
-    animation: sv-onb-enter 260ms var(--ease);
+    animation: sv-onb-enter var(--dur) var(--ease);
 }
 
 .sv-onb__wide {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 24px;
     width: 100%;
-    margin-top: 28px;
-    text-align: left;
+    margin-top: 32px;
 }
 
 .sv-onb__perm-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--panel);
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 500;
 }
 
@@ -192,12 +212,24 @@
     background: var(--panel);
 }
 
+/* Title on the left, keys and Change on the right; the recorder's notes run full width below
+   (display: contents lifts them into this grid). */
 .sv-onb__shortcut {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 16px;
+    column-gap: 16px;
+    padding: 16px;
+}
+
+.sv-onb__shortcut .sv-shortcut-rec {
+    display: contents;
+}
+
+.sv-onb__shortcut .sv-shortcut-rec > p {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+    text-align: left;
 }
 
 .sv-onb__shortcut + .sv-onb__shortcut {
@@ -206,9 +238,13 @@
 
 .sv-onb__shortcut-title {
     margin: 0 0 2px;
+    font-family: var(--font-display);
     font-size: 14px;
     font-weight: 600;
+    letter-spacing: -0.01em;
 }
+
+/* Practice box */
 
 .sv-onb__try {
     display: flex;
@@ -231,20 +267,25 @@
 }
 
 .sv-onb__state-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--faint);
 }
 
+.sv-onb__state.is-live {
+    color: var(--accent-text);
+}
+
 .sv-onb__state.is-live .sv-onb__state-dot {
-    background: var(--danger);
-    animation: sv-onb-blink 1s ease-in-out infinite;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+    animation: sv-pulse 1.2s ease-in-out infinite;
 }
 
 .sv-onb__state.is-busy .sv-onb__state-dot {
-    background: var(--accent-2);
-    animation: sv-onb-blink 0.8s ease-in-out infinite;
+    background: var(--muted);
+    animation: sv-pulse 0.9s ease-in-out infinite;
 }
 
 .sv-onb__state.is-done {
@@ -265,22 +306,26 @@
 
 .sv-onb__textarea {
     width: 100%;
-    box-sizing: border-box;
     min-height: 110px;
     padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
     background: var(--panel);
     color: var(--text);
     font: inherit;
-    font-size: 14.5px;
+    font-size: 14px;
     line-height: 1.55;
     resize: vertical;
+    transition: border-color var(--dur) var(--ease);
+}
+
+.sv-onb__textarea::placeholder {
+    color: var(--faint);
 }
 
 .sv-onb__textarea:focus {
     outline: none;
-    border-color: var(--accent-2);
+    border-color: var(--accent);
     box-shadow: var(--focus-ring);
 }
 
@@ -290,11 +335,13 @@
     gap: 6px;
 }
 
+/* Done summary: two instrument cells split by a hairline. */
+
 .sv-onb__summary {
-    display: flex;
-    gap: 28px;
-    margin-top: 28px;
-    padding: 16px 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    margin-top: 32px;
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--panel);
@@ -303,16 +350,30 @@
 .sv-onb__summary > div {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px 16px;
 }
+
+.sv-onb__summary > div + div {
+    border-left: 1px solid var(--border);
+}
+
+/* Footer */
 
 .sv-onb__footer-wrap {
     display: flex;
     flex-direction: column;
     gap: 12px;
     width: 100%;
-    margin-top: 36px;
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* The ghost Back button sits flush with the column edge; its padding hangs outside. */
+.sv-onb__footer > .sv-btn--ghost:first-child {
+    margin-left: -13px;
 }
 
 .sv-onb__footer {
@@ -325,7 +386,7 @@
 .sv-onb__footer-right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .sv-onb__next-with-hint {
@@ -343,13 +404,17 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 10px 12px 10px 14px;
     border-radius: var(--radius-card);
     background: var(--warning-soft);
-    color: var(--warning);
+    color: var(--text);
     font-size: 13px;
     line-height: 1.45;
-    text-align: left;
+}
+
+.sv-onb__skip-warning > svg {
+    flex: none;
+    color: var(--warning);
 }
 
 .sv-onb__skip-warning > span {
@@ -359,26 +424,6 @@
 @keyframes sv-onb-enter {
     from {
         opacity: 0;
-        transform: translateY(6px);
-    }
-}
-
-@keyframes sv-onb-wave {
-    0%,
-    100% {
-        transform: scaleY(1);
-    }
-    50% {
-        transform: scaleY(0.55);
-    }
-}
-
-@keyframes sv-onb-blink {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.35;
+        transform: translateY(4px);
     }
 }

@@ -12,26 +12,20 @@
     pointer-events: none;
 }
 
+/* Toasts invert the theme (ink surface) so they read as transient, above everything else. */
 .sv-toast {
     display: flex;
     align-items: center;
     gap: 10px;
     max-width: 520px;
-    padding: 9px 8px 9px 14px;
-    border-radius: 10px;
-    background: #1d1b18;
-    color: #f5f1ea;
+    padding: 8px 8px 8px 12px;
+    border-radius: var(--radius-card);
+    background: var(--ink);
+    color: var(--on-ink);
     box-shadow: var(--shadow-overlay);
     font-size: 13px;
     pointer-events: auto;
-    animation: sv-rise-in 200ms var(--ease);
-}
-
-@media (prefers-color-scheme: dark) {
-    .sv-toast {
-        background: #efebe4;
-        color: #1d1b18;
-    }
+    animation: sv-rise-in 180ms var(--ease);
 }
 
 .sv-toast__icon {
@@ -40,26 +34,16 @@
 }
 
 .sv-toast__icon svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
 }
 
 .sv-toast--success .sv-toast__icon {
-    color: #7cc08d;
+    color: var(--on-ink-success);
 }
 
 .sv-toast--danger .sv-toast__icon {
-    color: #e88a74;
-}
-
-@media (prefers-color-scheme: dark) {
-    .sv-toast--success .sv-toast__icon {
-        color: #3f7f4e;
-    }
-
-    .sv-toast--danger .sv-toast__icon {
-        color: #b4442f;
-    }
+    color: var(--on-ink-danger);
 }
 
 .sv-toast__message {
@@ -73,7 +57,7 @@
     flex: none;
     padding: 4px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-control);
     background: transparent;
     color: inherit;
     opacity: 0.6;

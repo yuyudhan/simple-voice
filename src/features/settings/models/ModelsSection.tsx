@@ -18,21 +18,29 @@ export function ModelsSection() {
     return (
         <>
             <SettingsGroup title="Voice model">
-                <div className="sv-models-section">
-                    <p className="sv-formatting__note">
-                        Turns your speech into text. Cloud models need a Groq key; local models run
-                        entirely on this Mac once downloaded.
-                    </p>
+                <p className="sv-models-section__intro">
+                    Turns your speech into text. Cloud models need a Groq key; local models run
+                    entirely on this Mac once downloaded.
+                </p>
+                <div className="sv-models-section__flush">
                     <VoiceModelList state={models} />
-                    {groqVoice && <GroqKeyField />}
                 </div>
+                {groqVoice && (
+                    <div className="sv-models-section__key">
+                        <GroqKeyField />
+                    </div>
+                )}
             </SettingsGroup>
 
             <SettingsGroup title="Formatting">
                 <div className="sv-models-section">
                     <FormattingProviders appleIntelligence={appleIntelligence} />
-                    {groqFormatting && <GroqKeyField />}
                 </div>
+                {groqFormatting && (
+                    <div className="sv-models-section__key">
+                        <GroqKeyField />
+                    </div>
+                )}
             </SettingsGroup>
         </>
     );

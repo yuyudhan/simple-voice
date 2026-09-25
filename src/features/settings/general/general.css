@@ -10,30 +10,34 @@
 .sv-langs__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 
 .sv-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
-    padding: 0 12px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-pill);
+    height: 28px;
+    padding: 0 11px 0 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
     background: var(--panel);
-    color: var(--text);
+    color: var(--muted);
     font: inherit;
     font-size: 13px;
     cursor: pointer;
     transition:
-        background var(--dur) var(--ease),
         border-color var(--dur) var(--ease),
         color var(--dur) var(--ease);
 }
 
+.sv-chip svg {
+    color: var(--faint);
+}
+
 button.sv-chip:hover:not(:disabled) {
-    border-color: var(--accent-2);
+    border-color: var(--border-strong);
+    color: var(--text);
 }
 
 .sv-chip:focus-visible,
@@ -42,10 +46,15 @@ button.sv-chip:hover:not(:disabled) {
     box-shadow: var(--focus-ring);
 }
 
-.sv-chip.is-on {
-    border-color: transparent;
-    background: var(--accent-soft);
-    color: var(--accent-hover);
+/* Selected: an ink outline with a signal check, never a flooded chip. */
+.sv-chip.is-on,
+button.sv-chip.is-on:hover:not(:disabled) {
+    border-color: var(--ink);
+    color: var(--text);
+}
+
+.sv-chip.is-on > svg {
+    color: var(--accent);
 }
 
 .sv-chip:disabled {
@@ -53,7 +62,7 @@ button.sv-chip:hover:not(:disabled) {
 }
 
 span.sv-chip {
-    padding-right: 6px;
+    padding: 0 3px 0 11px;
     cursor: default;
 }
 
@@ -65,14 +74,19 @@ span.sv-chip {
     height: 20px;
     padding: 0;
     border: 0;
-    border-radius: 50%;
+    border-radius: 4px;
     background: transparent;
-    color: inherit;
+    color: var(--muted);
     cursor: pointer;
 }
 
+.sv-chip__remove svg {
+    color: inherit;
+}
+
 .sv-chip__remove:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    background: var(--surface-hover);
+    color: var(--text);
 }
 
 .sv-langs__search {
@@ -92,7 +106,7 @@ span.sv-chip {
     width: 100%;
     height: 32px;
     padding: 0 10px 0 30px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-control);
     background: var(--panel);
     color: var(--text);
@@ -100,9 +114,12 @@ span.sv-chip {
     font-size: 13px;
 }
 
+.sv-langs__input::placeholder {
+    color: var(--faint);
+}
+
 .sv-langs__input:focus {
     outline: none;
-    border-color: var(--accent-2);
     box-shadow: var(--focus-ring);
 }
 
@@ -122,7 +139,7 @@ span.sv-chip {
     width: 100%;
     padding: 7px 8px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 4px;
     background: none;
     color: var(--text);
     font: inherit;
@@ -140,6 +157,8 @@ span.sv-chip {
 .sv-langs__code {
     font-family: var(--font-mono);
     font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--faint);
 }
 
@@ -156,6 +175,10 @@ span.sv-chip {
     max-width: 460px;
 }
 
+.sv-langs__fallback > :first-child {
+    max-width: 320px;
+}
+
 .sv-general__mic {
     display: flex;
     flex-direction: column;
@@ -166,4 +189,30 @@ span.sv-chip {
 
 .sv-general__mic > * {
     width: 100%;
+}
+
+/* Shortcut rows: the fn-key note, hint and error run full width under the row instead of
+   wrapping into a narrow right-aligned column beside the keys. */
+.sv-setting-row:has(.sv-shortcut-rec) {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+.sv-setting-row:has(.sv-shortcut-rec) .sv-setting-row__control,
+.sv-setting-row .sv-shortcut-rec {
+    display: contents;
+}
+
+.sv-setting-row .sv-shortcut-rec__note,
+.sv-setting-row .sv-shortcut-rec__hint,
+.sv-setting-row .sv-shortcut-rec__error {
+    flex-basis: 100%;
+    max-width: none;
+    text-align: left;
+}
+
+.sv-setting-row .sv-shortcut-rec__note {
+    padding: 8px 10px;
+    border-radius: var(--radius-control);
+    background: var(--surface);
 }

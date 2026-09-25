@@ -4,12 +4,24 @@ import { CATEGORY_META } from "../../lib/categories";
 import { formatCompact, formatNumber, pluralize } from "../../lib/format";
 import { Card } from "../../ui";
 
-// Largest share gets the deepest teal, then lighter tints down the list.
-const BAR_TONES = ["var(--heat-4)", "var(--heat-3)", "var(--heat-2)", "var(--heat-1)"];
-
 export interface UsageCardProps {
     categories: CategoryUsage[];
     topApps: AppUsage[];
+}
+
+/** A rounded horizontal meter; only the leading item carries the signal colour. */
+function Meter({ percent, lead, label }: { percent: number; lead: boolean; label?: string }) {
+    const width = `${String(Math.min(100, Math.max(1.5, percent)))}%`;
+    return (
+        <span
+            className="usage-meter"
+            role={label ? "img" : undefined}
+            aria-label={label}
+            aria-hidden={label ? undefined : true}
+        >
+            <span className={`usage-meter__fill${lead ? " is-lead" : ""}`} style={{ width }} />
+        </span>
+    );
 }
 
 export function UsageCard({ categories, topApps }: UsageCardProps) {
@@ -21,8 +33,10 @@ export function UsageCard({ categories, topApps }: UsageCardProps) {
 
     return (
         <Card className="insights-card usage-card">
-            <h2 className="insights-card__title">Usage by app</h2>
-            <p className="insights-card__caption">What kind of apps you dictate into</p>
+            <div>
+                <h2 className="insights-card__title">Usage by app</h2>
+                <p className="insights-card__caption">What kind of apps you dictate into</p>
+            </div>
 
             <ul className="usage-list">
                 {rows.map((row, index) => {
@@ -35,27 +49,18 @@ export function UsageCard({ categories, topApps }: UsageCardProps) {
                                     {meta.icon}
                                 </span>
                                 <span className="usage-row__label">{meta.label}</span>
-                                <span className="usage-row__pill">{percent}%</span>
                                 <span className="usage-row__count">
                                     {formatNumber(row.dictations)}{" "}
                                     {pluralize(row.dictations, "dictation")} ·{" "}
                                     {formatCompact(row.words)} {pluralize(row.words, "word")}
                                 </span>
+                                <span className="usage-row__percent readout">{percent}%</span>
                             </div>
-                            <svg
-                                className="usage-row__bar"
-                                viewBox="0 0 100 6"
-                                preserveAspectRatio="none"
-                                role="img"
-                                aria-label={`${meta.label}: ${String(percent)}% of dictations`}
-                            >
-                                <rect className="usage-row__track" width={100} height={6} />
-                                <rect
-                                    width={Math.max(2, row.percent)}
-                                    height={6}
-                                    fill={BAR_TONES[Math.min(index, BAR_TONES.length - 1)]}
-                                />
-                            </svg>
+                            <Meter
+                                percent={row.percent}
+                                lead={index === 0}
+                                label={`${meta.label}: ${String(percent)}% of dictations`}
+                            />
                         </li>
                     );
                 })}
@@ -65,17 +70,16 @@ export function UsageCard({ categories, topApps }: UsageCardProps) {
                 <div className="top-apps">
                     <h3 className="caps-label">Top apps</h3>
                     <ol className="top-apps__list">
-                        {apps.map((app) => (
+                        {apps.map((app, index) => (
                             <li key={app.bundleId ?? app.name} className="top-apps__item">
-                                <span className="top-apps__name">{app.name}</span>
-                                <span className="top-apps__bar" aria-hidden="true">
-                                    <svg viewBox="0 0 100 4" preserveAspectRatio="none">
-                                        <rect
-                                            width={topWords > 0 ? (app.words / topWords) * 100 : 0}
-                                            height={4}
-                                        />
-                                    </svg>
+                                <span className="top-apps__rank" aria-hidden="true">
+                                    {String(index + 1).padStart(2, "0")}
                                 </span>
+                                <span className="top-apps__name">{app.name}</span>
+                                <Meter
+                                    percent={topWords > 0 ? (app.words / topWords) * 100 : 0}
+                                    lead={index === 0}
+                                />
                                 <span className="top-apps__words">
                                     {formatCompact(app.words)} {pluralize(app.words, "word")}
                                 </span>

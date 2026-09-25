@@ -59,13 +59,11 @@ export function App() {
                 <div className="sv-shell__drag" data-tauri-drag-region />
                 <Sidebar page={page} onNavigate={setPage} onOpenSettings={openSettings} />
                 <main className="sv-shell__main">
-                    <div className="sv-shell__panel">
-                        <div className="sv-shell__content" key={page}>
-                            {page === "home" && <HistoryPage />}
-                            {page === "insights" && <InsightsPage />}
-                            {page === "dictionary" && <DictionaryPage />}
-                            {page === "style" && <StylePage />}
-                        </div>
+                    <div className="sv-shell__content" key={page}>
+                        {page === "home" && <HistoryPage />}
+                        {page === "insights" && <InsightsPage />}
+                        {page === "dictionary" && <DictionaryPage />}
+                        {page === "style" && <StylePage />}
                     </div>
                 </main>
             </div>

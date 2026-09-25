@@ -4,6 +4,7 @@
 import type { ReactNode } from "react";
 import { CircleCheck, Keyboard, Mic } from "lucide-react";
 import { Button, Spinner } from "../../ui";
+import { StatusBadge } from "../settings/permissions/PermissionsSection";
 import { usePermissions } from "../settings/permissions/usePermissions";
 import { StepFooter } from "./StepFooter";
 
@@ -11,6 +12,7 @@ const POLL_MS = 1500;
 
 interface Copy {
     icon: ReactNode;
+    label: string;
     title: string;
     body: string;
     grant: string;
@@ -19,7 +21,8 @@ interface Copy {
 
 const COPY: Record<"microphone" | "accessibility", Copy> = {
     microphone: {
-        icon: <Mic size={22} />,
+        icon: <Mic size={20} />,
+        label: "Microphone access",
         title: "Let Simple Voice hear you",
         body: "Microphone access is needed to dictate. Audio is recorded only while you hold or toggle your shortcut.",
         grant: "Allow microphone",
@@ -27,7 +30,8 @@ const COPY: Record<"microphone" | "accessibility", Copy> = {
             "Microphone access was turned off. Open System Settings → Privacy & Security → Microphone and switch Simple Voice on.",
     },
     accessibility: {
-        icon: <Keyboard size={22} />,
+        icon: <Keyboard size={20} />,
+        label: "Accessibility access",
         title: "Paste into any app",
         body: "Accessibility access lets Simple Voice press ⌘V for you, so your words land in whatever text field you are typing in — Mail, Slack, your editor, anywhere.",
         grant: "Grant access",
@@ -48,11 +52,11 @@ export function PermissionStep({ kind, onBack, onNext }: Props) {
     const status = permissions?.[kind];
     const granted = status === "granted";
 
-    let action: ReactNode = <Spinner />;
+    let action: ReactNode = null;
     if (granted) {
         action = (
             <p className="sv-onb__granted">
-                <CircleCheck size={18} /> Access granted
+                <CircleCheck size={16} /> All set
             </p>
         );
     } else if (status === "not_determined" || (kind === "accessibility" && status === "denied")) {
@@ -102,18 +106,27 @@ export function PermissionStep({ kind, onBack, onNext }: Props) {
             <div className="sv-onb__icon">{copy.icon}</div>
             <h1 className="sv-onb__title">{copy.title}</h1>
             <p className="sv-onb__lead">{copy.body}</p>
-            <div className="sv-onb__panel">
-                {action}
-                {showDeniedHelp && <p className="sv-inline-note">{copy.deniedHelp}</p>}
-                {kind === "accessibility" && !granted && (
-                    <p className="sv-inline-note">{copy.deniedHelp}</p>
+            <section className="sv-onb__panel" aria-label={copy.label}>
+                <div className="sv-onb__panel-row">
+                    <div className="sv-onb__panel-status">
+                        <span className="caps-label">{copy.label}</span>
+                        {status === undefined ? <Spinner /> : <StatusBadge status={status} />}
+                    </div>
+                    {action}
+                </div>
+                {(showDeniedHelp || (kind === "accessibility" && !granted) || error) && (
+                    <div className="sv-onb__panel-foot">
+                        {!granted && (showDeniedHelp || kind === "accessibility") && (
+                            <p className="sv-inline-note">{copy.deniedHelp}</p>
+                        )}
+                        {error && (
+                            <p className="sv-inline-error" role="alert">
+                                {error}
+                            </p>
+                        )}
+                    </div>
                 )}
-                {error && (
-                    <p className="sv-inline-error" role="alert">
-                        {error}
-                    </p>
-                )}
-            </div>
+            </section>
             <StepFooter
                 onBack={onBack}
                 next={

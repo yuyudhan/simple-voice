@@ -42,12 +42,12 @@ document; when the language changes, change it here in the same commit.
 | ---------- | ------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | Neutrals   | `--bg`, `--surface`, `--surface-hover`, `--panel`, `--border(-strong)`    | Page, sidebar and wells, hover, cards, hairlines           |
 | Text       | `--text`, `--muted`, `--faint`                                            | Body, secondary copy, placeholders and disabled            |
-| Ink        | `--ink`, `--ink-hover`, `--on-ink`                                        | Primary buttons, selected segmented items, brand mark      |
+| Ink        | `--ink`, `--ink-hover`, `--on-ink`, `--on-ink-success/danger`             | Primary buttons, toasts (inverted), brand mark             |
 | Signal     | `--accent`, `--accent-hover`, `--accent-2/3`, `--accent-soft/tint`        | Live state, selection, focus, charts (fills and graphics)  |
 | Signal ink | `--accent-text`                                                           | Accent-coloured text and links (AA contrast on light)      |
-| Status     | `--danger(-soft)`, `--success(-soft)`, `--warning(-soft)`                 | Errors and destructive actions, confirmations, cautions    |
+| Status     | `--danger(-soft)`, `--on-danger`, `--success(-soft)`, `--warning(-soft)`  | Errors and destructive actions, confirmations, cautions    |
 | Heat       | `--heat-0` … `--heat-4`                                                   | Activity heatmap ramp                                      |
-| Shape      | `--radius-card` 10px, `--radius-control` 6px, `--radius-pill`             | Cards and groups, inputs and buttons, badges and toggles   |
+| Shape      | `--radius-card` 10px, `--radius-control` 6px, `--radius-pill`             | Cards and groups, inputs and buttons, toggles              |
 | Type       | `--font-display`, `--font-sans`, `--font-mono`                            | Titles, body, figures and labels                           |
 | Motion     | `--dur` 150ms, `--ease`                                                   | All transitions                                            |
 
@@ -78,8 +78,11 @@ arbitrary apps, so it keeps a fixed graphite palette in both themes.
 
 - **Buttons.** `primary` = ink fill; `secondary` = hairline on panel; `ghost` = text only;
   `danger` = danger fill. 6px radius, 32px (md) / 26px (sm) tall.
-- **Selection** (segmented controls, option cards, radio lists): the selected item gets an ink
-  or signal outline plus a small signal marker; never a colour-flooded card.
+- **Selection** (segmented controls, option cards, radio lists): the selected item is lifted to
+  `--panel` with a strong hairline (or an ink/signal outline for cards) plus a small signal
+  marker such as an accent icon or dot; never a colour-flooded card.
+- **Badges.** Small 4px-radius tags on a soft status tint; not pills.
+- **Toasts.** Inverted: ink surface, `--on-ink` text, status icons in `--on-ink-success/danger`.
 - **Toggle.** Pill track; on = `--accent`.
 - **Focus.** `--focus-ring`: a 2px signal ring offset by 1px of panel.
 - **Empty states.** A meter-bar or line icon in a hairline square, a short title, one sentence.

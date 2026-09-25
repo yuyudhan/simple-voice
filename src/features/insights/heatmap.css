@@ -6,54 +6,54 @@
     gap: 12px;
 }
 
+/* One grid: the weekday column, then a column per week; each column is a month label over
+   seven days. Columns share the width so the map fills the card. */
 .heatmap__grid {
-    display: flex;
+    display: grid;
+    grid-template-rows: 14px repeat(7, auto);
+    grid-template-columns: 30px;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
     gap: 3px;
     overflow: visible;
 }
 
 .heatmap__weekdays,
 .heatmap__column {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+    display: contents;
 }
 
-.heatmap__weekdays {
-    width: 28px;
-    flex: none;
+.heatmap__weekday,
+.heatmap__month {
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    line-height: 12px;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .heatmap__weekday {
-    height: 14px;
-    color: var(--muted);
-    font-size: 10px;
-    line-height: 14px;
+    align-self: center;
 }
 
 .heatmap__month {
-    height: 16px;
-    width: 14px;
     overflow: visible;
-    white-space: nowrap;
-    color: var(--muted);
-    font-size: 10.5px;
-    line-height: 14px;
 }
 
 .heatmap__cell {
     position: relative;
     display: block;
-    flex: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    transition: transform var(--dur) var(--ease);
+    aspect-ratio: 1;
+    border-radius: 2px;
 }
 
 .heatmap__grid .heatmap__cell:not(.heatmap__cell--blank):hover {
-    transform: scale(1.15);
     z-index: 2;
+    outline: 1px solid var(--text);
+    outline-offset: 1px;
 }
 
 .heatmap__cell--blank {
@@ -80,9 +80,17 @@
     background: var(--heat-4);
 }
 
-.heatmap__cell.is-streak {
-    outline: 1.5px solid var(--warning);
-    outline-offset: 1px;
+/* The current streak is marked with a small ink dot, like readings noted on a scale. */
+.heatmap__cell.is-streak::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text);
+    transform: translate(-50%, -50%);
 }
 
 .heatmap__tooltip {
@@ -92,52 +100,69 @@
     z-index: 20;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
     padding: 7px 10px;
-    border-radius: 8px;
-    background: var(--text);
-    color: var(--panel);
+    border-radius: var(--radius-control);
+    background: var(--ink);
+    color: var(--on-ink);
     font-size: 11.5px;
     white-space: nowrap;
     box-shadow: var(--shadow-overlay);
-    transform: translateX(-50%) scale(0.87);
-    transform-origin: bottom center;
+    transform: translateX(-50%);
     pointer-events: none;
     animation: sv-fade-in 120ms var(--ease);
 }
 
 .heatmap__tooltip.is-start {
     left: 0;
-    transform: scale(0.87);
-    transform-origin: bottom left;
+    transform: none;
 }
 
 .heatmap__tooltip.is-end {
     left: auto;
     right: 0;
-    transform: scale(0.87);
-    transform-origin: bottom right;
+    transform: none;
+}
+
+.heatmap__tooltip strong {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
 }
 
 .heatmap__tooltip span {
-    opacity: 0.75;
+    opacity: 0.7;
 }
 
 .heatmap__legend {
     display: flex;
     align-items: center;
-    gap: 4px;
-    color: var(--muted);
-    font-size: 11px;
+    gap: 3px;
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 .heatmap__legend span:not(.heatmap__cell) + .heatmap__cell {
-    margin-left: 4px;
+    margin-left: 5px;
+}
+
+.heatmap__legend .heatmap__cell + span:not(.heatmap__cell) {
+    margin-left: 5px;
 }
 
 .heatmap__legend .heatmap__cell {
-    width: 11px;
-    height: 11px;
+    width: 10px;
+    height: 10px;
+    flex: none;
+}
+
+.heatmap__legend .heatmap__cell.is-streak::after {
+    width: 3px;
+    height: 3px;
 }
 
 .heatmap__legend-streak {

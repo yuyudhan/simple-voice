@@ -2,10 +2,10 @@
 // First-launch flow: welcome, microphone, accessibility, voice model, shortcuts, done. It is
 // finished only when `onboardingComplete` is saved, so quitting halfway resumes here next launch.
 import { useState } from "react";
-import { PartyPopper } from "lucide-react";
+import { Check } from "lucide-react";
 import type { Settings } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
-import { Button, ShortcutKeys } from "../../ui";
+import { BrandMark, Button, ShortcutKeys } from "../../ui";
 import { ModelStep } from "./ModelStep";
 import { PermissionStep } from "./PermissionStep";
 import { ShortcutStep } from "./ShortcutStep";
@@ -16,6 +16,15 @@ import "./Onboarding.css";
 const STEPS = ["welcome", "microphone", "accessibility", "model", "shortcuts", "done"] as const;
 type Step = (typeof STEPS)[number];
 
+const STEP_LABEL: Record<Step, string> = {
+    welcome: "Welcome",
+    microphone: "Microphone",
+    accessibility: "Accessibility",
+    model: "Voice model",
+    shortcuts: "Shortcuts",
+    done: "Ready",
+};
+
 interface Props {
     settings: Settings;
     onDone: () => void;
@@ -24,13 +33,7 @@ interface Props {
 function Welcome({ onNext }: { onNext: () => void }) {
     return (
         <>
-            <div className="sv-onb__mark" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-            </div>
+            <BrandMark className="sv-onb__mark" />
             <h1 className="sv-onb__title sv-onb__title--hero">Speak. It&rsquo;s written.</h1>
             <p className="sv-onb__lead">
                 Simple Voice turns what you say into clean, well-punctuated text and pastes it
@@ -59,8 +62,8 @@ function Done({ settings, onBack, onFinish }: DoneProps) {
     const [saving, setSaving] = useState(false);
     return (
         <>
-            <div className="sv-onb__icon">
-                <PartyPopper size={22} />
+            <div className="sv-onb__icon is-success">
+                <Check size={20} strokeWidth={2.2} />
             </div>
             <h1 className="sv-onb__title">You&rsquo;re all set</h1>
             <p className="sv-onb__lead">
@@ -69,11 +72,11 @@ function Done({ settings, onBack, onFinish }: DoneProps) {
             </p>
             <div className="sv-onb__summary">
                 <div>
-                    <span className="sv-inline-note">Hold to speak</span>
+                    <span className="caps-label">Hold to speak</span>
                     <ShortcutKeys accelerator={settings.holdShortcut} />
                 </div>
                 <div>
-                    <span className="sv-inline-note">Toggle to speak</span>
+                    <span className="caps-label">Toggle to speak</span>
                     <ShortcutKeys accelerator={settings.toggleShortcut} />
                 </div>
             </div>
@@ -120,18 +123,27 @@ export function Onboarding({ settings, onDone }: Props) {
     return (
         <div className="sv-onb">
             <div className="sv-onb__drag" data-tauri-drag-region />
-            <ol
-                className="sv-onb__dots"
-                aria-label={`Step ${String(index + 1)} of ${String(STEPS.length)}`}
-            >
-                {STEPS.map((s, i) => (
-                    <li
-                        key={s}
-                        className={i === index ? "is-current" : i < index ? "is-done" : ""}
-                        aria-current={i === index ? "step" : undefined}
-                    />
-                ))}
-            </ol>
+            <div className="sv-onb__progress">
+                <ol
+                    className="sv-onb__steps"
+                    aria-label={`Step ${String(index + 1)} of ${String(STEPS.length)}`}
+                >
+                    {STEPS.map((s, i) => (
+                        <li
+                            key={s}
+                            className={i === index ? "is-current" : i < index ? "is-done" : ""}
+                            aria-current={i === index ? "step" : undefined}
+                        />
+                    ))}
+                </ol>
+                <span className="caps-label sv-onb__step-label" aria-hidden="true">
+                    <span className="sv-onb__step-count">
+                        {String(index + 1).padStart(2, "0")} /{" "}
+                        {String(STEPS.length).padStart(2, "0")}
+                    </span>
+                    {STEP_LABEL[step]}
+                </span>
+            </div>
             <main className="sv-onb__stage" key={step}>
                 {step === "welcome" && <Welcome onNext={next} />}
                 {step === "microphone" && (
