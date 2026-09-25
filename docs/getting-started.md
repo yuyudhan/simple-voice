@@ -25,6 +25,20 @@ If you use Groq, paste your API key in Settings → Models (one key serves both 
 formatting). Create one at [console.groq.com](https://console.groq.com/keys). The `GROQ_API_KEY`
 environment variable is used when no key is saved. On-device engines need no key.
 
+## Updates
+
+Simple Voice checks once a day for a new release. When one is out, a banner appears above every
+page and the menu bar icon shows "Update Available". Copy the command it offers and run it in
+Terminal:
+
+```sh
+brew upgrade --cask simple-voice
+```
+
+Homebrew quits Simple Voice while it upgrades; open it again afterwards. Dismissing the banner
+skips that version only. Settings → System → Updates shows the running version, checks on
+demand, and turns the daily check off.
+
 ## After an upgrade
 
 macOS ties permissions to the app's code signature. If dictation stops recording or pasting

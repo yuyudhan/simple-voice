@@ -14,9 +14,11 @@ Only what the providers you choose need:
 | Parakeet, Apple Speech | Nothing. Models are downloaded once, then everything runs on-device.                                                    |
 | Apple Intelligence     | Nothing. Runs on-device.                                                                                                |
 | Formatting off         | Nothing.                                                                                                                |
+| Update checks          | A request for the latest release, to GitHub, once a day. It carries the app version and nothing about you or your use.  |
 
-There is no telemetry and no account. The name of the app you dictated into is stored in your
-local history to power Insights; it never leaves your Mac.
+There is no telemetry and no account. Update checks can be turned off in Settings → System. The
+name of the app you dictated into is stored in your local history to power Insights; it never
+leaves your Mac.
 
 ## Where your data lives
 

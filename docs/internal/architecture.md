@@ -96,15 +96,15 @@ Split horizontally into crates by responsibility; each crate is split vertically
 Dependencies only point down the table. Every crate: `[lints] workspace = true` and
 `#![forbid(unsafe_code)]`.
 
-| Crate                | Path                 | Depends on             | Owns                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `simple-voice` (app) | `src-tauri/`         | all below              | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
-| `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `migrations/`                                                                                                                                                                                                                                                           |
-| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout) — pure, no I/O                                                                                                                                                                                                                                                                                                      |
-| `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (OpenAI-compatible chat for Groq and custom endpoints)                                                                                                                                                                                                                                                                                                         |
-| `sv-audio`           | `crates/sv-audio/`   | `sv-domain`            | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                              |
-| `sv-engine`          | `crates/sv-engine/`  | `sv-domain`            | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                            |
-| `sv-domain`          | `crates/sv-domain/`  | —                      | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                        |
+| Crate                | Path                 | Depends on             | Owns                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `simple-voice` (app) | `src-tauri/`         | all below              | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
+| `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `migrations/`                                                                                                                                                                                                                                                                       |
+| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout) — pure, no I/O                                                                                                                                                                                                                                                                                                                  |
+| `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (OpenAI-compatible chat for Groq and custom endpoints), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                                                                              |
+| `sv-audio`           | `crates/sv-audio/`   | `sv-domain`            | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
+| `sv-engine`          | `crates/sv-engine/`  | `sv-domain`            | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
+| `sv-domain`          | `crates/sv-domain/`  | —                      | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                                    |
 
 ### Crate APIs (the contract between slices)
 
@@ -114,9 +114,11 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // HistoryStatus, DictionaryEntry, ImportSummary, Insights, DayActivity, CategoryUsage, AppUsage,
 // AppCategory + categorize(), ModelInfo/Kind/Provider/Status + model id consts, Permissions,
 // PermissionKind/Status, DictationState/Phase, ModelProgress, AppError/AppResult,
-// text_stats::{word_count, words_corrected}.
+// text_stats::{word_count, words_corrected}, UpdateStatus + Release (update notices).
 // Theme = System (default) | Light | Dark, wire "system" | "light" | "dark"; Settings.theme and
 // SettingsPatch.theme, stored in the `settings` row keyed `theme` like every other field.
+// Settings.checkForUpdates (default true) and Settings.skippedUpdate (dismissed release version,
+// "" = none) drive the update notice.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -186,6 +188,10 @@ pub struct ChatEndpoint<'a> { pub url: String, pub key: Option<&'a str>, pub mod
 pub fn chat_url(base_url: &str) -> String;                         // trims '/', appends "/chat/completions"
 pub async fn polish_chat(client: &reqwest::Client, endpoint: ChatEndpoint<'_>, prompt: &PolishPrompt,
     input: &str) -> PolishOutcome;                                 // timeout + guards; never errors
+pub struct LatestRelease { pub version: semver::Version, pub url: String }
+pub fn latest_release_url(repository: &str) -> AppResult<String>; // github.com/o/n → releases/latest API
+pub async fn latest_release(client: &reqwest::Client, url: &str, user_agent: &str)
+    -> AppResult<LatestRelease>;                                   // tag "v0.3.0" → 0.3.0; 15 s timeout
 
 // ── sv-audio ────────────────────────────────────────────────────────────────────────────
 pub struct Microphone { pub id: String, pub name: String, pub is_default: bool, pub is_built_in: bool } // serde camelCase
@@ -256,8 +262,11 @@ Vertical slices in `src/features/<feature>/` (`history/`, `insights/`, `dictiona
 Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 (`useSettings()` → `{ settings, update(patch): Promise<boolean>, refresh() }`, kept current by
 `settings-changed`; `update` shows its own error toast and resolves `false`) and
-`ShellContext.tsx` (`useShell()` → `{ openSettings(section?), navigate(page) }`, with
-`SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Tauri events are
+`ShellContext.tsx` (`useShell()` → `{ navigate(page) }`, with
+`Page = "home" | "insights" | "dictionary" | "style" | SettingsSection` and
+`SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Each settings
+section is a first-class page: the sidebar lists it under a Settings group at the bottom and
+`settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri events are
 consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
 `useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
 
@@ -316,18 +325,23 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `preview_sound`                                                                | `theme: string`                                     | `null`                                                                                                           |
 | `start_dictation` / `stop_dictation` / `cancel_dictation` / `toggle_dictation` | —                                                   | `null`                                                                                                           |
 | `app_info`                                                                     | —                                                   | `AppInfo`                                                                                                        |
+| `get_update_status`                                                            | —                                                   | `UpdateStatus` (cached; no network)                                                                              |
+| `check_for_updates`                                                            | —                                                   | `UpdateStatus` (checks now; a failure is reported in `error`, not as a command error)                            |
 
 ## 4. Events (Rust → UI)
 
-| Event                 | Payload                                                                                         |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `dictation-state`     | `DictationState`                                                                                |
-| `dictation-level`     | `{ level: number }` 0..1, ~30 Hz while recording                                                |
-| `history-changed`     | `null`                                                                                          |
-| `settings-changed`    | `Settings`                                                                                      |
-| `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                      |
-| `permissions-changed` | `Permissions`                                                                                   |
-| `navigate`            | `"settings"` — sent to `main` by the tray / app menu; the main window opens the Settings dialog |
+| Event                 | Payload                                                                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dictation-state`     | `DictationState`                                                                                                                                  |
+| `dictation-level`     | `{ level: number }` 0..1, ~30 Hz while recording                                                                                                  |
+| `history-changed`     | `null`                                                                                                                                            |
+| `settings-changed`    | `Settings`                                                                                                                                        |
+| `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
+| `permissions-changed` | `Permissions`                                                                                                                                     |
+| `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → General, or Settings → System for `"updates"` |
+| `update-status`       | `UpdateStatus` — when a check starts and when it ends                                                                                             |
+
+`UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null }`.
 
 `DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, words?: number, note?: string }`.
 
@@ -338,8 +352,10 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 - `overlay` — 200×56, transparent, no decorations, no shadow, always on top, skip taskbar,
   visible on all workspaces, never focused (`focused: false`, `focusable: false`), cursor events
   ignored. Shown bottom-centre of the screen under the cursor while a session is active (or
-  always when `showBarAlways`). Loads the same bundle; `src/main.tsx` renders `<Overlay/>` when
-  the window label is `overlay`.
+  always when `showBarAlways`). Ordered in once at launch and never ordered out: "hidden" parks
+  it beyond every display, because ordering it out while another app is frontmost makes a
+  Dock-visible app activate and steal focus from the dictation target. Loads the same bundle;
+  `src/main.tsx` renders `<Overlay/>` when the window label is `overlay`.
 
 ## 6. Engine helper protocol (`engine/`)
 
@@ -391,3 +407,17 @@ Any transcription model combines with any post-processing provider:
 
 The Groq API key is entered in Settings → Models, next to the Groq Whisper model and the Groq
 post-processing provider; one key serves both.
+
+## 8. Update notices
+
+Homebrew installs every version (P-5); the app never downloads or replaces itself. The
+`updates` slice asks GitHub's `releases/latest` endpoint (drafts and pre-releases excluded, the
+same source as the cask's `livecheck`) for the repository in the workspace `repository` field, 30 s
+after launch and then whenever 24 hours of wall-clock time have passed since the last successful
+check (it wakes hourly, since monotonic sleeps stop while the Mac sleeps). A failed check is
+retried on the next wake. `Settings.checkForUpdates = false` stops the automatic checks; "Check
+now", the tray item and the app-menu item still check on demand. When the release is newer than
+the running version (semver), the tray item reads "Update Available: X…", the UI shows a banner
+above every page (hidden for `Settings.skippedUpdate`), and Settings → System shows
+`brew upgrade --cask simple-voice` to copy. The app does not run brew: the cask quits the running
+app during an upgrade, which would kill an upgrade the app started.

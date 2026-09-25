@@ -136,6 +136,11 @@ may forget a grant or show a stale entry that no longer matches:
   then grant it again from the app's Settings → Permissions.
 - `tccutil reset Accessibility dev.yuyudhan.simplevoice` (or `Microphone`,
   `SpeechRecognition`) clears a grant from the command line.
+- `just dev` merges `src-tauri/tauri.dev.conf.json` and runs the debug engine helper, which
+  embeds `engine/Info.dev.plist`. A development run is therefore named "Simple Voice Dev", with
+  the identifiers `dev.yuyudhan.simplevoice.dev` (app) and `dev.yuyudhan.simplevoice.dev.engine`
+  (helper), so it never shares an identity with the installed Simple Voice. Release builds
+  (`just build`) keep "Simple Voice" and `dev.yuyudhan.simplevoice`.
 - `just dev` runs the bare binary, not an app bundle, so macOS attributes its permissions to
   the terminal that started it (with tmux, the terminal that started the tmux server). Grant
   Accessibility and Microphone to that terminal, then restart `just dev`; a "Simple Voice" entry

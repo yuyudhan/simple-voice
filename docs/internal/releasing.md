@@ -56,6 +56,14 @@ GitHub release. The asset name is hyphenated because GitHub rewrites spaces in a
 cask URL spells that name exactly. The download is a zip made by `ditto`, which preserves the
 bundle's signature, and Homebrew unpacks it natively.
 
+Running apps notice the release on their own: within a day (or at once with Settings → System →
+Check now) they read the same latest GitHub release, show an update banner and a menu bar item,
+and hand the user the `brew upgrade` command (see
+[architecture.md § 8](architecture.md#8-update-notices)). The release becomes "latest" before the
+tap push, so if `update-cask.sh` fails, users are told about a version `brew` cannot see yet: fix
+it promptly with `just publish VERSION`. Pre-releases (`gh release edit --prerelease`) are never
+announced.
+
 ## Signed and unsigned builds
 
 By default the release is ad-hoc signed (`APPLE_SIGNING_IDENTITY=-`). To sign with a Developer

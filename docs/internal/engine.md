@@ -52,7 +52,10 @@ Dependency: [FluidAudio](https://github.com/FluidInference/FluidAudio) pinned to
 
 `engine/Info.plist` is embedded into the executable's `__TEXT,__info_plist` section by
 the linker. It carries the microphone and speech recognition usage descriptions, which the
-permission prompts require even for a helper binary.
+permission prompts require even for a helper binary. Debug builds embed `engine/Info.dev.plist`
+instead: the same strings under the name "Simple Voice Dev" and the identifier
+`dev.yuyudhan.simplevoice.dev.engine`, so a development helper never shares an identity with the
+installed app's `dev.yuyudhan.simplevoice.engine`. Release builds (`just build`) keep `Info.plist`.
 
 ## Models
 
