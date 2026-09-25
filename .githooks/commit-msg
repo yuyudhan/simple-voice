@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# FilePath: .githooks/commit-msg
+# Enforces the commit subject convention: one line, `<emoji> <Imperative verb> ...`, at most
+# 72 characters, no trailing period - e.g. "✨ Add hold-to-speak shortcut". The verb check
+# rejects the common non-imperative forms (a verb ending in -ed or -ing), allowing the few
+# imperative verbs that happen to end that way. Authorship stays with the human committing:
+# co-authorship trailers and generated-by notes naming a tool or assistant are rejected.
+set -euo pipefail
+
+msg_file="$1"
+
+# Git strips comment lines and trailing blank lines after this hook runs, so ignore them here.
+lines=()
+while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    case "$line" in
+        "# ------------------------ >8 ------------------------"*) break ;;
+        "#"*) continue ;;
+    esac
+    lines+=("$line")
+done <"$msg_file"
+while [ "${#lines[@]}" -gt 0 ] && [ -z "${lines[${#lines[@]}-1]// /}" ]; do
+    unset "lines[${#lines[@]}-1]"
+done
+
+fail() {
+    echo "commit-msg: FAILED - $1" >&2
+    [ "${#lines[@]}" -gt 0 ] && echo "  subject: ${lines[0]}" >&2
+    echo "  expected: <emoji> <Imperative verb> ... (one line, <= 72 chars), e.g." >&2
+    echo "            ✨ Add hold-to-speak shortcut" >&2
+    exit 1
+}
+
+[ "${#lines[@]}" -gt 0 ] || fail "commit message is empty"
+
+subject="${lines[0]}"
+[ -n "${subject// /}" ] || fail "commit subject is empty"
+all=$(printf '%s\n' "${lines[@]}")
+if printf '%s\n' "$all" | grep -qiE 'co-authored-by|generated (with|by)|claude|chatgpt|copilot|codex|anthropic|(ai|coding) assistant|🤖'; then
+    fail "commit messages must not credit a tool or assistant"
+fi
+
+[ "${#lines[@]}" -eq 1 ] || fail "commit message must be a single line (no body, no trailers)"
+
+length=$(printf '%s' "$subject" | LC_ALL=en_US.UTF-8 wc -m | tr -d '[:space:]')
+[ "$length" -le 72 ] || fail "commit subject is ${length} characters, max is 72"
+
+case "$subject" in
+    *.) fail "commit subject ends in '.' - drop the trailing period" ;;
+esac
+
+# The first token must be non-ASCII (an emoji), followed by one space and a capitalised word.
+if ! printf '%s' "$subject" | LC_ALL=C grep -qE $'^[\x80-\xff]+ [A-Z][a-z]+( |$)'; then
+    fail "subject must start with an emoji, one space, then a capitalised imperative verb"
+fi
+
+verb=$(printf '%s' "$subject" | LC_ALL=C sed -E $'s/^[\x80-\xff]+ ([A-Za-z]+).*/\\1/')
+case "$verb" in
+    Embed | Seed | Speed | Feed | Need | Shed | Bring) ;;
+    *ed | *ing) fail "'${verb}' is not imperative - write 'Add', not 'Added' or 'Adding'" ;;
+esac
+
+exit 0

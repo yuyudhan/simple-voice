@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# FilePath: .githooks/pre-commit
+# Fast gate before a commit lands: every hygiene guard (secrets scanned on the staged index),
+# then formatting and spelling checks. It never modifies the working tree or the index -
+# partially staged changes must stay partial - so a failure names the fix (`just fmt`) instead
+# of silently rewriting files. The slow gates (clippy, tests, sqlx) run in pre-push.
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+fail_msg() {
+    echo "" >&2
+    echo "==================== pre-commit FAILED ====================" >&2
+    echo "$1" >&2
+    echo "" >&2
+    echo "Fix the issue above, 'git add' the result, and commit again." >&2
+    echo "Do NOT reach for 'git commit --no-verify': it skips the secrets scan too." >&2
+    echo "===========================================================" >&2
+}
+
+echo "pre-commit: hygiene guards (staged secrets scan)..."
+if ! scripts/guard/run-all.sh --staged; then
+    fail_msg "One or more hygiene guards failed - see output above."
+    exit 1
+fi
+
+staged=()
+while IFS= read -r -d '' f; do
+    [ -f "$f" ] && staged+=("$f")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [ "${#staged[@]}" -eq 0 ]; then
+    echo "pre-commit: nothing staged beyond deletions; done."
+    exit 0
+fi
+
+rust=()
+toml=()
+web=()
+for f in "${staged[@]}"; do
+    case "$f" in
+        *.rs) rust+=("$f") ;;
+        *.toml) toml+=("$f") ;;
+        src/*.ts | src/*.tsx | src/*.css | vite.config.ts | eslint.config.js) web+=("$f") ;;
+    esac
+done
+
+if [ "${#rust[@]}" -gt 0 ]; then
+    echo "pre-commit: rustfmt --check on ${#rust[@]} staged Rust file(s)..."
+    if ! rustfmt --check --edition 2021 --config-path rustfmt.toml "${rust[@]}"; then
+        fail_msg "Rust formatting differs - run: just fmt"
+        exit 1
+    fi
+fi
+
+if [ "${#toml[@]}" -gt 0 ]; then
+    echo "pre-commit: taplo fmt --check on ${#toml[@]} staged TOML file(s)..."
+    if ! taplo fmt --check "${toml[@]}"; then
+        fail_msg "TOML formatting differs - run: just fmt"
+        exit 1
+    fi
+fi
+
+if [ "${#web[@]}" -gt 0 ]; then
+    echo "pre-commit: prettier --check on ${#web[@]} staged UI file(s)..."
+    if ! bun x prettier --check "${web[@]}"; then
+        fail_msg "UI formatting differs - run: just fmt"
+        exit 1
+    fi
+fi
+
+echo "pre-commit: typos on staged files..."
+if ! command -v typos >/dev/null 2>&1; then
+    fail_msg "typos is not installed - brew install typos-cli"
+    exit 1
+fi
+if ! typos --force-exclude "${staged[@]}"; then
+    fail_msg "Spelling mistakes found - fix them, or allowlist a real word in .typos.toml."
+    exit 1
+fi
+
+echo "pre-commit: all checks passed."

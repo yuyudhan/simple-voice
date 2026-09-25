@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# FilePath: .githooks/pre-push
+# The full gate before code leaves the machine: `just check` (fmt-check, guard, lint, test,
+# sqlx-check). Before running it, reads the ref lines git feeds this hook on stdin and derives:
+#
+# 1. SV_GUARD_RANGE - a `git log` range covering just the commits being pushed to refs the
+#    remote already has, so the gitleaks scan in scripts/guard/no-secrets.sh walks what is
+#    being pushed instead of the whole history. A brand-new remote ref contributes no range,
+#    and if every ref is new the variable stays unset: the scan falls back to full history.
+#
+# 2. new_commits - how many commits this push introduces, so pushing a tag that points at an
+#    already-pushed commit skips the multi-minute gate:
+#      * existing ref: count remote_sha..local_sha;
+#      * new tag: count commits not on any origin ref; zero means the code was already gated;
+#      * new branch: fail closed and run the gate.
+#    A rev-list error counts as "new commits present". Zero ref lines on stdin means what is
+#    being pushed is unknown, so the gate runs.
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+# shellcheck source=scripts/lib/status.sh
+source scripts/lib/status.sh
+
+zero="0000000000000000000000000000000000000000"
+guard_range=""
+new_commits=0
+ref_lines=0
+while read -r _local_ref local_sha remote_ref remote_sha; do
+    ref_lines=$((ref_lines + 1))
+    if [ "$local_sha" = "$zero" ] || [ -z "$local_sha" ]; then
+        continue
+    fi
+    if [ "$remote_sha" = "$zero" ] || [ -z "$remote_sha" ]; then
+        case "$remote_ref" in
+            refs/tags/*)
+                count=$(git rev-list --count "$local_sha" --not --remotes=origin 2>/dev/null) ||
+                    count=1
+                ;;
+            *) count=1 ;;
+        esac
+    else
+        guard_range="${guard_range}${guard_range:+ }${remote_sha}..${local_sha}"
+        count=$(git rev-list --count "${remote_sha}..${local_sha}" 2>/dev/null) || count=1
+    fi
+    new_commits=$((new_commits + count))
+done
+
+if [ "$ref_lines" -eq 0 ]; then
+    echo "pre-push: read zero ref lines from stdin; running the full gate." >&2
+    new_commits=1
+fi
+
+if [ -n "$guard_range" ]; then
+    export SV_GUARD_RANGE="$guard_range"
+fi
+
+if [ "$new_commits" -eq 0 ]; then
+    echo "pre-push: SKIPPED - this push adds no commits origin does not already have."
+    exit 0
+fi
+
+sv_phase "pre-push: just check"
+start=$(date +%s)
+sv_heartbeat_start "just check"
+status=0
+just check || status=$?
+sv_heartbeat_stop
+
+if [ "$status" -ne 0 ]; then
+    echo "" >&2
+    echo "==================== pre-push FAILED ====================" >&2
+    echo "just check exited ${status} after $(sv_duration "$start") - fix the failure above," >&2
+    echo "then push again. Do NOT reach for 'git push --no-verify'." >&2
+    echo "=========================================================" >&2
+    exit "$status"
+fi
+
+sv_ok "pre-push: just check passed ($(sv_duration "$start"))"
