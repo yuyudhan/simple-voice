@@ -7,8 +7,8 @@ How to build, check and release Simple Voice. The rules themselves are summarise
 
 ## Setup
 
-Install the prerequisites listed in the README (Xcode 26+, rustup, bun, just, sqlx-cli with the
-SQLite driver, taplo, typos, shellcheck, gitleaks), then:
+Install the prerequisites listed in the README (Xcode 26+ or its Command Line Tools, rustup, bun,
+just, sqlx-cli with the SQLite driver, taplo, typos, shellcheck, gitleaks), then:
 
 ```sh
 just setup     # bun install, core.hooksPath -> .githooks, toolchain report (just doctor)
@@ -96,8 +96,8 @@ backs up the database before applying pending migrations on launch.
 recipe that compiles `src-tauri` builds the debug helper first if it is missing, because the
 Tauri build script refuses to run without it. `just test` also runs `swift build` on the package.
 
-Building needs the macOS 26 SDK (Xcode 26+) for SpeechAnalyzer and FoundationModels; the
-binary links FoundationModels weakly and still runs on macOS 14.
+Building needs the macOS 26 SDK (Xcode 26+ or its Command Line Tools) for SpeechAnalyzer and
+FoundationModels; the binary links FoundationModels weakly and still runs on macOS 14.
 
 ## Permissions during development
 

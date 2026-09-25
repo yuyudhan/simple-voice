@@ -119,8 +119,8 @@ local history to power Insights; it never leaves your Mac.
 Prerequisites:
 
 - macOS 14 or later on Apple Silicon
-- Xcode 26 or later (Swift 6; the macOS 26 SDK is needed to build the Apple Speech and Apple
-  Intelligence support, while the app itself still runs on macOS 14)
+- Xcode 26 or later, or its Command Line Tools (Swift 6; the macOS 26 SDK is needed to build the
+  Apple Speech and Apple Intelligence support, while the app itself still runs on macOS 14)
 - Rust via [rustup](https://rustup.rs)
 - [bun](https://bun.sh), [just](https://just.systems)
 - sqlx-cli with SQLite support:
