@@ -15,6 +15,7 @@ pub mod models;
 pub mod permissions;
 pub mod settings;
 pub mod text_stats;
+pub mod updates;
 
 pub use apps::{categorize, AppCategory};
 pub use dictation::{DictationPhase, DictationState, ModelProgress, ModelProgressStatus};
@@ -25,3 +26,4 @@ pub use insights::{AppUsage, CategoryUsage, DayActivity, Insights};
 pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus};
 pub use permissions::{PermissionKind, PermissionStatus, Permissions};
 pub use settings::{PostProcessing, Settings, SettingsPatch, SoundTheme, Style, Theme};
+pub use updates::{Release, UpdateStatus};

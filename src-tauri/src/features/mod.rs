@@ -8,3 +8,4 @@ pub(crate) mod insights;
 pub(crate) mod models;
 pub(crate) mod permissions;
 pub(crate) mod settings;
+pub(crate) mod updates;

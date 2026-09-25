@@ -4244,6 +4244,7 @@ dependencies = [
  "arboard",
  "chrono",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "sv-audio",
@@ -4593,6 +4594,7 @@ version = "0.0.2"
 dependencies = [
  "bytes",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "sv-domain",

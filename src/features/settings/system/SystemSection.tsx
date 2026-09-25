@@ -4,6 +4,7 @@ import { Play, Volume1, Volume2 } from "lucide-react";
 import { api, errorMessage, type SoundTheme } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
 import { IconButton, Select, SettingRow, SettingsGroup, Toggle, useToast } from "../../../ui";
+import { UpdatesGroup } from "../../updates/UpdatesGroup";
 import "./system.css";
 
 const THEMES: { id: SoundTheme; name: string; description: string }[] = [
@@ -208,6 +209,8 @@ export function SystemSection() {
                     />
                 </SettingRow>
             </SettingsGroup>
+
+            <UpdatesGroup />
         </>
     );
 }

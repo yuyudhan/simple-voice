@@ -9,9 +9,11 @@ use tauri::{
 };
 
 use crate::events;
+use crate::features::updates;
 
 pub(crate) const MAIN: &str = "main";
 const APP_MENU_SETTINGS: &str = "app-settings";
+const APP_MENU_UPDATES: &str = "app-updates";
 
 /// Matches the UI background so the window never flashes white while the webview loads.
 const BACKGROUND: Color = Color(0xFB, 0xF9, 0xF6, 0xFF);
@@ -65,7 +67,7 @@ pub(crate) fn open_settings(app: &AppHandle) {
     events::emit_to(app, MAIN, events::NAVIGATE, "settings");
 }
 
-/// The default macOS menu plus "Settings…" (Cmd+,) in the app menu.
+/// The default macOS menu plus "Check for Updates…" and "Settings…" (Cmd+,) in the app menu.
 pub(crate) fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::default(app)?;
     let settings = MenuItem::with_id(
@@ -75,16 +77,25 @@ pub(crate) fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+,"),
     )?;
+    let updates = MenuItem::with_id(
+        app,
+        APP_MENU_UPDATES,
+        "Check for Updates…",
+        true,
+        None::<&str>,
+    )?;
     if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
         // After "About Simple Voice" and its separator, where macOS apps put Settings.
         let position = app_menu.items()?.len().min(2);
         app_menu.insert(&settings, position)?;
+        // Directly under "About Simple Voice", where macOS apps put it.
+        app_menu.insert(&updates, position.min(1))?;
     }
     app.set_menu(menu)?;
-    app.on_menu_event(|app, event| {
-        if event.id().as_ref() == APP_MENU_SETTINGS {
-            open_settings(app);
-        }
+    app.on_menu_event(|app, event| match event.id().as_ref() {
+        APP_MENU_SETTINGS => open_settings(app),
+        APP_MENU_UPDATES => updates::open(app),
+        _ => {}
     });
     Ok(())
 }

@@ -65,6 +65,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tempfile = "3"
 parking_lot = "0.12"
+semver = "1"
 
 # Every member opts in with `[lints] workspace = true`. `#![forbid(unsafe_code)]` at the top of
 # each lib.rs/main.rs documents the same intent in the file a reader opens first; this table makes

@@ -68,6 +68,8 @@ pub fn run() -> tauri::Result<()> {
             features::permissions::get_permissions,
             features::permissions::request_permission,
             features::permissions::open_permission_settings,
+            features::updates::get_update_status,
+            features::updates::check_for_updates,
             dictation::start_dictation,
             dictation::stop_dictation,
             dictation::cancel_dictation,
@@ -109,7 +111,8 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let startup_error = db.as_ref().err().cloned();
 
     let (handle, control) = DictationHandle::new();
-    app.manage(AppState::new(db, handle));
+    let version = app.package_info().version.to_string();
+    app.manage(AppState::new(db, handle, version));
     app.manage(shortcuts::ShortcutRegistry::default());
     app.manage(overlay::OverlayState::default());
     app.manage(engine_process::EngineProcess::default());
@@ -136,6 +139,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     dictation::spawn_coordinator(app.clone(), control);
     engine_process::start(app.clone());
     features::permissions::spawn_poller(app.clone());
+    features::updates::spawn_checker(app.clone());
 
     if let Some(error) = startup_error {
         report_startup_error(app.clone(), error);

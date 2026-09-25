@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use sv_audio::{Cue, CuePlayer};
-use sv_domain::{AppError, AppResult, Permissions, Settings, SoundTheme};
+use sv_domain::{AppError, AppResult, Permissions, Settings, SoundTheme, UpdateStatus};
 use sv_engine::EngineClient;
 use sv_storage::Db;
 
@@ -27,10 +27,15 @@ pub(crate) struct AppState {
     /// Last permissions reported to the UI, so `permissions-changed` fires only on change.
     pub(crate) permissions: Mutex<Option<Permissions>>,
     pub(crate) engine_version: Mutex<Option<String>>,
+    pub(crate) updates: Mutex<UpdateStatus>,
 }
 
 impl AppState {
-    pub(crate) fn new(db: Result<Db, AppError>, dictation: DictationHandle) -> Self {
+    pub(crate) fn new(
+        db: Result<Db, AppError>,
+        dictation: DictationHandle,
+        app_version: String,
+    ) -> Self {
         let cues = match CuePlayer::new() {
             Ok(player) => Some(player),
             Err(error) => {
@@ -47,6 +52,7 @@ impl AppState {
             downloads: Mutex::new(HashMap::new()),
             permissions: Mutex::new(None),
             engine_version: Mutex::new(None),
+            updates: Mutex::new(UpdateStatus::new(app_version)),
         }
     }
 

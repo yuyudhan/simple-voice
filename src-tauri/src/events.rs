@@ -11,6 +11,7 @@ pub(crate) const SETTINGS_CHANGED: &str = "settings-changed";
 pub(crate) const MODEL_PROGRESS: &str = "model-progress";
 pub(crate) const PERMISSIONS_CHANGED: &str = "permissions-changed";
 pub(crate) const NAVIGATE: &str = "navigate";
+pub(crate) const UPDATE_STATUS: &str = "update-status";
 
 #[derive(Debug, Clone, Copy, Serialize)]
 pub(crate) struct Level {

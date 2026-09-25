@@ -175,6 +175,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         restore_clipboard,
         max_recording_seconds,
         onboarding_complete,
+        check_for_updates,
+        skipped_update,
     } = patch;
 
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
@@ -208,6 +210,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.restore_clipboard, restore_clipboard);
     set(&mut settings.max_recording_seconds, max_recording_seconds);
     set(&mut settings.onboarding_complete, onboarding_complete);
+    set(&mut settings.check_for_updates, check_for_updates);
+    set_trimmed(&mut settings.skipped_update, skipped_update);
 }
 
 fn set<T>(field: &mut T, value: Option<T>) {

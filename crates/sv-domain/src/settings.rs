@@ -92,6 +92,10 @@ pub struct Settings {
     pub restore_clipboard: bool,
     pub max_recording_seconds: u32,
     pub onboarding_complete: bool,
+    /// Ask GitHub once a day whether a newer release is out.
+    pub check_for_updates: bool,
+    /// Release version whose banner the user dismissed; empty = none. A newer one shows again.
+    pub skipped_update: String,
     /// Derived: directory currently holding the database.
     pub database_dir: String,
 }
@@ -125,6 +129,8 @@ impl Default for Settings {
             restore_clipboard: false,
             max_recording_seconds: 300,
             onboarding_complete: false,
+            check_for_updates: true,
+            skipped_update: String::new(),
             database_dir: String::new(),
         }
     }
@@ -158,6 +164,8 @@ pub struct SettingsPatch {
     pub restore_clipboard: Option<bool>,
     pub max_recording_seconds: Option<u32>,
     pub onboarding_complete: Option<bool>,
+    pub check_for_updates: Option<bool>,
+    pub skipped_update: Option<String>,
 }
 
 /// Distinguishes an absent key (`None`) from an explicit `null` (`Some(None)`).

@@ -36,6 +36,9 @@ export interface Settings {
     restoreClipboard: boolean;
     maxRecordingSeconds: number;
     onboardingComplete: boolean;
+    checkForUpdates: boolean;
+    /** Release version whose banner the user dismissed; empty = none. */
+    skippedUpdate: string;
     databaseDir: string;
 }
 
@@ -164,6 +167,20 @@ export interface AppInfo {
     engineVersion: string | null;
 }
 
+export interface Release {
+    version: string;
+    url: string;
+}
+
+export interface UpdateStatus {
+    currentVersion: string;
+    latest: Release | null;
+    updateAvailable: boolean;
+    checking: boolean;
+    checkedAt: number | null;
+    error: string | null;
+}
+
 export type DictationPhase =
     "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled";
 
@@ -188,7 +205,7 @@ export interface PostProcessingTest {
     latencyMs: number;
 }
 
-export type NavigateTarget = "settings";
+export type NavigateTarget = "settings" | "updates";
 
 export const api = {
     getSettings: () => invoke<Settings>("get_settings"),
@@ -228,6 +245,8 @@ export const api = {
     cancelDictation: () => invoke<null>("cancel_dictation"),
     toggleDictation: () => invoke<null>("toggle_dictation"),
     appInfo: () => invoke<AppInfo>("app_info"),
+    getUpdateStatus: () => invoke<UpdateStatus>("get_update_status"),
+    checkForUpdates: () => invoke<UpdateStatus>("check_for_updates"),
 };
 
 export const events = {
@@ -257,6 +276,10 @@ export const events = {
         }),
     navigate: (cb: (target: NavigateTarget) => void): Promise<UnlistenFn> =>
         listen<NavigateTarget>("navigate", (e) => {
+            cb(e.payload);
+        }),
+    updateStatus: (cb: (status: UpdateStatus) => void): Promise<UnlistenFn> =>
+        listen<UpdateStatus>("update-status", (e) => {
             cb(e.payload);
         }),
 };

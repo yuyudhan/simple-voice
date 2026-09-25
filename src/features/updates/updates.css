@@ -1,0 +1,47 @@
+/* FilePath: src/features/updates/updates.css */
+/* An update is news, not a problem: accent tint, not the warning palette. */
+
+/* Pinned with the Accessibility warning by the shell's notice stack (App.css). */
+.sv-update-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: var(--radius-card);
+    background: var(--accent-tint);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.sv-update-banner__icon {
+    flex: none;
+    color: var(--accent);
+}
+
+.sv-update-banner__text {
+    flex: 1;
+    margin: 0;
+}
+
+.sv-update-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+}
+
+.sv-update-command {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--accent-tint);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+}
+
+.sv-update-error {
+    color: var(--danger);
+}
