@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT COUNT(*) AS \"dictations!: i64\",\n                      COALESCE(SUM(word_count), 0) AS \"words!: i64\",\n                      COALESCE(SUM(audio_ms), 0) AS \"audio_ms!: i64\",\n                      COALESCE(SUM(dictionary_fixes), 0) AS \"dictionary_fixes!: i64\",\n                      COALESCE(SUM(words_corrected), 0) AS \"words_corrected!: i64\"\n               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')",
+  "query": "SELECT COUNT(*) AS \"dictations!: i64\",\n                      COALESCE(SUM(word_count), 0) AS \"words!: i64\",\n                      COALESCE(SUM(audio_ms), 0) AS \"audio_ms!: i64\",\n                      COALESCE(SUM(dictionary_fixes), 0) AS \"dictionary_fixes!: i64\",\n                      COALESCE(SUM(words_corrected), 0) AS \"words_corrected!: i64\"\n               FROM history WHERE status <> 'failed'",
   "describe": {
     "columns": [
       {
@@ -45,5 +45,5 @@
       false
     ]
   },
-  "hash": "4dfa9a160db2c1106bc6cd3ad331b4e5e20c1024b88708f2c6e166663166da05"
+  "hash": "87239a34265baf7a2934c206dce6131b6e7750d594cb6229ea33afb23066c457"
 }
