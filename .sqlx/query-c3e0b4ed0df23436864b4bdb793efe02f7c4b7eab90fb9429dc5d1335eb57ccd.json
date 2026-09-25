@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"n!: i64\" FROM sqlite_master\n               WHERE type = 'table' AND name IN ('settings', 'dictionary', 'history')",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c3e0b4ed0df23436864b4bdb793efe02f7c4b7eab90fb9429dc5d1335eb57ccd"
+}

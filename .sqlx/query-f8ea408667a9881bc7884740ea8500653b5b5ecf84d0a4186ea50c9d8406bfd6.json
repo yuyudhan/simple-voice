@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", phrase AS \"phrase!: String\",\n                      replacement AS \"replacement?: String\", created_at AS \"created_at!: i64\"\n               FROM dictionary ORDER BY phrase COLLATE NOCASE, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "dictionary",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "phrase!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dictionary",
+            "name": "phrase"
+          }
+        }
+      },
+      {
+        "name": "replacement?: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "dictionary",
+            "name": "replacement"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "dictionary",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "f8ea408667a9881bc7884740ea8500653b5b5ecf84d0a4186ea50c9d8406bfd6"
+}

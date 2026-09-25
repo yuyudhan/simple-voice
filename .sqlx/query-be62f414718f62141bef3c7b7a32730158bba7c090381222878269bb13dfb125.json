@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT audio_path AS \"audio_path!: String\" FROM history\n               WHERE audio_path IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "audio_path!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "audio_path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "be62f414718f62141bef3c7b7a32730158bba7c090381222878269bb13dfb125"
+}

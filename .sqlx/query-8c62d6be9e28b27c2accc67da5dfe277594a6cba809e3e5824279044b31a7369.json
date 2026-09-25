@@ -1,0 +1,40 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT app_name AS \"name!: String\",\n                      MAX(bundle_id) AS \"bundle_id?: String\",\n                      COALESCE(SUM(word_count), 0) AS \"words!: i64\"\n               FROM history\n               WHERE status IN ('pasted', 'unformatted', 'dropped') AND app_name IS NOT NULL\n               GROUP BY app_name ORDER BY 3 DESC, 1 LIMIT ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "app_name"
+          }
+        }
+      },
+      {
+        "name": "bundle_id?: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "words!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "8c62d6be9e28b27c2accc67da5dfe277594a6cba809e3e5824279044b31a7369"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version AS \"version!: i64\" FROM _sqlx_migrations",
+  "describe": {
+    "columns": [
+      {
+        "name": "version!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "_sqlx_migrations",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "709e1d68dc7b162375f7328f65776b2165a33fdbcf8040c12a3e6ca7582ab3fd"
+}

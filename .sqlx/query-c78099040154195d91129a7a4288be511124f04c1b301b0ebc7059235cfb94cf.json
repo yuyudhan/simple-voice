@@ -1,0 +1,35 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (created_at + ?1) / 86400000 AS \"day!: i64\",\n                      COUNT(*) AS \"dictations!: i64\",\n                      COALESCE(SUM(word_count), 0) AS \"words!: i64\"\n               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')\n               GROUP BY 1 ORDER BY 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "day!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "dictations!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "words!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "c78099040154195d91129a7a4288be511124f04c1b301b0ebc7059235cfb94cf"
+}

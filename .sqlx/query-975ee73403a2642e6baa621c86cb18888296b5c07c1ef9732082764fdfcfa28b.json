@@ -1,0 +1,230 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n                raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n                error AS \"error?: String\", model AS \"model!: String\",\n                language AS \"language?: String\", style AS \"style!: String\",\n                audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n                word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n                words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n                bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n                audio_path AS \"audio_path?: String\"\n               FROM history\n               WHERE (?1 IS NULL\n                      OR final_text LIKE ?1 ESCAPE '\\'\n                      OR raw_text LIKE ?1 ESCAPE '\\'\n                      OR app_name LIKE ?1 ESCAPE '\\')\n                 AND (?2 IS NULL OR id < ?2)\n               ORDER BY id DESC\n               LIMIT ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "status!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "raw_text!: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "raw_text"
+          }
+        }
+      },
+      {
+        "name": "final_text!: String",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "final_text"
+          }
+        }
+      },
+      {
+        "name": "error?: String",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "error"
+          }
+        }
+      },
+      {
+        "name": "model!: String",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "model"
+          }
+        }
+      },
+      {
+        "name": "language?: String",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "style!: String",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "style"
+          }
+        }
+      },
+      {
+        "name": "audio_ms!: i64",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "audio_ms"
+          }
+        }
+      },
+      {
+        "name": "latency_ms!: i64",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "latency_ms"
+          }
+        }
+      },
+      {
+        "name": "word_count!: i64",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "word_count"
+          }
+        }
+      },
+      {
+        "name": "dictionary_fixes!: i64",
+        "ordinal": 12,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "dictionary_fixes"
+          }
+        }
+      },
+      {
+        "name": "words_corrected!: i64",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "words_corrected"
+          }
+        }
+      },
+      {
+        "name": "app_name?: String",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "app_name"
+          }
+        }
+      },
+      {
+        "name": "bundle_id?: String",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "bundle_id"
+          }
+        }
+      },
+      {
+        "name": "app_category!: String",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "app_category"
+          }
+        }
+      },
+      {
+        "name": "audio_path?: String",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "audio_path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "975ee73403a2642e6baa621c86cb18888296b5c07c1ef9732082764fdfcfa28b"
+}

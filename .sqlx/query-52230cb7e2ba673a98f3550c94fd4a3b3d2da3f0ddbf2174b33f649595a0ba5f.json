@@ -1,0 +1,40 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT app_category AS \"category!: String\",\n                      COUNT(*) AS \"dictations!: i64\",\n                      COALESCE(SUM(word_count), 0) AS \"words!: i64\"\n               FROM history WHERE status IN ('pasted', 'unformatted', 'dropped')\n               GROUP BY app_category ORDER BY 2 DESC, 3 DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "category!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "app_category"
+          }
+        }
+      },
+      {
+        "name": "dictations!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "words!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "52230cb7e2ba673a98f3550c94fd4a3b3d2da3f0ddbf2174b33f649595a0ba5f"
+}

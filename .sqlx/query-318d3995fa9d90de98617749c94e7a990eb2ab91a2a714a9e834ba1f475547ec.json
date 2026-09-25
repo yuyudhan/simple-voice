@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key AS \"key!: String\", value AS \"value!: String\" FROM settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "key!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "settings",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "settings",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "318d3995fa9d90de98617749c94e7a990eb2ab91a2a714a9e834ba1f475547ec"
+}

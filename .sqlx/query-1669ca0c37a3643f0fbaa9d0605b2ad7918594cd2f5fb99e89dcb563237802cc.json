@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM dictionary WHERE id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "1669ca0c37a3643f0fbaa9d0605b2ad7918594cd2f5fb99e89dcb563237802cc"
+}
