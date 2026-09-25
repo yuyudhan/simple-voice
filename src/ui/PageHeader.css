@@ -1,0 +1,40 @@
+/* FilePath: src/ui/PageHeader.css */
+.sv-page-header {
+    margin-bottom: 28px;
+}
+
+.sv-page-header__row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 16px;
+}
+
+.sv-page-header__text {
+    min-width: 0;
+}
+
+.sv-page-header__actions {
+    display: flex;
+    flex: none;
+    gap: 8px;
+}
+
+/* The level line: a hairline with a short signal segment at its start (docs/design.md). */
+.sv-level-line {
+    position: relative;
+    height: 1px;
+    background: var(--border);
+}
+
+.sv-level-line::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: -0.5px;
+    width: 28px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+}

@@ -16,10 +16,10 @@ export {
     type SettingsGroupProps,
 } from "./Card";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
-export { Hero, type HeroProps } from "./Hero";
 export { Kbd, ShortcutKeys, acceleratorKeys, type KeyCap } from "./Kbd";
 export { Modal, type ModalProps } from "./Modal";
 export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
+export { PageHeader, type PageHeaderProps } from "./PageHeader";
 export { Segmented, type SegmentedOption, type SegmentedProps } from "./Segmented";
 export { Select, type SelectOption, type SelectProps } from "./Select";
 export { Spinner } from "./Spinner";

@@ -1,108 +1,113 @@
 /* FilePath: src/styles/tokens.css */
-/* Design tokens. Every component reads colours, radii and motion from here so light and dark
-   mode stay consistent. */
+/* Design tokens for the "Signal" design language (docs/design.md). Every component reads
+   colours, type, radii and motion from here so both themes stay consistent. Components never
+   hard-code a colour; the overlay pill is the one surface with its own fixed palette.
+
+   The theme is chosen by `data-theme` on <html> (src/app/theme.ts resolves "system" to light
+   or dark), so a user's explicit choice wins over the OS appearance. */
 
 :root {
-    color-scheme: light dark;
+    color-scheme: light;
 
-    --bg: #fbf9f6;
-    --surface: #f3f1ec;
-    --surface-hover: #ebe8e1;
-    --panel: #fffefc;
-    --border: #e8e4dc;
-    --border-strong: #d9d3c7;
-    --text: #1d1b18;
-    --muted: #6f6a61;
-    --faint: #a39d92;
+    /* Neutrals: cool, colourless greys. The product is an instrument, not stationery. */
+    --bg: #fcfcfc;
+    --surface: #f4f4f5;
+    --surface-hover: #ebebed;
+    --panel: #ffffff;
+    --border: #e6e6e9;
+    --border-strong: #d2d2d7;
+    --text: #151518;
+    --muted: #62626b;
+    --faint: #9d9da6;
 
-    --accent: #0f5e57;
-    --accent-hover: #0b4a44;
-    --accent-2: #1f8a7f;
-    --accent-3: #6cc4b6;
-    --accent-soft: #cdebe5;
-    --accent-tint: #e7f4f1;
+    /* Ink is the primary action colour: filled buttons, selected states, the brand mark. */
+    --ink: #151518;
+    --ink-hover: #2c2c31;
+    --on-ink: #ffffff;
+
+    /* Signal orange is the single accent and means "live": recording, focus, selection. Use
+       --accent for fills and graphics, --accent-text for text on light surfaces. */
+    --accent: #f0521a;
+    --accent-hover: #d9460f;
+    --accent-text: #b93a0b;
+    --accent-2: #f57a45;
+    --accent-3: #fab393;
+    --accent-soft: #fde3d6;
+    --accent-tint: #fef3ed;
     --on-accent: #ffffff;
 
-    --danger: #b4442f;
-    --danger-hover: #983825;
-    --danger-soft: #f6e1dc;
-    --success: #3f7f4e;
-    --success-soft: #e0efe3;
-    --warning: #a86a12;
-    --warning-soft: #f7ead3;
+    --danger: #c42639;
+    --danger-hover: #a71f30;
+    --danger-soft: #fbe3e6;
+    --success: #1c7f47;
+    --success-soft: #dff2e6;
+    --warning: #8f6200;
+    --warning-soft: #f9eecf;
 
-    --heat-0: #ebe8e1;
-    --heat-1: #cdebe5;
-    --heat-2: #6cc4b6;
-    --heat-3: #1f8a7f;
-    --heat-4: #0f5e57;
+    --heat-0: #ebebed;
+    --heat-1: #fcd5c2;
+    --heat-2: #f99a6c;
+    --heat-3: #f0521a;
+    --heat-4: #a8360a;
 
-    --hero-from: #2a1f17;
-    --hero-via: #4a3121;
-    --hero-to: #1b3a36;
-    --hero-text: #fbf5ec;
-    --hero-muted: rgba(251, 245, 236, 0.72);
-
-    --radius-card: 12px;
-    --radius-control: 8px;
+    --radius-card: 10px;
+    --radius-control: 6px;
     --radius-pill: 999px;
 
-    --shadow-card: 0 1px 2px rgba(29, 27, 24, 0.04);
-    --shadow-overlay: 0 18px 48px rgba(29, 27, 24, 0.18), 0 2px 8px rgba(29, 27, 24, 0.08);
-    --backdrop: rgba(29, 27, 24, 0.32);
+    --shadow-card: none;
+    --shadow-overlay: 0 24px 60px rgba(21, 21, 24, 0.16), 0 0 0 1px rgba(21, 21, 24, 0.06);
+    --backdrop: rgba(21, 21, 24, 0.28);
 
-    --font-serif: ui-serif, "New York", Georgia, serif;
+    --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
 
-    --dur: 170ms;
-    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-    --focus-ring:
-        0 0 0 2px var(--panel), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+    --dur: 150ms;
+    --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+    --focus-ring: 0 0 0 1px var(--panel), 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #1a1917;
-        --surface: #23221f;
-        --surface-hover: #2c2a27;
-        --panel: #201f1c;
-        --border: #34322e;
-        --border-strong: #45423c;
-        --text: #efebe4;
-        --muted: #a39d92;
-        --faint: #6f6a61;
+:root[data-theme="dark"] {
+    color-scheme: dark;
+        --bg: #111113;
+        --surface: #18181b;
+        --surface-hover: #222226;
+        --panel: #1a1a1d;
+        --border: #29292e;
+        --border-strong: #3a3a41;
+        --text: #ededf0;
+        --muted: #a2a2ab;
+        --faint: #66666f;
 
-        --accent: #4fb3a5;
-        --accent-hover: #6cc4b6;
-        --accent-2: #3a9d90;
-        --accent-3: #2a7a70;
-        --accent-soft: #1d3b37;
-        --accent-tint: #1f2e2b;
-        --on-accent: #0d1f1c;
+        --ink: #ededf0;
+        --ink-hover: #ffffff;
+        --on-ink: #111113;
 
-        --danger: #e07a64;
-        --danger-hover: #ea8f7b;
-        --danger-soft: #3b2521;
-        --success: #7cc08d;
-        --success-soft: #1f3324;
-        --warning: #e0a852;
-        --warning-soft: #3a2e1b;
+        --accent: #ff6a2e;
+        --accent-hover: #ff8352;
+        --accent-text: #ff8a5c;
+        --accent-2: #e2531c;
+        --accent-3: #9c3a14;
+        --accent-soft: #3a1c0f;
+        --accent-tint: #24150e;
+        --on-accent: #1a0b04;
 
-        --heat-0: #2c2a27;
-        --heat-1: #1d4a44;
-        --heat-2: #1f7068;
-        --heat-3: #3a9d90;
-        --heat-4: #6cc4b6;
+        --danger: #ff6b7a;
+        --danger-hover: #ff8a96;
+        --danger-soft: #3a171c;
+        --success: #5fd08f;
+        --success-soft: #14301f;
+        --warning: #f0c05a;
+        --warning-soft: #33280f;
 
-        --hero-from: #1f1813;
-        --hero-via: #37261a;
-        --hero-to: #13302c;
+        --heat-0: #222226;
+        --heat-1: #4a2212;
+        --heat-2: #8a3814;
+        --heat-3: #e2531c;
+        --heat-4: #ff8a5c;
 
-        --shadow-card: none;
-        --shadow-overlay: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
-        --backdrop: rgba(0, 0, 0, 0.5);
-    }
+        --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+        --backdrop: rgba(0, 0, 0, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {

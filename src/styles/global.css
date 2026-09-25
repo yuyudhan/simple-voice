@@ -40,7 +40,9 @@ h2,
 h3,
 h4 {
     margin: 0;
-    font-weight: 500;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text);
 }
 
@@ -71,7 +73,7 @@ textarea {
 }
 
 a {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 :focus {
@@ -89,29 +91,38 @@ a {
     cursor: text;
 }
 
-.serif {
-    font-family: var(--font-serif);
-}
-
 .page-title {
-    font-family: var(--font-serif);
-    font-size: 30px;
+    font-family: var(--font-display);
+    font-size: 24px;
     line-height: 1.2;
-    font-weight: 500;
-    letter-spacing: -0.01em;
+    font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
 .page-subtitle {
     color: var(--muted);
     margin-top: 4px;
+    font-size: 13.5px;
 }
 
+/* Instrument label: names a readout, a group or a field. */
 .caps-label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.09em;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--muted);
+}
+
+/* Figures are data: mono, tabular, tight. Size is set by the component. */
+.readout {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    color: var(--text);
 }
 
 .sr-only {

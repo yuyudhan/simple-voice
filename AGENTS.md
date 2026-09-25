@@ -13,6 +13,8 @@ Apple frameworks. Published through Homebrew for other people to use.
 - `docs/architecture.md`: the contract - crate map and public APIs, Tauri commands, events,
   windows, the engine-helper protocol, the database schema and storage layout. Code to it; when
   the contract must change, change the document in the same commit.
+- `docs/design.md`: Signal, the UI design language - tokens, type, layout, components, themes.
+  UI work follows it; styles read colours only from `src/styles/tokens.css`.
 - `docs/development.md`: gates, the sqlx offline workflow, engine build, releases.
 
 ## Inviolable
