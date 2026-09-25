@@ -18,6 +18,8 @@ const BAR_PROFILE = Array.from({ length: BAR_COUNT }, (_, i) => {
 });
 const ATTACK = 0.45;
 const DECAY = 0.12;
+// Bars above this share of their range are the loudest and light up in signal orange.
+const HOT_LEVEL = 0.62;
 
 // How long a finished phase stays on screen before the pill settles back to idle.
 const HOLD_MS: Partial<Record<DictationState["phase"], number>> = {
@@ -45,7 +47,10 @@ function LevelBars({ live, shimmer }: { live: boolean; shimmer: boolean }) {
         const bars = barsRef.current;
         if (!live) {
             levelRef.current = 0;
-            for (const bar of bars) bar?.style.removeProperty("height");
+            for (const bar of bars) {
+                bar?.style.removeProperty("height");
+                bar?.classList.remove("is-hot");
+            }
             return;
         }
         const heights = new Array<number>(BAR_COUNT).fill(0);
@@ -61,7 +66,10 @@ function LevelBars({ live, shimmer }: { live: boolean; shimmer: boolean }) {
                 heights[i] = next;
                 const bar = bars[i];
                 const px = BAR_MIN_PX + next * (BAR_MAX_PX - BAR_MIN_PX);
-                if (bar) bar.style.height = `${px.toFixed(1)}px`;
+                if (bar) {
+                    bar.style.height = `${px.toFixed(1)}px`;
+                    bar.classList.toggle("is-hot", next > HOT_LEVEL);
+                }
             }
             frame = requestAnimationFrame(tick);
         };
@@ -135,9 +143,10 @@ export function Overlay() {
     const { phase } = state;
     const busy = phase === "transcribing" || phase === "formatting";
 
-    let glyph = <Mic size={13} strokeWidth={2.2} />;
-    if (phase === "done") glyph = <Check size={14} strokeWidth={2.6} />;
-    if (phase === "error") glyph = <TriangleAlert size={13} strokeWidth={2.2} />;
+    let glyph = <Mic size={12} strokeWidth={2.2} />;
+    if (phase === "recording") glyph = <span className="sv-pill__dot" />;
+    if (phase === "done") glyph = <Check size={13} strokeWidth={2.8} />;
+    if (phase === "error") glyph = <TriangleAlert size={12} strokeWidth={2.4} />;
 
     let trailing: ReactNode = null;
     if (phase === "recording") trailing = <Timer startedAt={recordingSince} />;

@@ -16,12 +16,37 @@ import { SystemSection } from "./system/SystemSection";
 import "./common.css";
 import "./SettingsDialog.css";
 
-const NAV: { id: SettingsSection; label: string; icon: ReactNode }[] = [
-    { id: "general", label: "General", icon: <SlidersHorizontal size={16} /> },
-    { id: "system", label: "System", icon: <Monitor size={16} /> },
-    { id: "models", label: "Models", icon: <AudioLines size={16} /> },
-    { id: "permissions", label: "Permissions", icon: <ShieldCheck size={16} /> },
-    { id: "data", label: "Data", icon: <Database size={16} /> },
+const NAV: { id: SettingsSection; label: string; description: string; icon: ReactNode }[] = [
+    {
+        id: "general",
+        label: "General",
+        description: "Appearance, shortcuts, microphone and dictation languages.",
+        icon: <SlidersHorizontal size={16} />,
+    },
+    {
+        id: "system",
+        label: "System",
+        description: "Startup, sound cues and how dictated text is delivered.",
+        icon: <Monitor size={16} />,
+    },
+    {
+        id: "models",
+        label: "Models",
+        description: "The voice model that transcribes and the provider that formats.",
+        icon: <AudioLines size={16} />,
+    },
+    {
+        id: "permissions",
+        label: "Permissions",
+        description: "What macOS allows Simple Voice to do.",
+        icon: <ShieldCheck size={16} />,
+    },
+    {
+        id: "data",
+        label: "Data",
+        description: "Where your history is stored, and how to clear it.",
+        icon: <Database size={16} />,
+    },
 ];
 
 interface Props {
@@ -47,6 +72,14 @@ function SettingsSheet({ onClose, initialSection }: Omit<Props, "open">) {
         void loadInfo();
     }, [loadInfo]);
 
+    // The parent passes a fresh onClose on every render (any settings change re-renders it);
+    // reading it through a ref keeps this effect, and its initial focus, to mount only, so
+    // keyboard users keep their focus while they change settings.
+    const onCloseRef = useRef(onClose);
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
     useEffect(() => {
         sheetRef.current?.focus();
         const onKeyDown = (event: KeyboardEvent) => {
@@ -55,13 +88,13 @@ function SettingsSheet({ onClose, initialSection }: Omit<Props, "open">) {
             const dialogs = document.querySelectorAll('[role="dialog"]');
             if (dialogs[dialogs.length - 1] !== sheetRef.current) return;
             event.preventDefault();
-            onClose();
+            onCloseRef.current();
         };
         document.addEventListener("keydown", onKeyDown);
         return () => {
             document.removeEventListener("keydown", onKeyDown);
         };
-    }, [onClose]);
+    }, []);
 
     const current = NAV.find((item) => item.id === section) ?? NAV[0];
 
@@ -79,7 +112,7 @@ function SettingsSheet({ onClose, initialSection }: Omit<Props, "open">) {
                 }}
             >
                 <nav className="sv-settings__nav" aria-label="Settings sections">
-                    <span className="sv-settings__eyebrow">Settings</span>
+                    <span className="sv-settings__eyebrow caps-label">Settings</span>
                     <ul className="sv-settings__list">
                         {NAV.map((item) => (
                             <li key={item.id}>
@@ -91,27 +124,32 @@ function SettingsSheet({ onClose, initialSection }: Omit<Props, "open">) {
                                         setSection(item.id);
                                     }}
                                 >
-                                    {item.icon}
+                                    <span className="sv-settings__icon">{item.icon}</span>
                                     {item.label}
                                 </button>
                             </li>
                         ))}
                     </ul>
                     <span className="sv-settings__version">
-                        Simple Voice{info ? ` v${info.version}` : ""}
+                        Simple Voice
+                        {info && <span className="sv-settings__build">v{info.version}</span>}
                     </span>
                 </nav>
                 <section className="sv-settings__pane" aria-labelledby="sv-settings-title">
                     <header className="sv-settings__header">
-                        <h2 id="sv-settings-title" className="sv-settings__title">
-                            {current?.label}
-                        </h2>
+                        <div className="sv-settings__heading">
+                            <h2 id="sv-settings-title" className="sv-settings__title">
+                                {current?.label}
+                            </h2>
+                            <p className="sv-settings__description">{current?.description}</p>
+                        </div>
                         <IconButton
                             label="Close settings"
                             icon={<X size={16} />}
                             onClick={onClose}
                         />
                     </header>
+                    <div className="sv-level-line sv-settings__rule" aria-hidden="true" />
                     <div className="sv-settings__content" key={section}>
                         {section === "general" && <GeneralSection />}
                         {section === "system" && <SystemSection />}

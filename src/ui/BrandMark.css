@@ -1,0 +1,9 @@
+/* FilePath: src/ui/BrandMark.css */
+.sv-brand-mark {
+    flex: none;
+    fill: var(--ink);
+}
+
+.sv-brand-mark__signal {
+    fill: var(--accent);
+}

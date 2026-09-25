@@ -1,10 +1,12 @@
 /* FilePath: src/features/settings/system/system.css */
+/* Sound theme tiles and the volume control. The chosen tile gets an ink outline and a signal
+   marker (docs/internal/design.md: selection is never a flooded card). */
 
 .sv-themes {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 8px;
-    padding: 4px 16px 14px;
+    padding: 0 16px 16px;
     transition: opacity var(--dur) var(--ease);
 }
 
@@ -19,25 +21,24 @@
 .sv-theme {
     position: relative;
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 4px;
-    padding: 10px 6px 10px 12px;
+    min-height: 60px;
+    padding: 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--panel);
     transition:
         border-color var(--dur) var(--ease),
-        background var(--dur) var(--ease);
+        box-shadow var(--dur) var(--ease);
 }
 
 .sv-theme:hover {
     border-color: var(--border-strong);
 }
 
-.sv-theme.is-selected {
-    border-color: var(--accent);
-    background: var(--accent-tint);
+.sv-theme.is-selected,
+.sv-theme.is-selected:hover {
+    border-color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .sv-theme__pick {
@@ -75,14 +76,30 @@
     cursor: not-allowed;
 }
 
+/* The play button floats in the corner above the tile's selection layer. */
 .sv-theme > :last-child {
-    position: relative;
+    position: absolute;
+    top: 6px;
+    right: 6px;
     z-index: 1;
 }
 
 .sv-theme__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13.5px;
     font-weight: 600;
+    padding-right: 24px;
+}
+
+/* Signal marker on the chosen tile, placed before its name. */
+.sv-theme.is-selected .sv-theme__name::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
 }
 
 .sv-theme__desc {
@@ -95,7 +112,7 @@
     align-items: center;
     gap: 8px;
     width: 260px;
-    color: var(--muted);
+    color: var(--faint);
 }
 
 .sv-volume__range {
@@ -110,9 +127,10 @@
 }
 
 .sv-volume__value {
-    width: 38px;
+    width: 40px;
     text-align: right;
-    font-size: 12.5px;
+    font-family: var(--font-mono);
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: var(--text);
 }

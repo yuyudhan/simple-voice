@@ -1,10 +1,10 @@
 // FilePath: src/features/insights/InsightsPage.tsx
 import { useCallback, useEffect, useState } from "react";
-import { ChartColumn, Flame, Info, TrendingDown, TrendingUp } from "lucide-react";
+import { ChartColumn, Info, TrendingDown, TrendingUp } from "lucide-react";
 import { api, errorMessage, events, type Insights } from "../../lib/api";
 import { formatMinutes, formatNumber, pluralize } from "../../lib/format";
 import { useTauriEvent } from "../../lib/useTauriEvent";
-import { Card, EmptyState, Spinner, useToast } from "../../ui";
+import { Card, EmptyState, PageHeader, Spinner, useToast } from "../../ui";
 import { StreakHeatmap } from "./StreakHeatmap";
 import { UsageCard } from "./UsageCard";
 import { WpmGauge } from "./WpmGauge";
@@ -34,7 +34,7 @@ function MonthChange({ insights }: { insights: Insights }) {
     const change = insights.monthChangePercent;
     if (change === null) {
         return insights.wordsThisMonth > 0 ? (
-            <span className="month-pill month-pill--up">New this month</span>
+            <span className="month-pill">New this month</span>
         ) : null;
     }
     const rounded = Math.round(change);
@@ -87,12 +87,10 @@ export function InsightsPage() {
     });
 
     const header = (
-        <header className="sv-page-header">
-            <div>
-                <h1 className="page-title">Insights</h1>
-                <p className="page-subtitle">How you use your voice.</p>
-            </div>
-        </header>
+        <PageHeader
+            title="Insights"
+            description="Your speaking speed, output and habits, measured on this Mac."
+        />
     );
 
     if (!insights) {
@@ -143,43 +141,50 @@ export function InsightsPage() {
                 <Card className="insights-card">
                     <h2 className="insights-card__title">Fixes made</h2>
                     <div className="fix-stat">
-                        <span className="insights-big">
-                            {formatNumber(insights.dictionaryFixes)}
-                        </span>
-                        <span className="caps-label">
+                        <span className="caps-label insights-label">
                             Dictionary fixes <InfoTip text={TIP_DICTIONARY} />
+                        </span>
+                        <span className="readout insights-figure">
+                            {formatNumber(insights.dictionaryFixes)}
                         </span>
                     </div>
                     <div className="fix-stat">
-                        <span className="insights-big">
-                            {formatNumber(insights.wordsCorrected)}
-                        </span>
-                        <span className="caps-label">
+                        <span className="caps-label insights-label">
                             Words corrected <InfoTip text={TIP_CORRECTED} />
+                        </span>
+                        <span className="readout insights-figure">
+                            {formatNumber(insights.wordsCorrected)}
                         </span>
                     </div>
                 </Card>
 
                 <Card className="insights-card">
-                    <div className="insights-card__title-row">
-                        <h2 className="insights-card__title">Total words dictated</h2>
+                    <h2 className="insights-card__title">Words dictated</h2>
+                    <div className="insights-lead">
+                        <span className="readout insights-figure insights-figure--lead">
+                            {formatNumber(insights.totalWords)}
+                        </span>
                         <MonthChange insights={insights} />
                     </div>
-                    <span className="insights-hero-number">
-                        {formatNumber(insights.totalWords)}
-                    </span>
                     <p className="insights-card__foot">{equivalence(insights.totalWords)}</p>
-                    <div className="saved">
-                        <span className="caps-label">Time saved</span>
-                        <span className="saved__value">
-                            {formatMinutes(insights.timeSavedMinutes)}
-                        </span>
-                        <InfoTip text={TIP_SAVED} />
-                    </div>
-                    <p className="insights-card__foot">
-                        {formatNumber(insights.totalDictations)}{" "}
-                        {pluralize(insights.totalDictations, "dictation")}
-                    </p>
+                    <dl className="insights-stack">
+                        <div className="fix-stat">
+                            <dt className="caps-label insights-label">
+                                Time saved <InfoTip text={TIP_SAVED} />
+                            </dt>
+                            <dd className="readout insights-figure--small">
+                                {formatMinutes(insights.timeSavedMinutes)}
+                            </dd>
+                        </div>
+                        <div className="fix-stat">
+                            <dt className="caps-label insights-label">
+                                {pluralize(insights.totalDictations, "Dictation")}
+                            </dt>
+                            <dd className="readout insights-figure--small">
+                                {formatNumber(insights.totalDictations)}
+                            </dd>
+                        </div>
+                    </dl>
                 </Card>
             </div>
 
@@ -188,16 +193,30 @@ export function InsightsPage() {
 
                 <Card className="insights-card streak-card">
                     <div className="streak-card__head">
-                        <Flame className="streak-card__flame" aria-hidden="true" />
                         <div>
-                            <h2 className="streak-card__title">
-                                {insights.currentStreak} day streak
-                            </h2>
-                            <p className="insights-card__caption">
-                                Longest streak: {insights.longestStreak}{" "}
-                                {pluralize(insights.longestStreak, "day")}
-                            </p>
+                            <h2 className="insights-card__title">Daily activity</h2>
+                            <p className="insights-card__caption">Words dictated per day</p>
                         </div>
+                        <dl className="streak-card__figures">
+                            <div>
+                                <dt className="caps-label">Current streak</dt>
+                                <dd className="streak-card__value">
+                                    <span className="readout insights-figure--small">
+                                        {insights.currentStreak}
+                                    </span>{" "}
+                                    {pluralize(insights.currentStreak, "day")}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt className="caps-label">Longest</dt>
+                                <dd className="streak-card__value">
+                                    <span className="readout insights-figure--small">
+                                        {insights.longestStreak}
+                                    </span>{" "}
+                                    {pluralize(insights.longestStreak, "day")}
+                                </dd>
+                            </div>
+                        </dl>
                     </div>
                     <StreakHeatmap days={insights.days} currentStreak={insights.currentStreak} />
                 </Card>

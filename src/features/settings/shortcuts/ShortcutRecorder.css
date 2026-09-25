@@ -1,4 +1,6 @@
 /* FilePath: src/features/settings/shortcuts/ShortcutRecorder.css */
+/* Recording a shortcut is a live state, so the capture well carries the signal: a pulsing
+   signal hairline on a neutral well, with the prompt in accent text. */
 
 .sv-shortcut-rec {
     display: flex;
@@ -16,24 +18,36 @@
 .sv-shortcut-rec__capture {
     display: flex;
     align-items: center;
-    min-width: 150px;
-    min-height: 30px;
+    min-width: 160px;
+    min-height: 28px;
     padding: 3px 10px;
-    border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+    border: 1px solid var(--accent);
     border-radius: var(--radius-control);
-    background: var(--accent-tint);
+    background: var(--surface);
     animation: sv-shortcut-pulse 1.6s var(--ease) infinite;
 }
 
 .sv-shortcut-rec__prompt {
     font-size: 12px;
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 .sv-shortcut-rec__hint {
     margin: 0;
-    font-size: 11px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--faint);
+}
+
+.sv-shortcut-rec__note {
+    margin: 0;
+    max-width: 280px;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: right;
+    color: var(--muted);
 }
 
 .sv-shortcut-rec__error {
@@ -48,9 +62,9 @@
 @keyframes sv-shortcut-pulse {
     0%,
     100% {
-        border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+        border-color: var(--accent);
     }
     50% {
-        border-color: color-mix(in srgb, var(--accent) 20%, transparent);
+        border-color: color-mix(in srgb, var(--accent) 30%, transparent);
     }
 }

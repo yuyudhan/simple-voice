@@ -217,6 +217,7 @@ impl EngineClient {
     pub fn connect(&self, transport: Arc<dyn Transport>);            // after (re)spawn
     pub fn on_stdout_line(&self, line: &str);                        // app forwards each stdout line
     pub fn on_terminated(&self);                                     // fails all pending, disconnects
+    pub fn set_event_handler(&self, handler: EventHandler);          // id-less events; survives restarts
     pub async fn request<T: DeserializeOwned>(&self, cmd: &str, params: serde_json::Value,
         timeout: Duration) -> AppResult<T>;
     pub async fn request_with_progress<T: DeserializeOwned>(&self, cmd: &str, params: serde_json::Value,
@@ -224,7 +225,9 @@ impl EngineClient {
 }
 // protocol.rs: typed async methods on EngineClient (result structs re-exported at the crate root;
 // `ProgressCallback` = the boxed progress closure above). `line` passed to `send_line` has no
-// trailing newline; `on_stdout_line` trims and ignores blank, non-JSON, and unknown-id lines.
+// trailing newline; `on_stdout_line` trims and ignores blank, non-JSON, and unknown-id lines, and
+// hands id-less lines to the event handler as `EngineEvent::FnKey { action: FnKeyAction }`
+// (`Press | Release | Tap | Chord`); unknown events are ignored.
 //   ping() -> PingResult { version }
 //   model_status(model: &str, language: Option<&str>)
 //       -> ModelStatusResult { status: ModelStatus, size_bytes: Option<u64>, reason: Option<String> }
@@ -237,6 +240,7 @@ impl EngineClient {
 //   frontmost_app() -> FrontmostApp { name: Option<String>, bundle_id: Option<String> }
 //   paste() -> ()   // "accessibility permission missing" maps to AppError::Permission
 //   set_output_muted(muted: bool) -> bool   // previous muted state
+//   watch_fn_key(enabled: bool) -> bool   // whether the Fn key tap is installed now
 //   polish(system: &str, shots: &[(String, String)], user: &str) -> PolishReply { text, finished }
 // All return AppResult<_>; timeouts: download 2 h, preload 5 min, request_permission 10 min,
 // transcribe 120 s, polish 30 s (callers apply their own tighter budget), others 10–30 s.
@@ -258,10 +262,13 @@ consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`
 `useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
 
 Appearance: `settings.theme` (`"system" | "light" | "dark"`) is applied by the UI, not the
-backend. For `light`/`dark` it sets `data-theme="light"|"dark"` on `<html>` and calls
-`getCurrentWindow().setTheme(theme)`; for `system` it removes `data-theme` and calls
-`setTheme(null)` so the window follows macOS. `src-tauri/capabilities/default.json` grants
-`core:window:allow-set-theme` for this.
+backend (`src/app/theme.ts`). The main window always carries the resolved theme as
+`data-theme="light"|"dark"` on `<html>` (for `system`, resolved from
+`prefers-color-scheme` and re-resolved live when macOS changes), and calls
+`getCurrentWindow().setTheme(theme)`, or `setTheme(null)` for `system`, so the native title
+bar matches. The last choice is cached in `localStorage["sv.theme"]` and painted before React
+mounts, so launch never flashes the other theme. The overlay pill keeps its fixed palette.
+`src-tauri/capabilities/default.json` grants `core:window:allow-set-theme` for this.
 
 ## 3. Tauri commands (invoked from the UI; TypeScript types in `src/lib/api.ts`)
 
@@ -331,6 +338,11 @@ line on stdout. Logs go to stderr only.
 Request: `{"id": 7, "cmd": "<name>", ...params}`
 Result: `{"id": 7, "ok": true, "result": {...}}` or `{"id": 7, "ok": false, "error": "message"}`
 Progress (zero or more before the result): `{"id": 7, "event": "progress", "fraction": 0.42, "message": "..."}`
+Fn key (unsolicited, no id, only while `watch_fn_key` is enabled): `{"event": "fn_key", "action": A}`;
+A = `"press"` (Fn held 100 ms with nothing else pressed), `"release"` (up after `press`), `"tap"`
+(up before `press`), `"chord"` (another key or modifier joined after `press`, e.g. Fn+Arrow; no
+`release` follows). Fn pressed while another modifier is held, or joined by a key within 100 ms,
+produces nothing.
 
 | cmd                  | Params                                                   | Result                                                                                                                                                       |
 | -------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -347,6 +359,7 @@ Progress (zero or more before the result): `{"id": 7, "event": "progress", "frac
 | `paste`              | —                                                        | `{}` (posts Cmd+V; error `"accessibility permission missing"` when not trusted)                                                                              |
 | `set_output_muted`   | `muted: bool`                                            | `{"previous": bool}`                                                                                                                                         |
 | `polish`             | `system`, `shots: [{user, assistant}]`, `user`           | `{"text": s, "finished": bool}` via Apple Foundation Models (`LanguageModelSession`, temperature 0)                                                          |
+| `watch_fn_key`       | `enabled: bool`                                          | `{"active": bool}`: whether the listen-only event tap is installed; without Accessibility access it retries every 2 s while enabled                          |
 
 Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech` (transcription);
 `apple-intelligence` (post-processing; `model_status` reports availability, never downloads).

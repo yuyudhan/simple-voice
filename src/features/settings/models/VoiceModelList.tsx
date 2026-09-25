@@ -42,7 +42,7 @@ function StatusBadge({ model, fraction }: { model: ModelInfo; fraction: number |
     }
     switch (model.status) {
         case "cloud":
-            return <Badge tone="accent">Cloud</Badge>;
+            return <Badge tone="neutral">Cloud</Badge>;
         case "ready":
             return <Badge tone="success">Downloaded</Badge>;
         case "not_downloaded":
@@ -91,8 +91,14 @@ function ModelRow({ model, active, state }: RowProps) {
                     <span className="sv-model__name">{model.name}</span>
                     <span className="sv-model__subtitle">{model.subtitle}</span>
                     <span className="sv-model__meta">
-                        <span title="Speed">⚡ {model.speed}%</span>
-                        <span title="Accuracy">◎ {model.accuracy}%</span>
+                        <span className="sv-model__stat">
+                            <span className="sv-model__stat-label">Speed</span>
+                            {model.speed}%
+                        </span>
+                        <span className="sv-model__stat">
+                            <span className="sv-model__stat-label">Accuracy</span>
+                            {model.accuracy}%
+                        </span>
                         <span>{model.languages}</span>
                         {size && <span>{size}</span>}
                     </span>

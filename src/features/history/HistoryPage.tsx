@@ -9,6 +9,7 @@ import {
     EmptyState,
     Kbd,
     Modal,
+    PageHeader,
     ShortcutKeys,
     Spinner,
     TextField,
@@ -114,12 +115,7 @@ export function HistoryPage() {
 
     return (
         <>
-            <header className="sv-page-header">
-                <div>
-                    <h1 className="page-title">Your dictations</h1>
-                    <p className="page-subtitle">Everything you have said, newest first.</p>
-                </div>
-            </header>
+            <PageHeader title="History" description="Every dictation on this Mac, newest first." />
 
             <StatsStrip />
 

@@ -1,40 +1,33 @@
 /* FilePath: src/app/App.css */
+/* Sidebar on --surface with a hairline edge, content directly on --bg: no inset panel. */
 .sv-shell {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 216px minmax(0, 1fr);
     height: 100%;
-    background: var(--surface);
+    background: var(--bg);
 }
 
-/* Thin strip across the top so the window can be dragged from anywhere above the panel; the
+/* Thin strip across the top so the window can be dragged from anywhere above the content; the
    sidebar header next to the traffic lights is a drag region too. */
 .sv-shell__drag {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    height: 12px;
+    height: 28px;
     z-index: 5;
 }
 
 .sv-shell__main {
     min-width: 0;
     min-height: 0;
-    padding: 12px 12px 12px 0;
-}
-
-.sv-shell__panel {
-    height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
     scroll-behavior: smooth;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .sv-shell__panel {
+    .sv-shell__main {
         scroll-behavior: auto;
     }
 }
@@ -42,14 +35,6 @@
 .sv-shell__content {
     max-width: 760px;
     margin: 0 auto;
-    padding: 40px 36px 56px;
-    animation: sv-fade-in 200ms var(--ease);
-}
-
-.sv-page-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 24px;
+    padding: 52px 40px 64px;
+    animation: sv-fade-in 180ms var(--ease);
 }

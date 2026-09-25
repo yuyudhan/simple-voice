@@ -113,6 +113,12 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(shortcuts::ShortcutRegistry::default());
     app.manage(overlay::OverlayState::default());
     app.manage(engine_process::EngineProcess::default());
+    let events_app = app.clone();
+    app.state::<AppState>()
+        .engine
+        .set_event_handler(Box::new(move |event| {
+            shortcuts::on_engine_event(&events_app, event);
+        }));
 
     windows::create_main(app, !launched_in_background || startup_error.is_some())?;
     windows::install_app_menu(app)?;

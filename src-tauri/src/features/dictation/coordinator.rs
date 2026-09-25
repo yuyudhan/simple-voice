@@ -86,6 +86,7 @@ impl Coordinator {
                 }
             }
             Control::Shortcut(binding, pressed) => self.shortcut(binding, pressed).await,
+            Control::ShortcutChord(binding) => self.chord(binding).await,
         }
     }
 
@@ -131,6 +132,18 @@ impl Coordinator {
                 }
             }
             (Binding::Escape | Binding::Toggle, false) => {}
+        }
+    }
+
+    /// Discards the recording that this press of the shortcut started, if it started one.
+    async fn chord(&mut self, binding: Binding) {
+        let started_by_press = match binding {
+            Binding::Hold => self.hold_started,
+            Binding::Both => self.pressed_at.is_some(),
+            Binding::Toggle | Binding::Escape => false,
+        };
+        if started_by_press {
+            self.cancel().await;
         }
     }
 

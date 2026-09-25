@@ -92,6 +92,11 @@ final class Engine: Sendable {
         case "polish":
             let params = try request.params(PolishParams.self)
             return try await polish(params)
+        case "watch_fn_key":
+            let enabled = try request.params(FnKeyWatchParams.self).enabled
+            let output = output
+            let active = await MainActor.run { FnKeyMonitor.shared.setEnabled(enabled, output: output) }
+            return FnKeyWatchResult(active: active)
         default:
             throw EngineError("unknown command `\(request.cmd)`")
         }

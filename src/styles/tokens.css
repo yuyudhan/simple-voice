@@ -39,6 +39,11 @@
     --danger: #c42639;
     --danger-hover: #a71f30;
     --danger-soft: #fbe3e6;
+    --on-danger: #ffffff;
+    /* Status colours readable on an ink surface (toasts invert the theme). */
+    --on-ink-success: #5fd08f;
+    --on-ink-danger: #ff8a96;
+    --thumb: #ffffff;
     --success: #1c7f47;
     --success-soft: #dff2e6;
     --warning: #8f6200;
@@ -64,50 +69,55 @@
 
     --dur: 150ms;
     --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
-    --focus-ring: 0 0 0 1px var(--panel), 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
+    --focus-ring:
+        0 0 0 1px var(--panel), 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 :root[data-theme="dark"] {
     color-scheme: dark;
-        --bg: #111113;
-        --surface: #18181b;
-        --surface-hover: #222226;
-        --panel: #1a1a1d;
-        --border: #29292e;
-        --border-strong: #3a3a41;
-        --text: #ededf0;
-        --muted: #a2a2ab;
-        --faint: #66666f;
+    --bg: #111113;
+    --surface: #18181b;
+    --surface-hover: #222226;
+    --panel: #1a1a1d;
+    --border: #29292e;
+    --border-strong: #3a3a41;
+    --text: #ededf0;
+    --muted: #a2a2ab;
+    --faint: #66666f;
 
-        --ink: #ededf0;
-        --ink-hover: #ffffff;
-        --on-ink: #111113;
+    --ink: #ededf0;
+    --ink-hover: #ffffff;
+    --on-ink: #111113;
 
-        --accent: #ff6a2e;
-        --accent-hover: #ff8352;
-        --accent-text: #ff8a5c;
-        --accent-2: #e2531c;
-        --accent-3: #9c3a14;
-        --accent-soft: #3a1c0f;
-        --accent-tint: #24150e;
-        --on-accent: #1a0b04;
+    --accent: #ff6a2e;
+    --accent-hover: #ff8352;
+    --accent-text: #ff8a5c;
+    --accent-2: #e2531c;
+    --accent-3: #9c3a14;
+    --accent-soft: #3a1c0f;
+    --accent-tint: #24150e;
+    --on-accent: #1a0b04;
 
-        --danger: #ff6b7a;
-        --danger-hover: #ff8a96;
-        --danger-soft: #3a171c;
-        --success: #5fd08f;
-        --success-soft: #14301f;
-        --warning: #f0c05a;
-        --warning-soft: #33280f;
+    --danger: #ff6b7a;
+    --danger-hover: #ff8a96;
+    --danger-soft: #3a171c;
+    --on-danger: #1a0508;
+    --on-ink-success: #1c7f47;
+    --on-ink-danger: #c42639;
+    --thumb: #f4f4f5;
+    --success: #5fd08f;
+    --success-soft: #14301f;
+    --warning: #f0c05a;
+    --warning-soft: #33280f;
 
-        --heat-0: #222226;
-        --heat-1: #4a2212;
-        --heat-2: #8a3814;
-        --heat-3: #e2531c;
-        --heat-4: #ff8a5c;
+    --heat-0: #222226;
+    --heat-1: #4a2212;
+    --heat-2: #8a3814;
+    --heat-3: #e2531c;
+    --heat-4: #ff8a5c;
 
-        --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
-        --backdrop: rgba(0, 0, 0, 0.55);
+    --shadow-overlay: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --backdrop: rgba(0, 0, 0, 0.55);
 }
 
 @media (prefers-reduced-motion: reduce) {

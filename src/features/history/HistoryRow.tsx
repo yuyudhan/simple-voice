@@ -49,59 +49,59 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
 
     return (
         <article className={`history-row history-row--${entry.status}`}>
-            <div className="history-row__meta">
-                <time
-                    className="history-row__time"
-                    dateTime={new Date(entry.createdAt).toISOString()}
-                >
-                    {formatTime(entry.createdAt)}
-                </time>
-                <span className="history-row__app" title={category.label}>
-                    {category.icon}
-                    {entry.appName ?? category.label}
-                </span>
-                <StatusBadge entry={entry} />
+            <time className="history-row__time" dateTime={new Date(entry.createdAt).toISOString()}>
+                {formatTime(entry.createdAt)}
+            </time>
+
+            <div className="history-row__body">
+                <div className="history-row__meta">
+                    <span className="history-row__app" title={category.label}>
+                        {category.icon}
+                        {entry.appName ?? category.label}
+                    </span>
+                    <StatusBadge entry={entry} />
+                </div>
+
+                {text.trim().length > 0 ? (
+                    <p
+                        ref={textRef}
+                        className={`history-row__text selectable${expanded ? " is-expanded" : ""}`}
+                    >
+                        {text}
+                    </p>
+                ) : (
+                    <p className="history-row__text history-row__text--empty">
+                        No speech was recognised.
+                    </p>
+                )}
+
+                {(overflowing || expanded) && (
+                    <button
+                        type="button"
+                        className="history-row__more"
+                        aria-expanded={expanded}
+                        onClick={() => {
+                            setExpanded((value) => !value);
+                        }}
+                    >
+                        {expanded ? "Show less" : "Show more"}
+                    </button>
+                )}
+
+                {entry.status === "failed" && entry.error && (
+                    <p className="history-row__error selectable">{entry.error}</p>
+                )}
+                {entry.status === "dropped" && (
+                    <p className="history-row__note">
+                        A newer dictation was pasted first, so this one was kept here instead.
+                    </p>
+                )}
+                {entry.status === "unformatted" && (
+                    <p className="history-row__note">
+                        AI formatting was skipped{entry.error ? `: ${entry.error}` : "."}
+                    </p>
+                )}
             </div>
-
-            {text.trim().length > 0 ? (
-                <p
-                    ref={textRef}
-                    className={`history-row__text selectable${expanded ? " is-expanded" : ""}`}
-                >
-                    {text}
-                </p>
-            ) : (
-                <p className="history-row__text history-row__text--empty">
-                    No speech was recognised.
-                </p>
-            )}
-
-            {(overflowing || expanded) && (
-                <button
-                    type="button"
-                    className="history-row__more"
-                    aria-expanded={expanded}
-                    onClick={() => {
-                        setExpanded((value) => !value);
-                    }}
-                >
-                    {expanded ? "Show less" : "Show more"}
-                </button>
-            )}
-
-            {entry.status === "failed" && entry.error && (
-                <p className="history-row__error selectable">{entry.error}</p>
-            )}
-            {entry.status === "dropped" && (
-                <p className="history-row__note">
-                    A newer dictation was pasted first, so this one was kept here instead.
-                </p>
-            )}
-            {entry.status === "unformatted" && (
-                <p className="history-row__note">
-                    AI formatting was skipped{entry.error ? `: ${entry.error}` : "."}
-                </p>
-            )}
 
             <div className="history-row__actions">
                 {text.trim().length > 0 && (

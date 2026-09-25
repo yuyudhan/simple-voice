@@ -1,4 +1,5 @@
 // FilePath: src/ui/index.ts
+export { BrandMark } from "./BrandMark";
 export { Badge, type BadgeTone } from "./Badge";
 export {
     Button,

@@ -12,6 +12,7 @@ export function Toggle({ checked, onChange, disabled = false, label }: TogglePro
     return (
         <button
             type="button"
+            className={checked ? "sv-toggle is-on" : "sv-toggle"}
             role="switch"
             aria-checked={checked}
             aria-label={label}

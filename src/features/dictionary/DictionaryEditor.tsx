@@ -1,5 +1,6 @@
 // FilePath: src/features/dictionary/DictionaryEditor.tsx
 import { useState, type SyntheticEvent } from "react";
+import { ArrowRight } from "lucide-react";
 import { api, errorMessage, type DictionaryEntry } from "../../lib/api";
 import { Button, Modal, TextField, Toggle } from "../../ui";
 
@@ -121,6 +122,19 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
                             setReplacement(event.target.value);
                         }}
                     />
+                )}
+                {isRule && phrase.trim().length > 0 && replacement.trim().length > 0 && (
+                    <div className="dictionary-form__preview">
+                        <span className="caps-label">Preview</span>
+                        <span className="dictionary-form__preview-line">
+                            <span className="dictionary-row__heard">{phrase.trim()}</span>
+                            <ArrowRight
+                                className="dictionary-row__arrow"
+                                aria-label="is written as"
+                            />
+                            <span className="dictionary-row__written">{replacement.trim()}</span>
+                        </span>
+                    </div>
                 )}
                 {/* Enter in either field submits. */}
                 <button type="submit" className="sr-only" aria-hidden="true" tabIndex={-1} />
