@@ -1,0 +1,42 @@
+/* FilePath: src/features/settings/data/data.css */
+
+.sv-path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.sv-path__value {
+    max-width: 180px;
+    overflow: hidden;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sv-path__value--block {
+    display: block;
+    max-width: none;
+    white-space: normal;
+    word-break: break-all;
+}
+
+.sv-data__confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
+}
+
+.sv-data__confirm p {
+    margin: 0;
+}

@@ -1,0 +1,204 @@
+/* FilePath: src/features/overlay/Overlay.css */
+/* The overlay window is transparent; only the pill paints. The pill keeps its dark look in both
+   light and dark mode so it reads over any app, like a system HUD. */
+
+html.overlay-window,
+html.overlay-window body,
+html.overlay-window #root {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent !important;
+}
+
+.sv-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    cursor: default;
+}
+
+.sv-pill {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 176px;
+    height: 40px;
+    padding: 0 12px 0 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(20, 20, 20, 0.92);
+    box-shadow:
+        0 6px 18px rgba(0, 0, 0, 0.28),
+        0 1px 3px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.92);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    font-size: 12px;
+    -webkit-font-smoothing: antialiased;
+    transition:
+        width 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+        opacity 300ms ease,
+        transform 300ms ease;
+}
+
+.sv-pill.is-idle {
+    width: 108px;
+    opacity: 0.78;
+}
+
+.sv-pill.is-cancelled {
+    opacity: 0;
+    transform: scale(0.94);
+}
+
+.sv-pill__glyph {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: linear-gradient(160deg, rgba(96, 165, 250, 0.95), rgba(37, 99, 235, 0.95));
+    color: #fff;
+    box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25);
+    transition:
+        background 200ms ease,
+        opacity 200ms ease;
+}
+
+.sv-pill.is-idle .sv-pill__glyph {
+    opacity: 0.7;
+}
+
+.sv-pill.is-done .sv-pill__glyph {
+    background: linear-gradient(160deg, rgba(74, 222, 128, 0.95), rgba(22, 163, 74, 0.95));
+}
+
+.sv-pill.is-error .sv-pill__glyph {
+    background: linear-gradient(160deg, rgba(248, 113, 113, 0.95), rgba(220, 38, 38, 0.95));
+}
+
+/* Level bars */
+
+.sv-pill__bars {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 24px;
+}
+
+.sv-pill__bar {
+    width: 3px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.sv-pill__bars.is-live .sv-pill__bar {
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.sv-pill__bars.is-shimmer .sv-pill__bar {
+    height: 5px;
+    animation: sv-pill-shimmer 1.2s ease-in-out infinite;
+}
+
+.sv-pill__bar:nth-child(2) {
+    animation-delay: 80ms;
+}
+.sv-pill__bar:nth-child(3) {
+    animation-delay: 160ms;
+}
+.sv-pill__bar:nth-child(4) {
+    animation-delay: 240ms;
+}
+.sv-pill__bar:nth-child(5) {
+    animation-delay: 320ms;
+}
+.sv-pill__bar:nth-child(6) {
+    animation-delay: 400ms;
+}
+.sv-pill__bar:nth-child(7) {
+    animation-delay: 480ms;
+}
+.sv-pill__bar:nth-child(8) {
+    animation-delay: 560ms;
+}
+.sv-pill__bar:nth-child(9) {
+    animation-delay: 640ms;
+}
+.sv-pill__bar:nth-child(10) {
+    animation-delay: 720ms;
+}
+.sv-pill__bar:nth-child(11) {
+    animation-delay: 800ms;
+}
+
+@keyframes sv-pill-shimmer {
+    0%,
+    100% {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+    35% {
+        height: 12px;
+        background: rgba(147, 197, 253, 0.95);
+    }
+    70% {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* Trailing text */
+
+.sv-pill__timer,
+.sv-pill__label {
+    flex: none;
+    color: rgba(255, 255, 255, 0.72);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+.sv-pill__timer {
+    min-width: 28px;
+    text-align: right;
+}
+
+.sv-pill__label {
+    font-size: 10.5px;
+}
+
+.sv-pill__result {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.sv-pill__note {
+    color: #fbbf24;
+    font-size: 11px;
+}
+
+.sv-pill__message {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: rgba(254, 202, 202, 0.95);
+    font-size: 11.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}

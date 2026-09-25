@@ -1,0 +1,64 @@
+/* FilePath: src/ui/Card.css */
+.sv-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    min-width: 0;
+}
+
+.sv-card--padded {
+    padding: 18px 20px;
+}
+
+.sv-settings-group + .sv-settings-group {
+    margin-top: 22px;
+}
+
+.sv-settings-group__title {
+    margin: 0 0 8px 2px;
+}
+
+.sv-settings-group__body {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+}
+
+.sv-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 13px 16px;
+    min-height: 54px;
+}
+
+.sv-setting-row + .sv-setting-row {
+    border-top: 1px solid var(--border);
+}
+
+.sv-setting-row__text {
+    min-width: 0;
+    flex: 1;
+}
+
+.sv-setting-row__title {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.sv-setting-row__description {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.sv-setting-row__control {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

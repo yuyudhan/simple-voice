@@ -1,0 +1,148 @@
+/* FilePath: src/features/insights/heatmap.css */
+
+.heatmap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.heatmap__grid {
+    display: flex;
+    gap: 3px;
+    overflow: visible;
+}
+
+.heatmap__weekdays,
+.heatmap__column {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.heatmap__weekdays {
+    width: 28px;
+    flex: none;
+}
+
+.heatmap__weekday {
+    height: 14px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 14px;
+}
+
+.heatmap__month {
+    height: 16px;
+    width: 14px;
+    overflow: visible;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 14px;
+}
+
+.heatmap__cell {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    transition: transform var(--dur) var(--ease);
+}
+
+.heatmap__grid .heatmap__cell:not(.heatmap__cell--blank):hover {
+    transform: scale(1.15);
+    z-index: 2;
+}
+
+.heatmap__cell--blank {
+    background: transparent;
+}
+
+.heatmap__cell--0 {
+    background: var(--heat-0);
+}
+
+.heatmap__cell--1 {
+    background: var(--heat-1);
+}
+
+.heatmap__cell--2 {
+    background: var(--heat-2);
+}
+
+.heatmap__cell--3 {
+    background: var(--heat-3);
+}
+
+.heatmap__cell--4 {
+    background: var(--heat-4);
+}
+
+.heatmap__cell.is-streak {
+    outline: 1.5px solid var(--warning);
+    outline-offset: 1px;
+}
+
+.heatmap__tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: var(--text);
+    color: var(--panel);
+    font-size: 11.5px;
+    white-space: nowrap;
+    box-shadow: var(--shadow-overlay);
+    transform: translateX(-50%) scale(0.87);
+    transform-origin: bottom center;
+    pointer-events: none;
+    animation: sv-fade-in 120ms var(--ease);
+}
+
+.heatmap__tooltip.is-start {
+    left: 0;
+    transform: scale(0.87);
+    transform-origin: bottom left;
+}
+
+.heatmap__tooltip.is-end {
+    left: auto;
+    right: 0;
+    transform: scale(0.87);
+    transform-origin: bottom right;
+}
+
+.heatmap__tooltip span {
+    opacity: 0.75;
+}
+
+.heatmap__legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.heatmap__legend span:not(.heatmap__cell) + .heatmap__cell {
+    margin-left: 4px;
+}
+
+.heatmap__legend .heatmap__cell {
+    width: 11px;
+    height: 11px;
+}
+
+.heatmap__legend-streak {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+}

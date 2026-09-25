@@ -1,0 +1,18 @@
+/* FilePath: src/ui/Spinner.css */
+.sv-spinner {
+    display: inline-block;
+    flex: none;
+    border-style: solid;
+    border-color: currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    opacity: 0.8;
+    animation: sv-spin 0.75s linear infinite;
+}
+
+/* A spinner that stops spinning no longer reads as "busy"; keep it turning, just slower. */
+@media (prefers-reduced-motion: reduce) {
+    .sv-spinner {
+        animation: sv-spin 1.6s linear infinite !important;
+    }
+}

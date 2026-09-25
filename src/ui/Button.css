@@ -1,0 +1,123 @@
+/* FilePath: src/ui/Button.css */
+.sv-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    font-weight: 500;
+    white-space: nowrap;
+    transition:
+        background-color var(--dur) var(--ease),
+        border-color var(--dur) var(--ease),
+        color var(--dur) var(--ease),
+        opacity var(--dur) var(--ease),
+        transform var(--dur) var(--ease);
+}
+
+.sv-btn:active:not(:disabled) {
+    transform: translateY(0.5px) scale(0.99);
+}
+
+.sv-btn:disabled {
+    opacity: 0.5;
+}
+
+.sv-btn--md {
+    height: 34px;
+    padding: 0 14px;
+    font-size: 13.5px;
+}
+
+.sv-btn--sm {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+    gap: 5px;
+}
+
+.sv-btn__icon {
+    display: inline-flex;
+}
+
+.sv-btn__icon svg {
+    width: 15px;
+    height: 15px;
+}
+
+.sv-btn--sm .sv-btn__icon svg {
+    width: 13px;
+    height: 13px;
+}
+
+.sv-btn--primary {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.sv-btn--primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+}
+
+.sv-btn--secondary {
+    background: var(--panel);
+    border-color: var(--border-strong);
+    color: var(--text);
+}
+
+.sv-btn--secondary:hover:not(:disabled) {
+    background: var(--surface);
+}
+
+.sv-btn--ghost {
+    background: transparent;
+    color: var(--text);
+}
+
+.sv-btn--ghost:hover:not(:disabled) {
+    background: var(--surface-hover);
+}
+
+.sv-btn--danger {
+    background: var(--danger);
+    color: #fff;
+}
+
+.sv-btn--danger:hover:not(:disabled) {
+    background: var(--danger-hover);
+}
+
+.sv-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--muted);
+    transition:
+        background-color var(--dur) var(--ease),
+        color var(--dur) var(--ease);
+}
+
+.sv-icon-btn span {
+    display: inline-flex;
+}
+
+.sv-icon-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.sv-icon-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.sv-icon-btn:disabled {
+    opacity: 0.4;
+}

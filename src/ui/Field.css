@@ -1,0 +1,83 @@
+/* FilePath: src/ui/Field.css */
+.sv-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.sv-field__label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.sv-input,
+.sv-select select {
+    width: 100%;
+    height: 34px;
+    padding: 0 11px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 13.5px;
+    transition:
+        border-color var(--dur) var(--ease),
+        box-shadow var(--dur) var(--ease);
+}
+
+.sv-input::placeholder {
+    color: var(--faint);
+}
+
+.sv-input:focus,
+.sv-select select:focus-visible {
+    border-color: var(--accent-2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 22%, transparent);
+    border-radius: var(--radius-control);
+}
+
+.sv-input:disabled {
+    opacity: 0.6;
+}
+
+.sv-input.has-error {
+    border-color: var(--danger);
+}
+
+.sv-input.has-error:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.sv-field__message {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.sv-field__message.is-error {
+    color: var(--danger);
+}
+
+.sv-select {
+    position: relative;
+    min-width: 180px;
+}
+
+.sv-select select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 32px;
+    cursor: pointer;
+}
+
+.sv-select__chevron {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    width: 15px;
+    height: 15px;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+}

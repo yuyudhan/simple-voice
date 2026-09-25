@@ -1,0 +1,23 @@
+/* FilePath: src/app/SettingsContext.css */
+.sv-boot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    height: 100%;
+    padding: 40px;
+    text-align: center;
+    color: var(--muted);
+}
+
+.sv-boot__title {
+    font-family: var(--font-serif);
+    font-size: 24px;
+    color: var(--text);
+}
+
+.sv-boot__message {
+    max-width: 520px;
+    line-height: 1.55;
+}

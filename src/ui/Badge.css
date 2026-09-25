@@ -1,0 +1,43 @@
+/* FilePath: src/ui/Badge.css */
+.sv-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: var(--radius-pill);
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.sv-badge svg {
+    width: 12px;
+    height: 12px;
+}
+
+.sv-badge--neutral {
+    background: var(--surface-hover);
+    color: var(--muted);
+}
+
+.sv-badge--accent {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.sv-badge--success {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.sv-badge--warning {
+    background: var(--warning-soft);
+    color: var(--warning);
+}
+
+.sv-badge--danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+}

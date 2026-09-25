@@ -1,0 +1,159 @@
+/* FilePath: src/app/Sidebar.css */
+.sv-sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 12px 14px;
+}
+
+/* The traffic lights sit in the top-left corner of the overlay title bar. */
+.sv-sidebar__top {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    height: 52px;
+    padding-left: 78px;
+}
+
+.sv-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px 3px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 500;
+    transition:
+        background-color var(--dur) var(--ease),
+        color var(--dur) var(--ease);
+}
+
+.sv-status__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    transition: background-color var(--dur) var(--ease);
+}
+
+.sv-status--recording {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.sv-status--recording .sv-status__dot {
+    background: var(--danger);
+    animation: sv-pulse 1.1s ease-in-out infinite;
+}
+
+.sv-status--processing {
+    background: var(--warning-soft);
+    color: var(--warning);
+}
+
+.sv-status--processing .sv-status__dot {
+    background: var(--warning);
+    animation: sv-pulse 1.6s ease-in-out infinite;
+}
+
+.sv-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 10px 18px;
+}
+
+.sv-brand__mark {
+    width: 20px;
+    height: 20px;
+    fill: var(--accent);
+}
+
+.sv-brand__name {
+    font-family: var(--font-serif);
+    font-size: 19px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.sv-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sv-nav__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--muted);
+    font-size: 13.5px;
+    font-weight: 500;
+    text-align: left;
+    transition:
+        background-color var(--dur) var(--ease),
+        color var(--dur) var(--ease);
+}
+
+.sv-nav__item:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.sv-nav__item.is-active {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--border);
+}
+
+.sv-nav__item.is-active .sv-nav__icon {
+    color: var(--accent);
+}
+
+.sv-nav__icon {
+    position: relative;
+    display: inline-flex;
+}
+
+.sv-nav__icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.sv-nav__alert {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--surface);
+}
+
+.sv-sidebar__bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.sv-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 10px;
+    border-radius: var(--radius-control);
+    background: var(--surface-hover);
+    color: var(--muted);
+    font-size: 12px;
+}

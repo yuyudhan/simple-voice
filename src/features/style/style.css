@@ -1,0 +1,203 @@
+/* FilePath: src/features/style/style.css */
+.style-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 24px 0 18px;
+}
+
+.style-option {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 20px;
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: left;
+    transition:
+        border-color var(--dur) var(--ease),
+        background-color var(--dur) var(--ease),
+        box-shadow var(--dur) var(--ease),
+        transform var(--dur) var(--ease);
+}
+
+.style-option:hover {
+    border-color: var(--border-strong);
+}
+
+.style-option:active {
+    transform: scale(0.995);
+}
+
+.style-option:focus-visible {
+    border-radius: 14px;
+}
+
+.style-option.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-tint);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.style-option__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.style-option__head > span:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.style-option__title {
+    font-family: var(--font-serif);
+    font-size: 26px;
+    line-height: 1.15;
+}
+
+.style-option__caption {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.style-option__check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 50%;
+    color: var(--on-accent);
+    transition:
+        background-color var(--dur) var(--ease),
+        border-color var(--dur) var(--ease);
+}
+
+.style-option.is-selected .style-option__check {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.style-option__check svg {
+    width: 13px;
+    height: 13px;
+    stroke-width: 3;
+}
+
+.style-option__chat {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+/* A simple person silhouette: head and shoulders drawn with gradients, no image asset. */
+.style-option__avatar {
+    position: relative;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: linear-gradient(160deg, #e9c9a8, #c98f64);
+}
+
+.style-option__avatar span {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 38%, rgba(255, 248, 240, 0.95) 0 22%, transparent 23%),
+        radial-gradient(ellipse at 50% 108%, rgba(255, 248, 240, 0.95) 0 42%, transparent 43%);
+}
+
+.style-option__bubble {
+    padding: 10px 13px;
+    border-radius: 16px 16px 16px 4px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.style-note {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.style-note__title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+}
+
+.style-note__list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text);
+    font-size: 13.5px;
+}
+
+.style-note__list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.style-note__icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--accent);
+}
+
+.style-note__icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.style-provider {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.style-provider__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.style-provider__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.style-provider__detail {
+    color: var(--muted);
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.style-provider__arrow {
+    width: 13px;
+    height: 13px;
+    margin-left: 2px;
+    vertical-align: -2px;
+}

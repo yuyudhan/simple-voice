@@ -1,0 +1,112 @@
+/* FilePath: src/styles/tokens.css */
+/* Design tokens. Every component reads colours, radii and motion from here so light and dark
+   mode stay consistent. */
+
+:root {
+    color-scheme: light dark;
+
+    --bg: #fbf9f6;
+    --surface: #f3f1ec;
+    --surface-hover: #ebe8e1;
+    --panel: #fffefc;
+    --border: #e8e4dc;
+    --border-strong: #d9d3c7;
+    --text: #1d1b18;
+    --muted: #6f6a61;
+    --faint: #a39d92;
+
+    --accent: #0f5e57;
+    --accent-hover: #0b4a44;
+    --accent-2: #1f8a7f;
+    --accent-3: #6cc4b6;
+    --accent-soft: #cdebe5;
+    --accent-tint: #e7f4f1;
+    --on-accent: #ffffff;
+
+    --danger: #b4442f;
+    --danger-hover: #983825;
+    --danger-soft: #f6e1dc;
+    --success: #3f7f4e;
+    --success-soft: #e0efe3;
+    --warning: #a86a12;
+    --warning-soft: #f7ead3;
+
+    --heat-0: #ebe8e1;
+    --heat-1: #cdebe5;
+    --heat-2: #6cc4b6;
+    --heat-3: #1f8a7f;
+    --heat-4: #0f5e57;
+
+    --hero-from: #2a1f17;
+    --hero-via: #4a3121;
+    --hero-to: #1b3a36;
+    --hero-text: #fbf5ec;
+    --hero-muted: rgba(251, 245, 236, 0.72);
+
+    --radius-card: 12px;
+    --radius-control: 8px;
+    --radius-pill: 999px;
+
+    --shadow-card: 0 1px 2px rgba(29, 27, 24, 0.04);
+    --shadow-overlay: 0 18px 48px rgba(29, 27, 24, 0.18), 0 2px 8px rgba(29, 27, 24, 0.08);
+    --backdrop: rgba(29, 27, 24, 0.32);
+
+    --font-serif: ui-serif, "New York", Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+    --dur: 170ms;
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --focus-ring:
+        0 0 0 2px var(--panel), 0 0 0 4px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1a1917;
+        --surface: #23221f;
+        --surface-hover: #2c2a27;
+        --panel: #201f1c;
+        --border: #34322e;
+        --border-strong: #45423c;
+        --text: #efebe4;
+        --muted: #a39d92;
+        --faint: #6f6a61;
+
+        --accent: #4fb3a5;
+        --accent-hover: #6cc4b6;
+        --accent-2: #3a9d90;
+        --accent-3: #2a7a70;
+        --accent-soft: #1d3b37;
+        --accent-tint: #1f2e2b;
+        --on-accent: #0d1f1c;
+
+        --danger: #e07a64;
+        --danger-hover: #ea8f7b;
+        --danger-soft: #3b2521;
+        --success: #7cc08d;
+        --success-soft: #1f3324;
+        --warning: #e0a852;
+        --warning-soft: #3a2e1b;
+
+        --heat-0: #2c2a27;
+        --heat-1: #1d4a44;
+        --heat-2: #1f7068;
+        --heat-3: #3a9d90;
+        --heat-4: #6cc4b6;
+
+        --hero-from: #1f1813;
+        --hero-via: #37261a;
+        --hero-to: #13302c;
+
+        --shadow-card: none;
+        --shadow-overlay: 0 18px 48px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+        --backdrop: rgba(0, 0, 0, 0.5);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --dur: 0ms;
+    }
+}

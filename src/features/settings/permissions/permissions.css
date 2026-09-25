@@ -1,0 +1,21 @@
+/* FilePath: src/features/settings/permissions/permissions.css */
+
+.sv-perm__control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sv-perm__check {
+    color: var(--success);
+}
+
+.sv-perm__loading {
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+}
+
+.sv-perm__error {
+    padding: 0 16px 14px;
+}

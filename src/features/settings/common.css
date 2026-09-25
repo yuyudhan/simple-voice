@@ -1,0 +1,23 @@
+/* FilePath: src/features/settings/common.css */
+/* Small pieces shared by settings and onboarding components. */
+
+.sv-inline-error {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--danger);
+}
+
+.sv-inline-note {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.sv-inline-warning {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--warning);
+}

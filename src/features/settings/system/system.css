@@ -1,0 +1,118 @@
+/* FilePath: src/features/settings/system/system.css */
+
+.sv-themes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 4px 16px 14px;
+    transition: opacity var(--dur) var(--ease);
+}
+
+.sv-themes + .sv-setting-row {
+    border-top: 1px solid var(--border);
+}
+
+.sv-themes.is-disabled {
+    opacity: 0.5;
+}
+
+.sv-theme {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 10px 6px 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--panel);
+    transition:
+        border-color var(--dur) var(--ease),
+        background var(--dur) var(--ease);
+}
+
+.sv-theme:hover {
+    border-color: var(--border-strong);
+}
+
+.sv-theme.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-tint);
+}
+
+.sv-theme__pick {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* The whole tile selects the theme; the play button sits above this layer. */
+.sv-theme__pick::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+}
+
+.sv-theme__pick:focus-visible {
+    outline: none;
+}
+
+.sv-theme__pick:focus-visible::after {
+    box-shadow: var(--focus-ring);
+}
+
+.sv-theme__pick:disabled {
+    cursor: not-allowed;
+}
+
+.sv-theme > :last-child {
+    position: relative;
+    z-index: 1;
+}
+
+.sv-theme__name {
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.sv-theme__desc {
+    font-size: 11.5px;
+    color: var(--muted);
+}
+
+.sv-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 260px;
+    color: var(--muted);
+}
+
+.sv-volume__range {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.sv-volume__range:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.sv-volume__value {
+    width: 38px;
+    text-align: right;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+}

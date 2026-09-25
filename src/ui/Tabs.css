@@ -1,0 +1,48 @@
+/* FilePath: src/ui/Tabs.css */
+.sv-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border);
+}
+
+.sv-tabs__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px 10px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 500;
+    transition: color var(--dur) var(--ease);
+}
+
+.sv-tabs__tab:hover {
+    color: var(--text);
+}
+
+.sv-tabs__tab::after {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transition: transform var(--dur) var(--ease);
+}
+
+.sv-tabs__tab.is-selected {
+    color: var(--text);
+}
+
+.sv-tabs__tab.is-selected::after {
+    transform: scaleX(1);
+}
+
+.sv-tabs__badge {
+    display: inline-flex;
+}

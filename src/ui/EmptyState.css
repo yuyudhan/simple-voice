@@ -1,0 +1,42 @@
+/* FilePath: src/ui/EmptyState.css */
+.sv-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 56px 24px;
+    animation: sv-fade-in 240ms var(--ease);
+}
+
+.sv-empty__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    margin-bottom: 16px;
+    border-radius: 50%;
+    background: var(--accent-tint);
+    color: var(--accent);
+}
+
+.sv-empty__icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.sv-empty__title {
+    font-family: var(--font-serif);
+    font-size: 20px;
+}
+
+.sv-empty__description {
+    max-width: 420px;
+    margin-top: 6px;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.sv-empty__action {
+    margin-top: 18px;
+}
