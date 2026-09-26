@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/publish.sh
-# Publishes a release built by scripts/release/build.sh: uploads the zip and its checksum to the
-# GitHub release of the pushed tag vVERSION (creating the release if needed), then pushes the
-# rendered cask to the tap.
+# Publishes a release built by scripts/release/build.sh: uploads the zip, its checksum and
+# scripts/install.sh (served as releases/latest/download/install.sh) to the GitHub release of the
+# pushed tag vVERSION (creating the release if needed), then pushes the rendered cask to the tap.
 #
 # Usage: scripts/release/publish.sh VERSION SIGNED
 #   SIGNED is the value build.sh printed. The zip is read from
@@ -30,12 +30,13 @@ fi
 sha256=$(shasum -a 256 "${assets}/${asset}" | cut -d' ' -f1)
 printf '%s  %s\n' "$sha256" "$asset" >"${assets}/${asset}.sha256"
 
+installer="${root}/scripts/install.sh"
 if gh release view "$tag" >/dev/null 2>&1; then
-    gh release upload "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" --clobber
+    gh release upload "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "$installer" --clobber
 else
-    gh release create "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" \
+    gh release create "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "$installer" \
         --title "Simple Voice ${tag}" --generate-notes --verify-tag
 fi
-echo "publish: uploaded ${asset} (sha256 ${sha256}) to ${GH_REPO} ${tag}"
+echo "publish: uploaded ${asset} (sha256 ${sha256}) and install.sh to ${GH_REPO} ${tag}"
 
 "${root}/scripts/release/update-cask.sh" publish "$version" "$sha256" "$signed"

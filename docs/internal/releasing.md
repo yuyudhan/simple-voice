@@ -1,11 +1,13 @@
 <!-- FilePath: docs/internal/releasing.md -->
 
-# Simple Voice - Releasing and Homebrew
+# Simple Voice - Releasing and distribution
 
-Simple Voice is distributed only through a personal Homebrew tap:
+Simple Voice is distributed through a personal Homebrew tap and an install script attached to
+every GitHub release:
 
 ```sh
 brew install --cask yuyudhan/tap/simple-voice
+curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
 ```
 
 `brew` maps `yuyudhan/tap` to the GitHub repository `yuyudhan/homebrew-tap` and reads the cask
@@ -40,29 +42,54 @@ which, in order:
    `target/release-assets/0.2.0/Simple-Voice_0.2.0_aarch64.zip`;
 4. commits `🔖 Release v0.2.0`, tags `v0.2.0`, and pushes the branch and tag (the pre-push hook
    runs `just check`);
-5. runs `scripts/release/publish.sh`, which uploads the zip and its `.sha256` to the GitHub
-   release `v0.2.0`, then `scripts/release/update-cask.sh publish`: it renders the cask -
-   pinning `version` and the zip's `sha256`, and dropping every block between the
-   `unsigned-build` markers when the build was signed and notarized - and commits and pushes it
-   to the tap.
+5. runs `scripts/release/publish.sh`, which uploads the zip, its `.sha256` and
+   `scripts/install.sh` to the GitHub release `v0.2.0`, then
+   `scripts/release/update-cask.sh publish`: it renders the cask - pinning `version` and the
+   zip's `sha256`, and dropping every block between the `unsigned-build` markers when the build
+   was signed and notarized - and commits and pushes it to the tap.
 
 If anything fails before step 4, the version files are restored and nothing is committed. If
 the push or publish fails after the commit, fix the cause, push if needed, then
 `just publish 0.2.0` (`scripts/release/publish-tag.sh`): it builds the pushed tag from a clean
 detached worktree, so uncommitted or later work never ships, and publishes it.
 
-Users get the release with `brew upgrade --cask simple-voice`; `livecheck` follows the latest
-GitHub release. The asset name is hyphenated because GitHub rewrites spaces in asset names; the
-cask URL spells that name exactly. The download is a zip made by `ditto`, which preserves the
-bundle's signature, and Homebrew unpacks it natively.
+Users get the release with `brew upgrade --cask simple-voice` or by running the install command
+again; `livecheck` and the script both follow the latest GitHub release. The asset name is
+hyphenated because GitHub rewrites spaces in asset names; the cask URL and the script spell that
+name exactly. The download is a zip made by `ditto`, which preserves the bundle's signature, and
+Homebrew unpacks it natively.
+
+## The install script
+
+`scripts/install.sh` is uploaded with every release, so
+`releases/latest/download/install.sh` always serves the newest one. It upgrades through
+Homebrew when Homebrew installed the app, installs the cask when Homebrew is present and the app
+is absent, and otherwise - or when Homebrew fails - downloads the release zip, checks it against
+the `.sha256` and the bundle's code signature, and replaces `/Applications/Simple Voice.app`
+(quitting and reopening the app if it was running, and clearing the quarantine flag the way the
+cask does). `--no-brew` skips Homebrew; `--version X.Y.Z` installs a specific release.
+
+The fallback exists because Homebrew can fail where a plain download does not. Two cases seen
+so far:
+
+- Homebrew older than 6.0.13 rejects the cask with
+  `undefined method 'run' for an instance of Homebrew::InstallSteps::DSL`, because the
+  `postflight_steps` `run` step arrived in 6.0.13. `brew update` fixes it.
+- Homebrew 7 unpacks downloads in a helper `ruby` whose `-I` argument is several kilobytes long.
+  On a Mac running SentinelOne, any `ruby` given an argument of 1024 bytes or more is killed, so
+  every zip cask fails with `sandbox_operation.rb extract` ... `terminated by uncaught signal
+  KILL`. The agent is the likely killer; it leaves no crash report to prove it.
+
+To change the script without cutting a release, upload it to the latest release:
+`gh release upload vX.Y.Z scripts/install.sh --clobber`.
 
 Running apps notice the release on their own: within a day (or at once with Settings → System →
 Check now) they read the same latest GitHub release, show an update banner and a menu bar item,
-and hand the user the `brew upgrade` command (see
+and hand the user the install command (see
 [architecture.md § 8](architecture.md#8-update-notices)). The release becomes "latest" before the
-tap push, so if `update-cask.sh` fails, users are told about a version `brew` cannot see yet: fix
-it promptly with `just publish VERSION`. Pre-releases (`gh release edit --prerelease`) are never
-announced.
+tap push, so if `update-cask.sh` fails, users are told about a version `brew` cannot see yet (the
+install script still falls back to the GitHub release): fix it promptly with
+`just publish VERSION`. Pre-releases (`gh release edit --prerelease`) are never announced.
 
 ## Signed and unsigned builds
 

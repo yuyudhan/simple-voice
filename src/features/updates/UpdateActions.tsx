@@ -1,13 +1,17 @@
 // FilePath: src/features/updates/UpdateActions.tsx
-// Homebrew installs every update, so the app hands the user the one command that does it. It
-// does not run brew itself: the cask quits the running app while it upgrades, which would kill
-// an upgrade the app started, and a GUI app cannot rely on finding brew on its PATH.
+// The installer script updates the app: through Homebrew when Homebrew manages it and works,
+// otherwise straight from the GitHub release. The app hands the user the one command that runs
+// it rather than running it itself: the installer quits the running app, which would kill an
+// update the app started.
 import { Copy, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, errorMessage, type Release } from "../../lib/api";
 import { Button, useToast } from "../../ui";
 
-export const UPGRADE_COMMAND = "brew upgrade --cask simple-voice";
+const UPGRADE_COMMAND =
+    "curl -fsSL -o /tmp/simple-voice-install.sh " +
+    "https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && " +
+    "bash /tmp/simple-voice-install.sh";
 
 export function UpdateActions({ release }: { release: Release }) {
     const { toast } = useToast();

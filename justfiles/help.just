@@ -43,5 +43,5 @@ help:
 [group('setup')]
 hooks:
     git config core.hooksPath .githooks
-    chmod +x .githooks/* scripts/guard/*.sh scripts/release/*.sh
+    chmod +x .githooks/* scripts/guard/*.sh scripts/release/*.sh scripts/install.sh
     @echo "core.hooksPath -> .githooks"

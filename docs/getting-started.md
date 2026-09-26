@@ -2,8 +2,8 @@
 
 # Getting started
 
-Install Simple Voice with Homebrew as described in the [README](../README.md#install), then
-open it from Applications or Spotlight.
+Install Simple Voice with Homebrew or the install script as described in the
+[README](../README.md#install), then open it from Applications or Spotlight.
 
 ## Permissions
 
@@ -32,15 +32,17 @@ page and the menu bar icon shows "Update Available". Copy the command it offers 
 Terminal:
 
 ```sh
-brew upgrade --cask simple-voice
+curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
 ```
 
-Homebrew quits Simple Voice while it upgrades; open it again afterwards. Dismissing the banner
-skips that version only. Settings → System → Updates shows the running version, checks on
-demand, and turns the daily check off.
+It updates through Homebrew when Homebrew installed Simple Voice (the same as
+`brew upgrade --cask simple-voice`), and straight from GitHub otherwise. It quits Simple Voice
+while it updates and reopens it afterwards. Dismissing the banner skips that version only.
+Settings → System → Updates shows the running version, checks on demand, and turns the daily
+check off.
 
 ## After an upgrade
 
 macOS ties permissions to the app's code signature. If dictation stops recording or pasting
-after `brew upgrade`, open System Settings → Privacy & Security, remove Simple Voice from the
+after an update, open System Settings → Privacy & Security, remove Simple Voice from the
 affected list, and grant it again from the app's Settings → Permissions.

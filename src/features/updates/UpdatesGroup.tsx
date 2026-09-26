@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import type { UpdateStatus } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
 import { Button, SettingRow, SettingsGroup, Toggle } from "../../ui";
-import { UPGRADE_COMMAND, UpdateActions } from "./UpdateActions";
+import { UpdateActions } from "./UpdateActions";
 import { useUpdates } from "./useUpdates";
 import "./updates.css";
 
@@ -60,14 +60,8 @@ export function UpdatesGroup() {
             </SettingRow>
             {latest && (
                 <SettingRow
-                    title="Update with Homebrew"
-                    description={
-                        <>
-                            Run <code className="sv-update-command">{UPGRADE_COMMAND}</code> in
-                            Terminal. Homebrew quits Simple Voice while it upgrades; open it again
-                            afterwards.
-                        </>
-                    }
+                    title="Update from Terminal"
+                    description="Copy the update command and run it in Terminal. It updates through Homebrew when Homebrew installed Simple Voice, and straight from GitHub otherwise. It quits Simple Voice while it updates and reopens it afterwards."
                 >
                     <UpdateActions release={latest} />
                 </SettingRow>

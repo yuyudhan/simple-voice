@@ -16,23 +16,45 @@ Intelligence.
 
 ## Install
 
-Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later, and [Homebrew](https://brew.sh).
+Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later.
+
+With [Homebrew](https://brew.sh):
 
 ```sh
 brew install --cask yuyudhan/tap/simple-voice
 ```
 
+Or with the install script, which uses Homebrew when it is installed and works, and otherwise
+installs straight from the latest GitHub release:
+
+```sh
+curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
+```
+
+The script checks the download against the release's SHA-256 checksum and the app's code
+signature before it replaces `/Applications/Simple Voice.app`. Pass `--no-brew` to skip Homebrew,
+or `--version X.Y.Z` to install a specific release. It is the way in when Homebrew is not
+available or cannot unpack the app, for example when an endpoint-security agent kills
+Homebrew's sandboxed extraction.
+
 Then open **Simple Voice** from Applications and grant the permissions it asks for
 (Microphone and Accessibility). See [Getting started](docs/getting-started.md).
 
-| Task                          | Command                                    |
-| ----------------------------- | ------------------------------------------ |
-| Upgrade                       | `brew upgrade --cask simple-voice`         |
-| Uninstall                     | `brew uninstall --cask simple-voice`       |
-| Uninstall and delete all data | `brew uninstall --zap --cask simple-voice` |
+| Task                          | Homebrew                                   | Install script                               |
+| ----------------------------- | ------------------------------------------ | -------------------------------------------- |
+| Upgrade                       | `brew upgrade --cask simple-voice`         | Run the install command again                |
+| Uninstall                     | `brew uninstall --cask simple-voice`       | `rm -rf "/Applications/Simple Voice.app"`    |
+| Uninstall and delete all data | `brew uninstall --zap --cask simple-voice` | The line above, then `rm -rf ~/.simplevoice` |
 
-Until releases are notarized by Apple, the app is ad-hoc signed and Homebrew clears its download
-quarantine so macOS opens it; `brew info --cask simple-voice` shows the caveat.
+Until releases are notarized by Apple, the app is ad-hoc signed; the cask and the install script
+both clear its download quarantine so macOS opens it.
+
+### If `brew install` fails
+
+| Error                                                                                                              | Cause and fix                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Cask 'simple-voice' definition is invalid: undefined method 'run' for an instance of Homebrew::InstallSteps::DSL` | Homebrew is older than 6.0.13. Run `brew update`, then install again, or use the install script.                                                 |
+| `sandbox_operation.rb extract` ... `terminated by uncaught signal KILL`                                            | Security software on the Mac (seen with SentinelOne) kills Homebrew while it unpacks the download; every zip cask fails. Use the install script. |
 
 ## Documentation
 

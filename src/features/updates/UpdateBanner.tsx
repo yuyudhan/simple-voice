@@ -21,7 +21,7 @@ export function UpdateBanner() {
             <CircleArrowUp size={16} className="sv-update-banner__icon" aria-hidden="true" />
             <p className="sv-update-banner__text">
                 <strong>Simple Voice {latest.version} is available.</strong> You have{" "}
-                {status.currentVersion}; update with Homebrew.
+                {status.currentVersion}; update from Terminal.
             </p>
             <UpdateActions release={latest} />
             <IconButton

@@ -41,4 +41,5 @@ small floating bar while it listens.
 - **Floating bar and sounds.** A small pill with live level bars while recording, optional start
   and stop sounds in a few styles, and an option to mute other audio while you speak.
 - **Update notices.** A daily check tells you when a new version is out and gives you the one
-  Homebrew command that installs it; Homebrew stays in charge of installing.
+  command that installs it, through Homebrew or straight from GitHub; the app never replaces
+  itself.

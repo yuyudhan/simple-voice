@@ -410,14 +410,16 @@ post-processing provider; one key serves both.
 
 ## 8. Update notices
 
-Homebrew installs every version (P-5); the app never downloads or replaces itself. The
-`updates` slice asks GitHub's `releases/latest` endpoint (drafts and pre-releases excluded, the
-same source as the cask's `livecheck`) for the repository in the workspace `repository` field, 30 s
+Homebrew or the install script (`scripts/install.sh`, P-5) installs every version; the app never
+downloads or replaces itself. The `updates` slice asks GitHub's `releases/latest` endpoint
+(drafts and pre-releases excluded, the same source as the cask's `livecheck` and the install
+script) for the repository in the workspace `repository` field, 30 s
 after launch and then whenever 24 hours of wall-clock time have passed since the last successful
 check (it wakes hourly, since monotonic sleeps stop while the Mac sleeps). A failed check is
 retried on the next wake. `Settings.checkForUpdates = false` stops the automatic checks; "Check
 now", the tray item and the app-menu item still check on demand. When the release is newer than
 the running version (semver), the tray item reads "Update Available: X…", the UI shows a banner
-above every page (hidden for `Settings.skippedUpdate`), and Settings → System shows
-`brew upgrade --cask simple-voice` to copy. The app does not run brew: the cask quits the running
-app during an upgrade, which would kill an upgrade the app started.
+above every page (hidden for `Settings.skippedUpdate`), and both offer the install-script
+command to copy; the script upgrades through Homebrew when Homebrew manages the app. The app
+does not run it: the installer quits the running app, which would kill an update the app
+started.
