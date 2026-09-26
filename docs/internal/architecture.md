@@ -101,7 +101,7 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 | -------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `simple-voice` (app) | `src-tauri/`         | all below              | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
 | `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `migrations/`                                                                                                                                                                                                                                                                       |
-| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout) — pure, no I/O                                                                                                                                                                                                                                                                                                                  |
+| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `preview.rs` (the pill's one-line text preview) — pure, no I/O                                                                                                                                                                                                                                                                 |
 | `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (OpenAI-compatible chat for Groq and custom endpoints), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                                                                              |
 | `sv-audio`           | `crates/sv-audio/`   | `sv-domain`            | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
 | `sv-engine`          | `crates/sv-engine/`  | `sv-domain`            | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
@@ -177,6 +177,7 @@ pub fn polish_timeout(text: &str) -> Duration;                    // 2.5 s + 5 m
 pub enum PolishOutcome { Polished(String), Skipped(String) }       // reason
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome>;    // Some(Skipped("too short")) < 3 words
 pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // empty / truncated / grew
+pub fn preview(text: &str) -> String; // one line, list markers dropped, ≤ 80 chars at a word boundary, then "..."
 
 // ── sv-cloud ────────────────────────────────────────────────────────────────────────────
 pub struct Transcript { pub text: String, pub language: Option<String> }
@@ -344,7 +345,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
 
-`DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, words?: number, note?: string }`.
+`DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, text?: string, note?: string }`. `text` (done only) is `sv_text::preview` of the pasted text.
 
 ## 5. Windows
 
@@ -358,14 +359,17 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 - The overlay pill is not a Tauri window: the Swift helper draws it (`engine/.../Overlay.swift`,
   `PillView.swift`) because floating over full-screen apps needs the AppKit
   `fullScreenAuxiliary` collection behaviour, which Tauri does not expose and Rust cannot set
-  without `unsafe`. It is a 200×56 borderless, non-activating `NSPanel` at status-bar level,
+  without `unsafe`. It is a 580×56 borderless, non-activating `NSPanel` at status-bar level,
   joining all Spaces, click-through, never key, untitled (tiling window managers such as
   AeroSpace treat it as a popup). The helper is an accessory app, so ordering the pill in or out
-  never activates Simple Voice or takes focus from the dictation target. `platform/overlay.rs`
-  decides what it shows and when: visible while a session is active (or always when
-  `showBarAlways`), hidden 1.2 s after `done` / `error` / `cancelled`, placed bottom-centre of
-  the visible frame of the screen under the cursor, 80 pt up. It replays the last state and
-  visibility to a restarted helper.
+  never activates Simple Voice or takes focus from the dictation target. The pill is 188 pt wide
+  (200 while transcribing or formatting, so the one-line label fits; 104 idle); after a paste it
+  shows the preview text and hugs it (188–560 pt), with an amber
+  instead of a green check when the text went out unformatted. `platform/overlay.rs` decides
+  what it shows and when: visible while a session is active (or always when `showBarAlways`),
+  hidden 4 s after `done` and 1.2 s after `error` / `cancelled`,
+  placed bottom-centre of the visible frame of the screen under the cursor, 80 pt up. It fades
+  in and out over 0.15 s. It replays the last state and visibility to a restarted helper.
 
 ## 6. Engine helper protocol (`engine/`)
 
@@ -403,7 +407,7 @@ Notification (app → helper, no id, never answered, applied on the main thread 
 
 | cmd               | Params                                                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------- |
-| `overlay_state`   | `state: DictationState` (§ 4); done, error and cancelled settle back to idle after 1.1 s, 2 s and 0.35 s |
+| `overlay_state`   | `state: DictationState` (§ 4); done, error and cancelled settle back to idle after 4.15 s, 2 s and 0.35 s |
 | `overlay_visible` | `visible: bool`; `true` (re)places the pill under the cursor and orders it in             |
 | `overlay_level`   | `level: number` 0..1 (RMS), ~30 Hz while recording                                        |
 

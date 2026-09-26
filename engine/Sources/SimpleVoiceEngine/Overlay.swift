@@ -25,7 +25,8 @@ struct PillState: Decodable, Sendable {
     /// Unix milliseconds the recording started (recording phase only).
     let startedAt: Int64?
     let message: String?
-    let words: Int?
+    /// Start of the pasted text (done phase only).
+    let text: String?
     let note: String?
 }
 
@@ -47,9 +48,12 @@ final class OverlayController {
 
     /// Points between the pill window and the bottom of the visible frame (above the Dock).
     private static let bottomMargin: CGFloat = 80
-    /// How long a finished phase stays on screen before the pill settles back to idle.
+    /// Fade in and out, as Hammerspoon's `hs.alert` does.
+    private static let fade: TimeInterval = 0.15
+    /// How long a finished phase stays on screen before the pill settles back to idle. The app
+    /// hides the pill after 4 s (done) or 1.2 s; the holds only show when the pill stays up.
     private static let holds: [PillPhase: Duration] = [
-        .done: .milliseconds(1100),
+        .done: .milliseconds(4150),
         .error: .milliseconds(2000),
         .cancelled: .milliseconds(350),
     ]
@@ -57,6 +61,8 @@ final class OverlayController {
     private let model = PillModel()
     private lazy var panel = OverlayPanel(model: model)
     private var hold: Task<Void, Never>?
+    /// What the app asked for last; a fade-out that finishes after a new show must not hide.
+    private var visible = false
 
     private init() {}
 
@@ -87,7 +93,7 @@ final class OverlayController {
         withAnimation(PillStyle.ease) {
             model.phase = state.phase
             model.sessionId = state.sessionId
-            model.words = state.words ?? 0
+            model.text = state.text ?? ""
             model.note = state.note
             model.message = state.message
         }
@@ -102,12 +108,28 @@ final class OverlayController {
     }
 
     private func setVisible(_ visible: Bool) {
+        self.visible = visible
         guard visible else {
-            panel.orderOut(nil)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = Self.fade
+                panel.animator().alphaValue = 0
+            } completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self, !self.visible else { return }
+                    self.panel.orderOut(nil)
+                }
+            }
             return
         }
         placeUnderCursor()
+        if !panel.isVisible {
+            panel.alphaValue = 0
+        }
         panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.fade
+            panel.animator().alphaValue = 1
+        }
     }
 
     /// Bottom-centre of the screen the cursor is on, so the pill appears where the user is looking.

@@ -39,7 +39,8 @@ the menu bar, with no Dock icon, so the shortcuts keep working; quit from the me
   delete, and retry a failed dictation from its saved audio.
 - **Insights.** Words per minute, total words, fixes made, your streak and daily activity, and
   which kinds of apps you dictate into.
-- **Floating bar and sounds.** A small pill with live level bars while recording, optional start
-  and stop sounds in a few styles, and an option to mute other audio while you speak.
+- **Floating bar and sounds.** A small pill with live level bars while recording that shows the
+  start of what was pasted for 4 seconds afterwards, optional start and stop sounds in a few
+  styles, and an option to mute other audio while you speak.
 - **Update notices.** A daily check tells you when a new version is out and Install update runs
   the install script, which installs it straight from the GitHub release.

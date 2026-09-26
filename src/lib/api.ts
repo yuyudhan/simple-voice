@@ -193,7 +193,8 @@ export interface DictationState {
     sessionId: number;
     startedAt?: number;
     message?: string;
-    words?: number;
+    /** Start of the pasted text, one line, at most 80 characters then "..." (done only). */
+    text?: string;
     note?: string;
 }
 

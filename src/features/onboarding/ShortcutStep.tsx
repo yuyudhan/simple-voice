@@ -22,10 +22,8 @@ function describe(state: DictationState): { text: string; tone: string } {
         case "formatting":
             return { text: "Formatting…", tone: "busy" };
         case "done": {
-            const words = state.words ?? 0;
             const note = state.note ? ` · ${state.note}` : "";
-            const count = `${String(words)} ${words === 1 ? "word" : "words"}`;
-            return { text: `Done · ${count}${note}`, tone: "done" };
+            return { text: `Done · ${state.text ?? ""}${note}`, tone: "done" };
         }
         case "error":
             return { text: state.message ?? "Something went wrong", tone: "error" };

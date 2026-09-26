@@ -14,6 +14,8 @@ use tauri::{AppHandle, Manager};
 use crate::state::{lock, AppState};
 
 const HIDE_DELAY: Duration = Duration::from_millis(1200);
+/// A finished dictation shows the start of its text long enough to read it.
+const DONE_HIDE_DELAY: Duration = Duration::from_secs(4);
 
 #[derive(Debug, Default)]
 pub(crate) struct OverlayState {
@@ -56,9 +58,14 @@ pub(crate) fn follow(app: &AppHandle, state: &DictationState) {
         }
         DictationPhase::Done | DictationPhase::Error | DictationPhase::Cancelled => {
             set_visible(app, true);
+            let delay = if state.phase == DictationPhase::Done {
+                DONE_HIDE_DELAY
+            } else {
+                HIDE_DELAY
+            };
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(HIDE_DELAY).await;
+                tokio::time::sleep(delay).await;
                 let overlay = app.state::<OverlayState>();
                 let unchanged = overlay.generation.load(Ordering::SeqCst) == generation;
                 if unchanged && !overlay.always.load(Ordering::SeqCst) {

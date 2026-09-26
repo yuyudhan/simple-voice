@@ -12,7 +12,7 @@ final class PillModel {
     var phase: PillPhase = .idle
     var sessionId: UInt64 = 0
     var startedAt = Date()
-    var words = 0
+    var text = ""
     var note: String?
     var message: String?
     /// Read on every frame by the level bars, so it is deliberately not observed.
@@ -60,7 +60,10 @@ final class LevelMeter {
 }
 
 enum PillStyle {
-    static let windowSize = CGSize(width: 200, height: 56)
+    /// Wide enough for the longest pill (an 80-character preview) plus its shadow.
+    static let windowSize = CGSize(width: 580, height: 56)
+    /// The pill hugs a finished dictation's text up to this width.
+    static let maxPillWidth: CGFloat = 560
     static let ease = Animation.timingCurve(0.25, 0.8, 0.25, 1, duration: 0.2)
 
     static let background = rgb(0x1C1C1F, 0.94)
@@ -80,6 +83,7 @@ enum PillStyle {
     static let dangerWell = rgb(0xFF6B7A, 0.16)
     static let dangerText = rgb(0xFFB3BB)
     static let warning = rgb(0xF0C05A)
+    static let warningWell = rgb(0xF0C05A, 0.16)
     static let shadow = rgb(0x000000, 0.3)
 
     private static func rgb(_ hex: UInt32, _ opacity: Double = 1) -> Color {
@@ -101,6 +105,8 @@ struct PillView: View {
     private static let barMax = 22.0
     /// Bars above this share of their range are the loudest and light up in signal orange.
     private static let hotLevel = 0.62
+    /// The pill's widest text: its maximum width less the glyph, the gap and the padding.
+    private static let maxTextWidth = PillStyle.maxPillWidth - 8 - 22 - 9 - 13
 
     var body: some View {
         let phase = model.phase
@@ -122,7 +128,11 @@ struct PillView: View {
         }
         .padding(.leading, 8)
         .padding(.trailing, 13)
-        .frame(width: phase == .idle ? 104 : 188, height: 38)
+        // A finished dictation sizes the pill to its text (never narrower than the others);
+        // every other phase has a fixed width.
+        .frame(width: Self.fixedWidth(phase), height: 38)
+        .frame(minWidth: phase == .done ? 188 : nil, alignment: .leading)
+        .fixedSize(horizontal: phase == .done, vertical: false)
         .background {
             Capsule()
                 .fill(PillStyle.background)
@@ -137,12 +147,25 @@ struct PillView: View {
         .scaleEffect(phase == .cancelled ? 0.96 : 1)
     }
 
+    private static func fixedWidth(_ phase: PillPhase) -> CGFloat? {
+        switch phase {
+        case .idle: 104
+        case .done: nil
+        // "TRANSCRIBING" and the level bars need a little more than the recording timer.
+        case .transcribing, .formatting: 200
+        default: 188
+        }
+    }
+
     // MARK: - On-air light
 
     private func glyph(_ phase: PillPhase, at time: TimeInterval) -> some View {
         let well: Color
         let tint: Color
         switch phase {
+        case .done where model.note != nil:
+            // Pasted, but the formatting pass fell back ("unformatted").
+            (well, tint) = (PillStyle.warningWell, PillStyle.warning)
         case .done:
             (well, tint) = (PillStyle.successWell, PillStyle.success)
         case .error:
@@ -186,14 +209,10 @@ struct PillView: View {
     private func content(_ phase: PillPhase, at time: TimeInterval) -> some View {
         switch phase {
         case .done:
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(model.words) \(model.words == 1 ? "word" : "words")").monospacedDigit()
-                if let note = model.note {
-                    Text(note).font(.system(size: 11)).foregroundStyle(PillStyle.warning).truncationMode(.tail)
-                }
-            }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(model.text)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: Self.maxTextWidth, alignment: .leading)
         case .error:
             Text(model.message ?? "Dictation failed")
                 .font(.system(size: 11.5))
@@ -267,6 +286,11 @@ struct PillView: View {
                 .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                 .tracking(0.57)
                 .foregroundStyle(PillStyle.muted)
+                // A label is never wrapped: the level bars give way instead (they are centred
+                // in whatever room is left).
+                .lineLimit(1)
+                .fixedSize()
+                .layoutPriority(1)
         default:
             EmptyView()
         }
