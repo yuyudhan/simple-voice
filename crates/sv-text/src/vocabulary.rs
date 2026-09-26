@@ -104,6 +104,7 @@ fn has_internal_capital(phrase: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sv_domain::DictionarySource;
 
     fn word(phrase: &str) -> DictionaryEntry {
         DictionaryEntry {
@@ -111,6 +112,7 @@ mod tests {
             phrase: phrase.to_owned(),
             replacement: None,
             created_at: 0,
+            source: DictionarySource::Manual,
         }
     }
 
@@ -120,6 +122,7 @@ mod tests {
             phrase: phrase.to_owned(),
             replacement: Some(replacement.to_owned()),
             created_at: 0,
+            source: DictionarySource::Manual,
         }
     }
 

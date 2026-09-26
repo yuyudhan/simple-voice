@@ -287,7 +287,7 @@ fn drop_single_trailing_period(text: &mut Vec<char>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sv_domain::DictionaryEntry;
+    use sv_domain::{DictionaryEntry, DictionarySource};
 
     fn vocab(entries: &[(&str, Option<&str>)]) -> Vocabulary {
         let entries: Vec<DictionaryEntry> = entries
@@ -297,6 +297,7 @@ mod tests {
                 phrase: (*phrase).to_owned(),
                 replacement: replacement.map(str::to_owned),
                 created_at: 0,
+                source: DictionarySource::Manual,
             })
             .collect();
         Vocabulary::from_entries(&entries)
