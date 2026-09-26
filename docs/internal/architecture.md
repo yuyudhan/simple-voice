@@ -7,7 +7,7 @@ Simple Voice is a Tauri 2 app with three parts:
 | Part          | Path         | Language                                         | Owns                                                                                                                                                                               |
 | ------------- | ------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core          | `src-tauri/` | Rust (`#![forbid(unsafe_code)]`)                 | Database, audio capture, dictation pipeline, Groq, shortcuts, windows, tray, sounds                                                                                                |
-| Engine helper | `engine/`    | Swift (SwiftPM executable `simple-voice-engine`) | Everything that needs Apple frameworks: Parakeet (FluidAudio, Core ML), Apple Speech (`SpeechAnalyzer`), model downloads, permissions, frontmost app, synthetic Cmd+V, output mute |
+| Engine helper | `engine/`    | Swift (SwiftPM executable `simple-voice-engine`) | Everything that needs Apple frameworks: Parakeet (FluidAudio, Core ML), Apple Speech (`SpeechAnalyzer`), model downloads, permissions, frontmost app, selected text, synthetic Cmd+V / Cmd+C, output mute |
 | UI            | `src/`       | React + TypeScript (Vite)                        | Main window (`index.html`, route by window label) and the floating overlay pill                                                                                                    |
 
 Rust forbids `unsafe`, so every Objective-C / C API call lives in the Swift helper. The helper is
@@ -26,7 +26,18 @@ flowchart LR
     F --> P[Groq LLM polish]
     P --> D[ordered delivery: clipboard + Cmd+V via helper]
     D --> H[(SQLite history)]
+    K -->|edit shortcut| S[selected text via helper]
+    S --> X[instruction transcript + selection → LLM edit]
+    X --> D
 ```
+
+Edit mode (requirements ED-1..ED-7) reuses the dictation path: the edit shortcut starts a
+recording whose `SessionInput.selection` carries the selection read started at key-down;
+`pipeline::run_session` hands such a session to `features/dictation/edit.rs`, which transcribes
+the instruction, sends `sv_text::edit_prompt` to the post-processing provider through
+`features/dictation/llm.rs` (shared with the formatting pass), checks the reply with
+`sv_text::accept_edit`, and pastes it without a trailing separator only while the app the edit
+started in is still frontmost.
 
 ## 1. Storage
 
@@ -72,13 +83,17 @@ CREATE TABLE history (
     status           TEXT NOT NULL,      -- 'pasted' | 'unformatted' | 'failed' | 'dropped' | 'not_pasted'
     raw_text         TEXT NOT NULL,      -- transcript as returned by the model
     final_text       TEXT NOT NULL,      -- what was pasted (or would have been)
-    error            TEXT,
+    error            TEXT,               -- failure, paste problem, or why formatting was skipped
     model            TEXT NOT NULL,      -- transcription model id, e.g. 'groq-whisper'
     format_model     TEXT,               -- model id whose formatting pass produced final_text; NULL if none (0003)
     language         TEXT,
     style            TEXT NOT NULL,      -- 'formal' | 'casual'
     audio_ms         INTEGER NOT NULL,
     latency_ms       INTEGER NOT NULL,   -- stop → paste
+    transcribe_ms    INTEGER,            -- transcription call duration; NULL if it failed or before 0004
+    format_ms        INTEGER,            -- formatting pass duration; set exactly when format_model is (0004)
+    source_text      TEXT,               -- edits only: the selection replaced; raw_text = instruction,
+                                         -- final_text = edited text, word_count = instruction words (0005)
     word_count       INTEGER NOT NULL,
     dictionary_fixes INTEGER NOT NULL,   -- replacement-rule hits
     words_corrected  INTEGER NOT NULL,   -- word-level edit distance raw → final
@@ -101,9 +116,9 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 | Crate                | Path                 | Depends on             | Owns                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `simple-voice` (app) | `src-tauri/`         | all below              | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
-| `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `migrations/`                                                                                                                                                                                                                                                                       |
-| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout) — pure, no I/O                                                                                                                                                                                                                                                                                                                  |
-| `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (OpenAI-compatible chat for Groq and custom endpoints), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                                                                              |
+| `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `model_insights.rs`, `migrations/`                                                                                                                                                                                                                                                  |
+| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout) — pure, no I/O |
+| `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (one OpenAI-compatible chat completion for Groq and custom endpoints, shared by the formatting pass and edit mode), `releases.rs` (latest GitHub release) |
 | `sv-audio`           | `crates/sv-audio/`   | `sv-domain`            | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
 | `sv-engine`          | `crates/sv-engine/`  | `sv-domain`            | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
 | `sv-domain`          | `crates/sv-domain/`  | —                      | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                                    |
@@ -114,14 +129,21 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // ── sv-domain (exists) ─────────────────────────────────────────────────────────────────
 // Settings, SettingsPatch, Style, SoundTheme, Theme, PostProcessing, HistoryEntry, NewHistory,
 // HistoryStatus, DictionaryEntry, ImportSummary, Insights, DayActivity, HourActivity,
-// PersonalBests, CategoryUsage, AppUsage,
+// PersonalBests, CategoryUsage, AppUsage, ModelInsights, ModelTiming,
 // AppCategory + categorize(), ModelInfo/Kind/Provider/Status + model id consts, Permissions,
 // PermissionKind/Status, DictationState/Phase, ModelProgress, AppError/AppResult,
 // text_stats::{word_count, words_corrected}, UpdateStatus + Release (update notices).
+// Settings.editShortcut (default "Alt+Slash", "" = edit mode off, never "Fn" or a dictation
+// shortcut; a stored default that collides loads as ""). HistoryEntry.sourceText /
+// NewHistory.source_text: the selection an edit replaced, None for dictations.
+// DictationState.edit (serialized only when true) marks an edit session.
 // Theme = System (default) | Light | Dark, wire "system" | "light" | "dark"; Settings.theme and
 // SettingsPatch.theme, stored in the `settings` row keyed `theme` like every other field.
 // Settings.checkForUpdates (default true) and Settings.skippedUpdate (dismissed release version,
 // "" = none) drive the update notice.
+// DictionarySort = NameAsc (default) | NameDesc | Newest | Oldest, wire "name_asc" | "name_desc"
+// | "newest" | "oldest"; Settings.dictionarySort remembers the Dictionary page order. Newest and
+// Oldest order by created_at, then id (an import shares one timestamp).
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -159,6 +181,7 @@ impl Db {
     pub async fn delete_dictionary_entry(&self, id: i64) -> AppResult<()>;
     pub async fn import_vocabulary(&self, text: &str) -> AppResult<ImportSummary>; // bare lines, `a -> b`, `#`
     pub async fn insights(&self, now_ms: i64, utc_offset_minutes: i32) -> AppResult<Insights>;
+    pub async fn model_insights(&self) -> AppResult<ModelInsights>; // per-model stage timings
 }
 
 // ── sv-text ─────────────────────────────────────────────────────────────────────────────
@@ -174,11 +197,21 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
 //   custom → any OpenAI-compatible /chat/completions (Ollama, LM Studio, ...) — sv-cloud
 //   apple  → on-device Apple Intelligence via the engine helper `polish` command — app
 pub struct PolishPrompt { pub system: String, pub shots: Vec<(String, String)>, pub user: String }
-pub fn polish_prompt(text: &str, terms: &[String], style: Style) -> PolishPrompt;
+pub enum PolishTarget { Chat, OnDevice }                          // apple: OnDevice (no Hindi shots, a self-correction shot, framed user turns)
+pub fn polish_prompt(text: &str, terms: &[String], style: Style, target: PolishTarget) -> PolishPrompt;
 pub fn polish_timeout(text: &str) -> Duration;                    // 2.5 s + 5 ms/word
 pub enum PolishOutcome { Polished(String), Skipped(String) }       // reason
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome>;    // Some(Skipped("too short")) < 3 words
 pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // empty / truncated / grew
+// Edit mode (edit.rs): the same PolishPrompt shape for every backend; the selection sits between
+// <text> tags and is data, the instruction is carried out.
+pub const EDIT_MAX_CHARS: usize = 4_000;
+pub fn edit_prompt(selection: &str, instruction: &str, terms: &[String]) -> PolishPrompt;
+pub fn edit_timeout(selection: &str) -> Duration;                 // 6 s + 20 ms/word, ≤ 30 s
+pub fn edit_max_tokens(selection: &str) -> u32;                   // chars + 256, ≤ 4096 (per-minute quotas)
+pub fn accept_edit(selection: &str, output: &str, finished: bool) -> Result<String, String>;
+    // Err(reason) when truncated or empty; strips echoed <text> tags / code fences; keeps the
+    // selection's leading and trailing whitespace
 
 // ── sv-cloud ────────────────────────────────────────────────────────────────────────────
 pub struct Transcript { pub text: String, pub language: Option<String> }
@@ -189,8 +222,10 @@ pub const GROQ_CHAT_URL: &str = "https://api.groq.com/openai/v1/chat/completions
 pub struct ChatEndpoint<'a> { pub url: String, pub key: Option<&'a str>, pub model: &'a str,
     pub groq_no_reasoning: bool }                                   // adds reasoning_effort "none"
 pub fn chat_url(base_url: &str) -> String;                         // trims '/', appends "/chat/completions"
-pub async fn polish_chat(client: &reqwest::Client, endpoint: ChatEndpoint<'_>, prompt: &PolishPrompt,
-    input: &str) -> PolishOutcome;                                 // timeout + guards; never errors
+pub struct ChatReply { pub text: String, pub finished: bool }     // finished = finish_reason "stop"
+pub async fn chat_completion(client: &reqwest::Client, endpoint: &ChatEndpoint<'_>,
+    prompt: &PolishPrompt, max_tokens: u32, limit: Duration)
+    -> Result<ChatReply, String>;                                  // Err = short reason; callers judge the reply
 pub struct LatestRelease { pub version: semver::Version, pub url: String }
 pub fn latest_release_url(repository: &str) -> AppResult<String>; // github.com/o/n → releases/latest API
 pub async fn latest_release(client: &reqwest::Client, url: &str, user_agent: &str)
@@ -248,8 +283,11 @@ impl EngineClient {
 //   open_settings(kind: PermissionKind) -> ()
 //   frontmost_app() -> FrontmostApp { name: Option<String>, bundle_id: Option<String> }
 //   paste() -> ()   // "accessibility permission missing" maps to AppError::Permission
+//   selected_text() -> Option<String>   // None = nothing selected; same permission mapping
 //   set_output_muted(muted: bool) -> bool   // previous muted state
 //   watch_fn_key(enabled: bool) -> bool   // whether the Fn key tap is installed now
+//   login_item() -> LoginItemStatus   // Enabled | Disabled | RequiresApproval
+//   set_login_item(enabled: bool) -> LoginItemStatus   // status after the change
 //   polish(system: &str, shots: &[(String, String)], user: &str) -> PolishReply { text, finished }
 // All return AppResult<_>; timeouts: download 2 h, preload 5 min, request_permission 10 min,
 // transcribe 120 s, polish 30 s (callers apply their own tighter budget), others 10–30 s.
@@ -300,7 +338,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | Command                                                                        | Args                                                | Returns                                                                                                          |
 | ------------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `get_settings`                                                                 | —                                                   | `Settings`                                                                                                       |
-| `update_settings`                                                              | `patch: SettingsPatch`                              | `Settings` (re-registers shortcuts, dock, autostart, overlay as needed; invalid shortcut → error, nothing saved) |
+| `update_settings`                                                              | `patch: SettingsPatch`                              | `Settings` (re-registers shortcuts, dock, login item, overlay as needed; invalid shortcut or refused login item → error, nothing saved) |
 | `set_groq_api_key`                                                             | `key: string \| null`                               | `Settings`                                                                                                       |
 | `verify_groq_api_key`                                                          | `key: string`                                       | `null`                                                                                                           |
 | `set_custom_api_key`                                                           | `key: string \| null`                               | `Settings`                                                                                                       |
@@ -319,6 +357,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `delete_dictionary_entry`                                                      | `id`                                                | `null`                                                                                                           |
 | `import_vocabulary`                                                            | `path: string`                                      | `ImportSummary`                                                                                                  |
 | `get_insights`                                                                 | —                                                   | `Insights`                                                                                                       |
+| `get_model_insights`                                                           | —                                                   | `ModelInsights` (per-model transcription and formatting timings)                                                 |
 | `list_models`                                                                  | —                                                   | `ModelInfo[]` (transcription models + `apple-intelligence` post-processing availability)                         |
 | `download_model`                                                               | `id`                                                | `null` (progress via events)                                                                                     |
 | `delete_model`                                                                 | `id`                                                | `null`                                                                                                           |
@@ -347,12 +386,15 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
 
-`DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, words?: number, note?: string }`.
+`DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, words?: number, note?: string, edit?: boolean }`. `edit` is present (true) for every state of an edit session; the overlay then shows a pen, "Editing" for `formatting` and "Edited" for `done`.
 
 ## 5. Windows
 
 - `main` — 1080×720 (min 860×600), `titleBarStyle: "Overlay"`, hidden title, traffic lights
-  inset. Closing hides it; the tray and Dock icon reopen it.
+  inset. Closing hides it; the tray and Dock icon reopen it. Starts hidden when
+  `launchAtLogin` is on and the Dock started at most 120 s earlier (a login launch:
+  `SMAppService` passes no arguments, so this is the only signal an `unsafe`-free core can read).
+  Gaining focus re-reads the login item (see `login_item` below).
 - `overlay` — 200×56, transparent, no decorations, no shadow, always on top, skip taskbar,
   visible on all workspaces, never focused (`focused: false`, `focusable: false`), cursor events
   ignored. Shown bottom-centre of the screen under the cursor while a session is active (or
@@ -388,9 +430,12 @@ produces nothing.
 | `open_settings`      | `kind`                                                   | `{}` (opens the matching Privacy & Security pane)                                                                                                            |
 | `frontmost_app`      | —                                                        | `{"name": s?, "bundleId": s?}`                                                                                                                               |
 | `paste`              | —                                                        | `{}` (posts Cmd+V; error `"accessibility permission missing"` when not trusted)                                                                              |
+| `selected_text`      | —                                                        | `{"text": s?}`, absent when nothing is selected. Accessibility (`kAXSelectedTextAttribute`; a zero-length `kAXSelectedTextRangeAttribute` means nothing selected), else a synthetic Cmd+C whose pasteboard change is read and the previous pasteboard items restored. Error `"accessibility permission missing"` when not trusted |
 | `set_output_muted`   | `muted: bool`                                            | `{"previous": bool}`                                                                                                                                         |
 | `polish`             | `system`, `shots: [{user, assistant}]`, `user`           | `{"text": s, "finished": bool}` via Apple Foundation Models (`LanguageModelSession`, temperature 0)                                                          |
 | `watch_fn_key`       | `enabled: bool`                                          | `{"active": bool}`: whether the listen-only event tap is installed; without Accessibility access it retries every 2 s while enabled                          |
+| `login_item`         | —                                                        | `{"status": "enabled" \| "disabled" \| "requires_approval"}` for `SMAppService.mainApp`; error outside an `.app` bundle (development builds)                   |
+| `set_login_item`     | `enabled: bool`                                          | same as `login_item`, after registering or unregistering; `requires_approval` after enabling also opens System Settings → Login Items                        |
 
 Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech` (transcription);
 `apple-intelligence` (post-processing; `model_status` reports availability, never downloads).
@@ -399,6 +444,13 @@ Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech
 `en-GB`; only `apple-speech` uses it for `model_status` / `download_model` (its assets are per
 locale; default `en-US`). Parakeet files live in `<models-dir>/<model-id>/`, downloaded into
 `<model-id>.partial/` and renamed into place when complete.
+
+Launch at login: `settings.launchAtLogin` mirrors `login_item`. `update_settings` changes the
+login item before saving and stores nothing when macOS refuses; the core re-reads the status
+when the helper connects and whenever the main window gains focus, and stores what macOS reports,
+so removing the app under Open at Login switches the setting off. Versions before this used a
+`~/Library/LaunchAgents/Simple Voice.plist` agent; the first status read deletes it and, when the
+setting was on, registers the login item in its place.
 
 ## 7. Transcription × post-processing
 

@@ -5,8 +5,9 @@
 The Swift helper that Simple Voice runs as a Tauri sidecar. Everything that needs Apple frameworks
 or Objective-C / C APIs lives here, so the Rust crates can forbid `unsafe`: Parakeet transcription
 (FluidAudio on Core ML), Apple Speech (`SpeechAnalyzer`), Apple Intelligence post-processing
-(Foundation Models), model downloads, permission checks, the frontmost app, synthetic Cmd+V and
-muting the output device.
+(Foundation Models), model downloads, permission checks, the frontmost app, synthetic Cmd+V,
+muting the output device and launch at login (`SMAppService.mainApp`, which resolves to the
+Simple Voice.app the helper sits in).
 
 ## Protocol
 
@@ -100,6 +101,10 @@ prompts to the app (the responsible process), not to the helper binary:
   leads to System Settings, since that permission can only be granted there.
 - `open_settings` opens the matching Privacy & Security pane.
 - `paste` fails with `accessibility permission missing` when the app is not trusted.
+- `selected_text` needs the same trust. It asks Accessibility for the focused element's selected
+  text first; apps whose content Accessibility cannot see (web pages before Chrome builds its
+  accessibility tree, Electron apps) are read with a synthetic Cmd+C instead, and the previous
+  pasteboard items are written back right after.
 
 When the helper is run directly from a terminal, TCC attributes it to the terminal app instead,
 so results differ from what the app sees.

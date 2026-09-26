@@ -21,12 +21,21 @@ small floating bar while it listens.
   spacing and your personal replacements, then an optional language-model pass drops fillers
   and false starts and lays out lists and steps. Choose the provider:
     - **Groq** (default), fast and remote;
-    - **Apple Intelligence**, on-device, on macOS 26 and later;
+    - **Apple Intelligence**, on-device, on macOS 26 and later (English and other languages
+      Apple supports; not Hindi or Hinglish);
     - **any OpenAI-compatible endpoint**, such as a local Ollama or LM Studio, or a hosted service;
     - or **off**.
 
     Any speech engine works with any formatting provider, so a fully offline setup is one choice
     away. If formatting is slow or fails, the plain transcript is pasted instead; nothing is lost.
+
+- **Edit selected text by voice.** Select text in any input (a Gmail draft, a browser search box,
+  a note), hold _Hold to edit_ (⌥/ by default) and say how to change it: "make this more
+  formal", "turn this into bullets", "fix the typos". The rewrite replaces the selection in
+  place, and Cmd+Z in that app undoes it. It uses your formatting provider, so it needs one
+  that is not off; nothing is changed when nothing is selected or the edit fails. Edits appear
+  in History with what you said and the text they replaced. The shortcut is configurable in
+  Settings → General and can be turned off.
 
 - **Two styles.** _Formal_ (capitals and full punctuation) or _Casual_ (capitals, lighter
   punctuation), applied everywhere.

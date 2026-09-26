@@ -9,8 +9,8 @@ Only what the providers you choose need:
 | Choice                 | What is sent, and where                                                                                                 |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Groq Whisper           | The recording and your dictionary words (as a recognition hint), to Groq.                                               |
-| Groq formatting        | The transcript and your dictionary words, to Groq.                                                                      |
-| Custom endpoint        | The transcript and your dictionary words, to the URL you configure. A local Ollama or LM Studio keeps this on your Mac. |
+| Groq formatting        | The transcript and your dictionary words, to Groq. For an edit, also the text you selected.                             |
+| Custom endpoint        | The transcript and your dictionary words (and the selected text of an edit), to the URL you configure. A local Ollama or LM Studio keeps this on your Mac. |
 | Parakeet, Apple Speech | Nothing. Models are downloaded once, then everything runs on-device.                                                    |
 | Apple Intelligence     | Nothing. Runs on-device.                                                                                                |
 | Formatting off         | Nothing.                                                                                                                |
@@ -18,7 +18,7 @@ Only what the providers you choose need:
 
 There is no telemetry and no account. Update checks can be turned off in Settings → System. The
 name of the app you dictated into is stored in your local history to power Insights; it never
-leaves your Mac.
+leaves your Mac. History also keeps the text each edit replaced, locally.
 
 ## Where your data lives
 
