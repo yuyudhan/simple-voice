@@ -74,7 +74,7 @@
 .dictionary-table__head,
 .dictionary-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 56px 64px;
+    grid-template-columns: minmax(0, 1fr) 88px 56px 64px;
     align-items: center;
     gap: 12px;
 }
@@ -84,8 +84,29 @@
     border-bottom: 1px solid var(--border-strong);
 }
 
-.dictionary-table__head > span:last-child {
-    grid-column: 2;
+/* Column heads read as labels until hovered; only the arrow marks the active sort. */
+.dictionary-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-self: start;
+    margin: 0 -4px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: none;
+    cursor: pointer;
+    transition: color var(--dur) var(--ease);
+}
+
+.dictionary-sort:hover,
+.dictionary-sort.is-active {
+    color: var(--text);
+}
+
+.dictionary-sort svg {
+    width: 12px;
+    height: 12px;
 }
 
 .dictionary-list {
@@ -131,6 +152,13 @@
     color: var(--text);
     font-weight: 500;
     overflow-wrap: anywhere;
+}
+
+.dictionary-row__added {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .dictionary-row__kind {
@@ -211,4 +239,20 @@
     gap: 4px 10px;
     font-size: 13.5px;
     overflow-wrap: anywhere;
+}
+
+.dictionary-form__added {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--success);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+.dictionary-form__added svg {
+    flex: none;
+    width: 14px;
+    height: 14px;
 }

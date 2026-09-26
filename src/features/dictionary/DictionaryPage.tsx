@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ArrowRight, BookA, Pencil, Plus, Search, SearchX, Trash2, Upload } from "lucide-react";
 import { api, errorMessage, type DictionaryEntry } from "../../lib/api";
-import { formatNumber, pluralize } from "../../lib/format";
+import { dayLabel, formatLongDate, formatNumber, pluralize } from "../../lib/format";
+import { useSettings } from "../../app/SettingsContext";
 import {
     Button,
     EmptyState,
@@ -15,6 +16,8 @@ import {
     useToast,
 } from "../../ui";
 import { DictionaryEditor } from "./DictionaryEditor";
+import { SortHeader } from "./SortHeader";
+import { sortEntries } from "./sort";
 import "./dictionary.css";
 
 type EditorState = { entry: DictionaryEntry | null; key: number } | null;
@@ -26,6 +29,8 @@ const EMPTY_DESCRIPTION =
 
 export function DictionaryPage() {
     const { toast } = useToast();
+    const { settings, update } = useSettings();
+    const sort = settings.dictionarySort;
     const [entries, setEntries] = useState<DictionaryEntry[] | null>(null);
     const [filter, setFilter] = useState("");
     const [editor, setEditor] = useState<EditorState>(null);
@@ -46,13 +51,7 @@ export function DictionaryPage() {
         void load();
     }, [load]);
 
-    const sorted = useMemo(
-        () =>
-            [...(entries ?? [])].sort((a, b) =>
-                a.phrase.localeCompare(b.phrase, undefined, { sensitivity: "base" }),
-            ),
-        [entries],
-    );
+    const sorted = useMemo(() => sortEntries(entries ?? [], sort), [entries, sort]);
 
     const visible = useMemo(() => {
         const needle = filter.trim().toLowerCase();
@@ -66,6 +65,8 @@ export function DictionaryPage() {
 
     const ruleCount = sorted.filter((entry) => entry.replacement !== null).length;
     const wordCount = sorted.length - ruleCount;
+    // One clock for the whole render, so every row agrees on what "Today" is.
+    const now = new Date();
 
     function openEditor(entry: DictionaryEntry | null) {
         setEditor({ entry, key: Date.now() });
@@ -195,9 +196,22 @@ export function DictionaryPage() {
                 />
             ) : (
                 <div className="dictionary-table">
-                    <div className="dictionary-table__head" aria-hidden="true">
-                        <span className="caps-label">Entry</span>
-                        <span className="caps-label">Kind</span>
+                    <div className="dictionary-table__head">
+                        <SortHeader
+                            label="Entry"
+                            column="name"
+                            sort={sort}
+                            onSort={(next) => void update({ dictionarySort: next })}
+                        />
+                        <SortHeader
+                            label="Added"
+                            column="added"
+                            sort={sort}
+                            onSort={(next) => void update({ dictionarySort: next })}
+                        />
+                        <span className="caps-label" aria-hidden="true">
+                            Kind
+                        </span>
                     </div>
                     <ul className="dictionary-list">
                         {visible.map((entry) => (
@@ -222,6 +236,12 @@ export function DictionaryPage() {
                                         </span>
                                     </span>
                                 )}
+                                <span
+                                    className="dictionary-row__added"
+                                    title={formatLongDate(new Date(entry.createdAt))}
+                                >
+                                    {dayLabel(new Date(entry.createdAt), now, { weekday: false })}
+                                </span>
                                 <span className="dictionary-row__kind caps-label">
                                     {entry.replacement === null ? "Word" : "Rule"}
                                 </span>
@@ -261,8 +281,12 @@ export function DictionaryPage() {
                                 ? [...list, saved]
                                 : list.map((item) => (item.id === saved.id ? saved : item));
                         });
-                        setEditor(null);
-                        toast(created ? `Added “${saved.phrase}”` : "Saved", "success");
+                        // Adding keeps the editor open and confirms inline, so a run of words
+                        // does not stack a toast per word.
+                        if (!created) {
+                            setEditor(null);
+                            toast("Saved", "success");
+                        }
                     }}
                 />
             )}

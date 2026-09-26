@@ -1,11 +1,11 @@
 // FilePath: src/features/dictionary/DictionaryEditor.tsx
-import { useState, type SyntheticEvent } from "react";
-import { ArrowRight } from "lucide-react";
+import { useRef, useState, type SyntheticEvent } from "react";
+import { ArrowRight, Check } from "lucide-react";
 import { api, errorMessage, type DictionaryEntry } from "../../lib/api";
 import { Button, Modal, TextField, Toggle } from "../../ui";
 
 export interface DictionaryEditorProps {
-    /** `null` adds a new entry. */
+    /** `null` adds new entries: the form stays open after each add so several can go in a row. */
     entry: DictionaryEntry | null;
     onClose: () => void;
     onSaved: (entry: DictionaryEntry, created: boolean) => void;
@@ -23,6 +23,8 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
     const [replacement, setReplacement] = useState(entry?.replacement ?? "");
     const [errors, setErrors] = useState<FieldErrors>({});
     const [saving, setSaving] = useState(false);
+    const [lastAdded, setLastAdded] = useState<string | null>(null);
+    const phraseRef = useRef<HTMLInputElement>(null);
 
     async function save(event?: SyntheticEvent) {
         event?.preventDefault();
@@ -44,6 +46,12 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
                 ? await api.updateDictionaryEntry(entry.id, trimmedPhrase, written)
                 : await api.addDictionaryEntry(trimmedPhrase, written);
             onSaved(saved, entry === null);
+            if (entry === null) {
+                setLastAdded(saved.phrase);
+                setPhrase("");
+                setReplacement("");
+                phraseRef.current?.focus();
+            }
         } catch (error) {
             const message = errorMessage(error);
             // The backend names the offending field in its message; attach it there.
@@ -66,7 +74,7 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
             footer={
                 <>
                     <Button variant="ghost" onClick={onClose} disabled={saving}>
-                        Cancel
+                        {lastAdded === null ? "Cancel" : "Done"}
                     </Button>
                     <Button
                         variant="primary"
@@ -90,6 +98,7 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
                     label={isRule ? "When I say" : "Word or phrase"}
                     placeholder={isRule ? "e.g. argo city" : "e.g. Kubernetes"}
                     value={phrase}
+                    ref={phraseRef}
                     autoFocus
                     error={errors.phrase}
                     hint={
@@ -135,6 +144,12 @@ export function DictionaryEditor({ entry, onClose, onSaved }: DictionaryEditorPr
                             <span className="dictionary-row__written">{replacement.trim()}</span>
                         </span>
                     </div>
+                )}
+                {lastAdded !== null && (
+                    <p className="dictionary-form__added" role="status">
+                        <Check aria-hidden="true" />
+                        Added “{lastAdded}”. Type the next one, or press Done.
+                    </p>
                 )}
                 {/* Enter in either field submits. */}
                 <button type="submit" className="sr-only" aria-hidden="true" tabIndex={-1} />
