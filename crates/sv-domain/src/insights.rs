@@ -84,3 +84,28 @@ pub struct Insights {
     pub hours: Vec<HourActivity>,
     pub bests: PersonalBests,
 }
+
+/// How one model performed over every dictation where its stage was timed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelTiming {
+    /// Model id as recorded, e.g. `groq-whisper` or `qwen/qwen3.8-27b`.
+    pub model: String,
+    pub name: String,
+    pub runs: i64,
+    pub average_ms: f64,
+    pub fastest_ms: i64,
+    pub slowest_ms: i64,
+    /// Summed over the timed runs, so speed is total work over total time.
+    pub total_ms: i64,
+    pub audio_ms: i64,
+    pub words: i64,
+}
+
+/// Per-model speed for the Insights "Models" tab, each list sorted by runs, descending.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInsights {
+    pub transcription: Vec<ModelTiming>,
+    pub formatting: Vec<ModelTiming>,
+}

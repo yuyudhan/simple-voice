@@ -11,6 +11,7 @@ mod db;
 mod dictionary;
 mod history;
 mod insights;
+mod model_insights;
 pub mod paths;
 mod settings;
 

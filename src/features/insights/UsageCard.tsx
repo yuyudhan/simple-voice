@@ -3,25 +3,11 @@ import type { AppUsage, CategoryUsage } from "../../lib/api";
 import { CATEGORY_META } from "../../lib/categories";
 import { formatCompact, formatNumber, pluralize } from "../../lib/format";
 import { Card } from "../../ui";
+import { Meter } from "./Meter";
 
 export interface UsageCardProps {
     categories: CategoryUsage[];
     topApps: AppUsage[];
-}
-
-/** A rounded horizontal meter; only the leading item carries the signal colour. */
-function Meter({ percent, lead, label }: { percent: number; lead: boolean; label?: string }) {
-    const width = `${String(Math.min(100, Math.max(1.5, percent)))}%`;
-    return (
-        <span
-            className="usage-meter"
-            role={label ? "img" : undefined}
-            aria-label={label}
-            aria-hidden={label ? undefined : true}
-        >
-            <span className={`usage-meter__fill${lead ? " is-lead" : ""}`} style={{ width }} />
-        </span>
-    );
 }
 
 export function UsageCard({ categories, topApps }: UsageCardProps) {
