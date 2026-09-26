@@ -13,10 +13,9 @@ use std::time::Duration;
 use sv_domain::{AppError, DictationPhase, DictationState, Settings};
 use sv_storage::Db;
 use tauri::{AppHandle, Manager, RunEvent};
-use tauri_plugin_autostart::MacosLauncher;
 
 use crate::features::dictation::{self, DictationHandle};
-use crate::platform::{dock, engine_process, overlay, shortcuts, tray, windows};
+use crate::platform::{dock, engine_process, login_item, overlay, shortcuts, tray, windows};
 use crate::state::AppState;
 
 /// Builds and runs the app; returns when the user quits.
@@ -28,10 +27,6 @@ pub fn run() -> tauri::Result<()> {
             windows::show_main(app)
         }))
         .plugin(shortcuts::plugin())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            Some(vec![dock::BACKGROUND_ARG]),
-        ))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -62,6 +57,7 @@ pub fn run() -> tauri::Result<()> {
             features::dictionary::delete_dictionary_entry,
             features::dictionary::import_vocabulary,
             features::insights::get_insights,
+            features::insights::get_model_insights,
             features::models::list_models,
             features::models::download_model,
             features::models::delete_model,
@@ -96,8 +92,6 @@ fn init_tracing() {
 }
 
 fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let launched_in_background = std::env::args().any(|arg| arg == dock::BACKGROUND_ARG);
-
     let db = tauri::async_runtime::block_on(Db::open());
     let settings = match &db {
         Ok(db) => tauri::async_runtime::block_on(db.settings()).unwrap_or_else(|error| {
@@ -110,6 +104,9 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let startup_error = db.as_ref().err().cloned();
+    // A launch at login stays in the menu bar; the check only runs when the setting is on, so a
+    // manual launch right after logging in still opens the window when it is off.
+    let launched_at_login = settings.launch_at_login && login_item::launched_at_login();
 
     let (handle, control) = DictationHandle::new();
     let version = app.package_info().version.to_string();
@@ -124,17 +121,26 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             shortcuts::on_engine_event(&events_app, event);
         }));
 
-    windows::create_main(app, !launched_in_background || startup_error.is_some())?;
+    windows::create_main(app, !launched_at_login || startup_error.is_some())?;
     windows::install_app_menu(app)?;
     overlay::create(app)?;
     tray::create(app)?;
 
     dock::apply_dock(app, settings.show_in_dock);
-    dock::sync_autostart(app, settings.launch_at_login);
     overlay::set_always(app, settings.show_bar_always);
-    if let Err(error) = shortcuts::register(app, &settings.hold_shortcut, &settings.toggle_shortcut)
-    {
-        tracing::warn!(%error, "could not register the dictation shortcuts");
+    let accelerators = shortcuts::Accelerators::of(&settings);
+    if let Err(error) = shortcuts::register(app, accelerators) {
+        tracing::warn!(%error, "could not register the shortcuts");
+        // Dictation keeps working when only the edit shortcut is taken by another app.
+        if !accelerators.edit.is_empty() {
+            let without_edit = shortcuts::Accelerators {
+                edit: "",
+                ..accelerators
+            };
+            if let Err(error) = shortcuts::register(app, without_edit) {
+                tracing::warn!(%error, "could not register the dictation shortcuts");
+            }
+        }
     }
 
     dictation::spawn_coordinator(app.clone(), control);
