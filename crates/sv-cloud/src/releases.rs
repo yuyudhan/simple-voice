@@ -1,6 +1,6 @@
 // FilePath: crates/sv-cloud/src/releases.rs
 //! The newest published release, from GitHub's `releases/latest` endpoint. It skips drafts and
-//! pre-releases, and it is the same source the Homebrew cask's `livecheck` follows.
+//! pre-releases, and it is the same release the install script follows.
 
 use std::time::Duration;
 
@@ -27,6 +27,19 @@ struct ReleaseResponse {
 
 /// `https://github.com/owner/name` (the workspace `repository` field) → its latest-release API URL.
 pub fn latest_release_url(repository: &str) -> AppResult<String> {
+    let (owner, name) = github_repository(repository)?;
+    Ok(format!("{API_BASE}/{owner}/{name}/releases/latest"))
+}
+
+/// The install script published with every release (`scripts/install.sh`), always the newest.
+pub fn install_script_url(repository: &str) -> AppResult<String> {
+    let (owner, name) = github_repository(repository)?;
+    Ok(format!(
+        "{GITHUB_PREFIX}{owner}/{name}/releases/latest/download/install.sh"
+    ))
+}
+
+fn github_repository(repository: &str) -> AppResult<(&str, &str)> {
     let path = repository
         .trim()
         .strip_prefix(GITHUB_PREFIX)
@@ -34,7 +47,7 @@ pub fn latest_release_url(repository: &str) -> AppResult<String> {
         .map(|path| path.strip_suffix(".git").unwrap_or(path));
     match path.and_then(|path| path.split_once('/')) {
         Some((owner, name)) if !owner.is_empty() && !name.is_empty() && !name.contains('/') => {
-            Ok(format!("{API_BASE}/{owner}/{name}/releases/latest"))
+            Ok((owner, name))
         }
         _ => Err(AppError::invalid(format!(
             "“{repository}” is not a GitHub repository URL"
@@ -130,6 +143,15 @@ mod tests {
         ] {
             assert!(latest_release_url(bad).is_err(), "{bad} accepted");
         }
+    }
+
+    #[test]
+    fn builds_the_install_script_url_from_the_repository_url() {
+        assert_eq!(
+            install_script_url("https://github.com/owner/app.git"),
+            Ok("https://github.com/owner/app/releases/latest/download/install.sh".to_owned())
+        );
+        assert!(install_script_url("https://gitlab.com/owner/app").is_err());
     }
 
     #[test]

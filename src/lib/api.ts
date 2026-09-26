@@ -179,6 +179,10 @@ export interface UpdateStatus {
     checking: boolean;
     checkedAt: number | null;
     error: string | null;
+    /** The install script is running; a successful install quits and reopens the app. */
+    installing: boolean;
+    /** Why the last install failed; cleared when the next one starts. */
+    installError: string | null;
 }
 
 export type DictationPhase =
@@ -247,6 +251,7 @@ export const api = {
     appInfo: () => invoke<AppInfo>("app_info"),
     getUpdateStatus: () => invoke<UpdateStatus>("get_update_status"),
     checkForUpdates: () => invoke<UpdateStatus>("check_for_updates"),
+    installUpdate: () => invoke<UpdateStatus>("install_update"),
 };
 
 export const events = {

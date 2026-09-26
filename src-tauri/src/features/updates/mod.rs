@@ -1,7 +1,9 @@
 // FilePath: src-tauri/src/features/updates/mod.rs
-//! Update notices. Homebrew installs every version (requirement P-5), so the app never downloads
-//! or replaces itself: it asks GitHub for the latest release, compares it with its own version,
-//! and tells the UI (`update-status`) and the tray.
+//! Update notices and installs. The app asks GitHub for the latest release, compares it with its
+//! own version, and tells the UI (`update-status`) and the tray; `install` runs the published
+//! install script when the user asks for the update.
+
+pub(crate) mod install;
 
 use std::time::Duration;
 

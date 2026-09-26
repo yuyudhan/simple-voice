@@ -1,23 +1,18 @@
 // FilePath: src/features/updates/UpdateActions.tsx
-// The installer script updates the app: through Homebrew when Homebrew manages it and works,
-// otherwise straight from the GitHub release. The app hands the user the one command that runs
-// it rather than running it itself: the installer quits the running app, which would kill an
-// update the app started.
-import { Copy, ExternalLink } from "lucide-react";
+// "Install update" runs the published install script, the README's curl command: it installs
+// straight from the GitHub release. The script quits the app, replaces it and reopens it;
+// progress and failures arrive through `update-status`.
+import { Download, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, errorMessage, type Release } from "../../lib/api";
 import { Button, useToast } from "../../ui";
 
-const UPGRADE_COMMAND =
-    "curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash";
-
-export function UpdateActions({ release }: { release: Release }) {
+export function UpdateActions({ release, installing }: { release: Release; installing: boolean }) {
     const { toast } = useToast();
 
-    const copy = async () => {
+    const install = async () => {
         try {
-            await api.copyText(UPGRADE_COMMAND);
-            toast("Command copied. Paste it into Terminal to update.", "success");
+            await api.installUpdate();
         } catch (e) {
             toast(errorMessage(e), "danger");
         }
@@ -28,12 +23,13 @@ export function UpdateActions({ release }: { release: Release }) {
             <Button
                 variant="primary"
                 size="sm"
-                icon={<Copy size={13} />}
+                icon={<Download size={13} />}
+                loading={installing}
                 onClick={() => {
-                    void copy();
+                    void install();
                 }}
             >
-                Copy update command
+                {installing ? "Installing…" : "Install update"}
             </Button>
             <Button
                 variant="ghost"

@@ -1,6 +1,6 @@
 // FilePath: crates/sv-domain/src/updates.rs
-//! What the app knows about newer releases. Homebrew installs every update; the app only
-//! finds out that one exists and tells the user how to get it.
+//! What the app knows about newer releases, and whether it is installing one. The published
+//! install script does the installing; the app finds the release and starts the script.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +28,10 @@ pub struct UpdateStatus {
     pub checked_at: Option<i64>,
     /// Why the last check failed; cleared by the next successful one.
     pub error: Option<String>,
+    /// The install script is running. A successful install quits and reopens the app.
+    pub installing: bool,
+    /// Why the last install failed; cleared when the next one starts.
+    pub install_error: Option<String>,
 }
 
 impl UpdateStatus {
@@ -39,6 +43,8 @@ impl UpdateStatus {
             checking: false,
             checked_at: None,
             error: None,
+            installing: false,
+            install_error: None,
         }
     }
 }

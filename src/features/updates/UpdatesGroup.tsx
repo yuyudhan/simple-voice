@@ -58,12 +58,18 @@ export function UpdatesGroup() {
                     Check now
                 </Button>
             </SettingRow>
-            {latest && (
+            {latest && status && (
                 <SettingRow
-                    title="Update from Terminal"
-                    description="Copy the update command and run it in Terminal. It updates through Homebrew when Homebrew installed Simple Voice, and straight from GitHub otherwise. It quits Simple Voice while it updates and reopens it afterwards."
+                    title="Install update"
+                    description={
+                        status.installError !== null && !status.installing ? (
+                            <span className="sv-update-error">{status.installError}</span>
+                        ) : (
+                            "Downloads the release from GitHub, checks its checksum and signature, and replaces the app. Simple Voice quits while it updates and reopens afterwards."
+                        )
+                    }
                 >
-                    <UpdateActions release={latest} />
+                    <UpdateActions release={latest} installing={status.installing} />
                 </SettingRow>
             )}
             <SettingRow
