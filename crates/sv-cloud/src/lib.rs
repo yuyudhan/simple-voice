@@ -10,7 +10,7 @@ pub mod releases;
 
 pub use chat::{chat_url, polish_chat, ChatEndpoint, GROQ_CHAT_URL};
 pub use groq_whisper::{groq_transcribe, groq_verify_key, Transcript};
-pub use releases::{latest_release, latest_release_url, LatestRelease};
+pub use releases::{install_script_url, latest_release, latest_release_url, LatestRelease};
 
 /// The provider's own explanation from an error body. OpenAI and Groq send
 /// `{"error": {"message": ...}}`; Ollama sends `{"error": "..."}`.

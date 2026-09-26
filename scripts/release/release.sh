@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/release.sh
 # Cuts a release entirely on this Mac: sets VERSION in package.json, src-tauri/tauri.conf.json
-# and the root Cargo.toml [workspace.package], checks the cask, builds and packs the app, and
-# only when that succeeds commits `🔖 Release vVERSION`, tags it, pushes branch and tag (the
-# pre-push hook runs `just check`), creates the GitHub release and publishes the cask to the tap.
+# and the root Cargo.toml [workspace.package], builds and packs the app, and only when that
+# succeeds commits `🔖 Release vVERSION`, tags it, pushes branch and tag (the pre-push hook runs
+# `just check`), and creates the GitHub release with the zip, its checksum and install.sh.
 # A failure before the commit restores the version files, so nothing half-done is left behind.
 #
 # Usage: scripts/release/release.sh 0.2.0
 #   Needs a clean working tree on a branch that is not behind origin, and `gh` logged in with
-#   push access to yuyudhan/simple-voice and yuyudhan/homebrew-tap. Signing: see build.sh.
+#   push access to yuyudhan/simple-voice. Signing: see build.sh.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -69,8 +69,7 @@ for file in package.json src-tauri/tauri.conf.json Cargo.toml; do
 done
 cargo update --workspace
 
-scripts/release/check-cask.sh "$version"
-signed=$(scripts/release/build.sh "$version")
+scripts/release/build.sh "$version"
 
 git add "${files[@]}"
 git commit -m "🔖 Release ${tag}"
@@ -81,5 +80,5 @@ if ! git push origin HEAD "$tag"; then
     echo "release: push failed; fix it, then: git push origin HEAD ${tag} && just publish ${version}" >&2
     exit 1
 fi
-scripts/release/publish.sh "$version" "$signed"
-echo "release: ${tag} is live: brew install --cask yuyudhan/tap/simple-voice"
+scripts/release/publish.sh "$version"
+echo "release: ${tag} is live: curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash"

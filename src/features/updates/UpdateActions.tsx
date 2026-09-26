@@ -1,21 +1,18 @@
 // FilePath: src/features/updates/UpdateActions.tsx
-// Homebrew installs every update, so the app hands the user the one command that does it. It
-// does not run brew itself: the cask quits the running app while it upgrades, which would kill
-// an upgrade the app started, and a GUI app cannot rely on finding brew on its PATH.
-import { Copy, ExternalLink } from "lucide-react";
+// "Install update" runs the published install script, the README's curl command: it installs
+// straight from the GitHub release. The script quits the app, replaces it and reopens it;
+// progress and failures arrive through `update-status`.
+import { Download, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, errorMessage, type Release } from "../../lib/api";
 import { Button, useToast } from "../../ui";
 
-export const UPGRADE_COMMAND = "brew upgrade --cask simple-voice";
-
-export function UpdateActions({ release }: { release: Release }) {
+export function UpdateActions({ release, installing }: { release: Release; installing: boolean }) {
     const { toast } = useToast();
 
-    const copy = async () => {
+    const install = async () => {
         try {
-            await api.copyText(UPGRADE_COMMAND);
-            toast("Command copied. Paste it into Terminal to update.", "success");
+            await api.installUpdate();
         } catch (e) {
             toast(errorMessage(e), "danger");
         }
@@ -26,12 +23,13 @@ export function UpdateActions({ release }: { release: Release }) {
             <Button
                 variant="primary"
                 size="sm"
-                icon={<Copy size={13} />}
+                icon={<Download size={13} />}
+                loading={installing}
                 onClick={() => {
-                    void copy();
+                    void install();
                 }}
             >
-                Copy update command
+                {installing ? "Installing…" : "Install update"}
             </Button>
             <Button
                 variant="ghost"

@@ -2,8 +2,8 @@
 
 # Getting started
 
-Install Simple Voice with Homebrew as described in the [README](../README.md#install), then
-open it from Applications or Spotlight.
+Install Simple Voice with the install script as described in the
+[README](../README.md#install), then open it from Applications or Spotlight.
 
 ## Permissions
 
@@ -28,19 +28,24 @@ environment variable is used when no key is saved. On-device engines need no key
 ## Updates
 
 Simple Voice checks once a day for a new release. When one is out, a banner appears above every
-page and the menu bar icon shows "Update Available". Copy the command it offers and run it in
-Terminal:
+page and the menu bar icon shows "Update Available". Click **Install update**: Simple Voice runs
 
 ```sh
-brew upgrade --cask simple-voice
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
 
-Homebrew quits Simple Voice while it upgrades; open it again afterwards. Dismissing the banner
-skips that version only. Settings → System → Updates shows the running version, checks on
-demand, and turns the daily check off.
+It installs straight from the GitHub release, checks the download's checksum and code
+signature, quits Simple Voice
+while it updates and reopens it afterwards. When `/Applications` needs an administrator password,
+a dialog asks for it before the app quits. If the update fails, the banner says why and the full
+output is in `~/.simplevoice/update.log`; running the command above in Terminal does the same
+update. Dismissing the banner skips that version only. Settings → System → Updates shows the
+running version, checks on demand, installs the update, and turns the daily check off.
 
 ## After an upgrade
 
-macOS ties permissions to the app's code signature. If dictation stops recording or pasting
-after `brew upgrade`, open System Settings → Privacy & Security, remove Simple Voice from the
-affected list, and grant it again from the app's Settings → Permissions.
+macOS ties permissions to the certificate the app is signed with, and every release uses the same
+one, so permissions carry over. Upgrading from an older release that was ad-hoc signed is the one
+exception: if dictation then stops recording or pasting, open System Settings → Privacy &
+Security, remove Simple Voice from the affected list, and grant it again from the app's
+Settings → Permissions.

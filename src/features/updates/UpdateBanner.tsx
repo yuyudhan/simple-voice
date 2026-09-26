@@ -20,10 +20,15 @@ export function UpdateBanner() {
         <div className="sv-update-banner" role="status">
             <CircleArrowUp size={16} className="sv-update-banner__icon" aria-hidden="true" />
             <p className="sv-update-banner__text">
-                <strong>Simple Voice {latest.version} is available.</strong> You have{" "}
-                {status.currentVersion}; update with Homebrew.
+                <strong>Simple Voice {latest.version} is available.</strong>{" "}
+                {status.installing
+                    ? "Installing; Simple Voice restarts when it is done."
+                    : `You have ${status.currentVersion}.`}
+                {status.installError !== null && !status.installing && (
+                    <span className="sv-update-error"> {status.installError}</span>
+                )}
             </p>
-            <UpdateActions release={latest} />
+            <UpdateActions release={latest} installing={status.installing} />
             <IconButton
                 label="Skip this version"
                 icon={<X size={14} />}

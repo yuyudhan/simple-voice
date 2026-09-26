@@ -32,4 +32,6 @@ Everything is stored locally in `~/.simplevoice/`:
 | `backups/`        | A copy of the database taken before each upgrade migrates it (the last three are kept).                  |
 
 You can move the database to another folder in Settings → Data; Simple Voice remembers the new
-location. `brew uninstall --zap --cask simple-voice` removes all of it.
+location. To remove everything, delete the app and its data:
+`rm -rf "/Applications/Simple Voice.app"` and `rm -rf ~/.simplevoice` (and the folder you moved
+the database to, if any).

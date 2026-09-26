@@ -16,23 +16,31 @@ Intelligence.
 
 ## Install
 
-Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later, and [Homebrew](https://brew.sh).
+Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later.
 
 ```sh
-brew install --cask yuyudhan/tap/simple-voice
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
+
+The script checks the download against the release's SHA-256 checksum and the app's code
+signature before it replaces `/Applications/Simple Voice.app`. To install a specific release,
+use `... | bash -s -- --version X.Y.Z`.
+
+If you installed Simple Voice with Homebrew before, run `brew uninstall --cask simple-voice`
+(app data in `~/.simplevoice` is kept), then the command above.
 
 Then open **Simple Voice** from Applications and grant the permissions it asks for
 (Microphone and Accessibility). See [Getting started](docs/getting-started.md).
 
-| Task                          | Command                                    |
-| ----------------------------- | ------------------------------------------ |
-| Upgrade                       | `brew upgrade --cask simple-voice`         |
-| Uninstall                     | `brew uninstall --cask simple-voice`       |
-| Uninstall and delete all data | `brew uninstall --zap --cask simple-voice` |
+| Task                          | How                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| Upgrade                       | Click **Install update** in the app, or run the install command again      |
+| Uninstall                     | `rm -rf "/Applications/Simple Voice.app"`                                  |
+| Uninstall and delete all data | The line above, then `rm -rf ~/.simplevoice`                               |
 
-Until releases are notarized by Apple, the app is ad-hoc signed and Homebrew clears its download
-quarantine so macOS opens it; `brew info --cask simple-voice` shows the caveat.
+Releases are signed with the project's own certificate, so macOS keeps Simple Voice's
+permissions across upgrades. Until Apple notarizes them, the install script clears the download
+quarantine so macOS opens the app.
 
 ## Documentation
 

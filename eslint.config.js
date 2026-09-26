@@ -21,7 +21,6 @@ export default defineConfig(
             "src-tauri/",
             "engine/",
             "crates/",
-            "packaging/",
             "eslint.config.js",
         ],
     },

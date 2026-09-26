@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import type { UpdateStatus } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
 import { Button, SettingRow, SettingsGroup, Toggle } from "../../ui";
-import { UPGRADE_COMMAND, UpdateActions } from "./UpdateActions";
+import { UpdateActions } from "./UpdateActions";
 import { useUpdates } from "./useUpdates";
 import "./updates.css";
 
@@ -58,18 +58,18 @@ export function UpdatesGroup() {
                     Check now
                 </Button>
             </SettingRow>
-            {latest && (
+            {latest && status && (
                 <SettingRow
-                    title="Update with Homebrew"
+                    title="Install update"
                     description={
-                        <>
-                            Run <code className="sv-update-command">{UPGRADE_COMMAND}</code> in
-                            Terminal. Homebrew quits Simple Voice while it upgrades; open it again
-                            afterwards.
-                        </>
+                        status.installError !== null && !status.installing ? (
+                            <span className="sv-update-error">{status.installError}</span>
+                        ) : (
+                            "Downloads the release from GitHub, checks its checksum and signature, and replaces the app. Simple Voice quits while it updates and reopens afterwards."
+                        )
                     }
                 >
-                    <UpdateActions release={latest} />
+                    <UpdateActions release={latest} installing={status.installing} />
                 </SettingRow>
             )}
             <SettingRow

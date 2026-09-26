@@ -32,9 +32,8 @@ help:
     @echo "  just sqlx-check           Fail when .sqlx/ does not match the queries in the code"
     @echo ""
     @echo "RELEASE"
-    @echo "  just release VERSION      Bump, build, tag, push, publish the GitHub release and cask"
+    @echo "  just release VERSION      Bump, build, tag, push and publish the GitHub release"
     @echo "  just publish VERSION      Build a pushed tag and publish it (retry a failed publish)"
-    @echo "  just cask-check           Run brew style and brew audit on the rendered Homebrew cask"
     @echo ""
     @echo "See README.md and docs/internal/."
     @echo ""
@@ -43,5 +42,5 @@ help:
 [group('setup')]
 hooks:
     git config core.hooksPath .githooks
-    chmod +x .githooks/* scripts/guard/*.sh scripts/release/*.sh
+    chmod +x .githooks/* scripts/guard/*.sh scripts/release/*.sh scripts/install.sh
     @echo "core.hooksPath -> .githooks"
