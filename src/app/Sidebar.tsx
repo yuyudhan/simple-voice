@@ -1,6 +1,6 @@
 // FilePath: src/app/Sidebar.tsx
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Activity as Pulse, AudioLines, BookA, Type } from "lucide-react";
+import { Activity as Pulse, AudioLines, BookA, Settings as Gear, Type } from "lucide-react";
 import {
     api,
     errorMessage,
@@ -11,7 +11,7 @@ import {
 } from "../lib/api";
 import { useTauriEvent } from "../lib/useTauriEvent";
 import { SETTINGS_PAGES } from "../features/settings/settingsPages";
-import { BrandMark, ShortcutKeys, useToast } from "../ui";
+import { BrandMark, IconButton, ShortcutKeys, useToast } from "../ui";
 import { useSettings } from "./SettingsContext";
 import type { Page } from "./ShellContext";
 import "./Sidebar.css";
@@ -169,6 +169,14 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
                     ))}
                 </nav>
                 <div className={`sv-status sv-status--${activity}`}>
+                    <IconButton
+                        className="sv-status__settings"
+                        label="Shortcut settings"
+                        icon={<Gear />}
+                        onClick={() => {
+                            onNavigate("general");
+                        }}
+                    />
                     <span className="sv-status__line" role="status" aria-live="polite">
                         <span className="sv-status__dot" aria-hidden="true" />
                         {ACTIVITY_LABEL[activity]}
