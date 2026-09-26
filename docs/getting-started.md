@@ -32,7 +32,7 @@ page and the menu bar icon shows "Update Available". Copy the command it offers 
 Terminal:
 
 ```sh
-curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
 
 It updates through Homebrew when Homebrew installed Simple Voice (the same as

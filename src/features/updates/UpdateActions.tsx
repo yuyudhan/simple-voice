@@ -9,9 +9,7 @@ import { api, errorMessage, type Release } from "../../lib/api";
 import { Button, useToast } from "../../ui";
 
 const UPGRADE_COMMAND =
-    "curl -fsSL -o /tmp/simple-voice-install.sh " +
-    "https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && " +
-    "bash /tmp/simple-voice-install.sh";
+    "curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash";
 
 export function UpdateActions({ release }: { release: Release }) {
     const { toast } = useToast();

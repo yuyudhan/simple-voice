@@ -7,7 +7,7 @@ every GitHub release:
 
 ```sh
 brew install --cask yuyudhan/tap/simple-voice
-curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
 
 `brew` maps `yuyudhan/tap` to the GitHub repository `yuyudhan/homebrew-tap` and reads the cask
@@ -67,7 +67,9 @@ Homebrew when Homebrew installed the app, installs the cask when Homebrew is pre
 is absent, and otherwise - or when Homebrew fails - downloads the release zip, checks it against
 the `.sha256` and the bundle's code signature, and replaces `/Applications/Simple Voice.app`
 (quitting and reopening the app if it was running, and clearing the quarantine flag the way the
-cask does). `--no-brew` skips Homebrew; `--version X.Y.Z` installs a specific release.
+cask does). `--no-brew` skips Homebrew; `--version X.Y.Z` installs a specific release; both go
+after `bash -s --` in the piped command. Piping is safe because the script does all its work in
+`main`, called on its last line, so bash has read the whole file before anything runs.
 
 The fallback exists because Homebrew can fail where a plain download does not. Two cases seen
 so far:
@@ -78,7 +80,7 @@ so far:
 - Homebrew 7 unpacks downloads in a helper `ruby` whose `-I` argument is several kilobytes long.
   On a Mac running SentinelOne, any `ruby` given an argument of 1024 bytes or more is killed, so
   every zip cask fails with `sandbox_operation.rb extract` ... `terminated by uncaught signal
-  KILL`. The agent is the likely killer; it leaves no crash report to prove it.
+KILL`. The agent is the likely killer; it leaves no crash report to prove it.
 
 To change the script without cutting a release, upload it to the latest release:
 `gh release upload vX.Y.Z scripts/install.sh --clobber`.

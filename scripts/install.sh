@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # FilePath: scripts/install.sh
-# Installs or updates Simple Voice. Published with every GitHub release, so this always fetches
-# the newest installer:
+# Installs or updates Simple Voice. Published with every GitHub release as
+# releases/latest/download/install.sh; README.md#install has the one-line curl command that
+# pipes it into bash.
 #
-#   curl -fsSL -o /tmp/simple-voice-install.sh \
-#       https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh &&
-#       bash /tmp/simple-voice-install.sh
+# Piping is safe: all work happens in main, called on the last line, so bash has read the whole
+# script before anything runs. Options go after `bash -s --`.
 #
 # With Homebrew present it installs or upgrades the cask. It installs straight from the GitHub
 # release when Homebrew is missing, when Homebrew fails (endpoint-security agents can kill
@@ -37,7 +37,7 @@ usage() {
     cat <<'EOF'
 Install or update Simple Voice.
 
-usage: bash install.sh [--no-brew] [--version X.Y.Z]
+usage: bash -s -- [--no-brew] [--version X.Y.Z]   (piped), or bash install.sh [options]
 
   --no-brew          Install from the GitHub release even when Homebrew is present.
   --version X.Y.Z    Install that release instead of the latest (implies --no-brew).

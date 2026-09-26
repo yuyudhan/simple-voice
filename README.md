@@ -28,12 +28,13 @@ Or with the install script, which uses Homebrew when it is installed and works, 
 installs straight from the latest GitHub release:
 
 ```sh
-curl -fsSL -o /tmp/simple-voice-install.sh https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh && bash /tmp/simple-voice-install.sh
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
 
 The script checks the download against the release's SHA-256 checksum and the app's code
-signature before it replaces `/Applications/Simple Voice.app`. Pass `--no-brew` to skip Homebrew,
-or `--version X.Y.Z` to install a specific release. It is the way in when Homebrew is not
+signature before it replaces `/Applications/Simple Voice.app`. Options go after `bash -s --`:
+`... | bash -s -- --no-brew` skips Homebrew, and `... | bash -s -- --version X.Y.Z` installs a
+specific release. It is the way in when Homebrew is not
 available or cannot unpack the app, for example when an endpoint-security agent kills
 Homebrew's sandboxed extraction.
 
