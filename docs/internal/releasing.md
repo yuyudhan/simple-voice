@@ -53,9 +53,11 @@ by `ditto`, which preserves the bundle's signature.
 
 `scripts/install.sh` is uploaded with every release, so
 `releases/latest/download/install.sh` always serves the newest one. It downloads the release
-zip, checks it against the `.sha256` and the bundle's code signature, asks for an administrator
-password if `/Applications` is not writable, and replaces `/Applications/Simple Voice.app`
-(quitting and reopening the app if it was running, and clearing the quarantine flag).
+zip, checks it against the `.sha256` and the bundle's code signature, and replaces
+`~/Applications/Simple Voice.app` (quitting and reopening the app if it was running, and
+clearing the quarantine flag). Installing into the user's own Applications folder means no
+administrator password, so standard users can install and update. A copy an older script put in
+`/Applications` is removed when the user may delete it; otherwise the script says it remains.
 `--version X.Y.Z` installs a specific release; it goes after `bash -s --` in the piped command.
 Piping is safe because the script does all its work in `main`, called on its last line, so bash
 has read the whole file before anything runs.

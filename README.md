@@ -23,19 +23,19 @@ curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/ins
 ```
 
 The script checks the download against the release's SHA-256 checksum and the app's code
-signature before it replaces `/Applications/Simple Voice.app`. To install a specific release,
+signature before it replaces `~/Applications/Simple Voice.app`; no administrator password is needed. To install a specific release,
 use `... | bash -s -- --version X.Y.Z`.
 
 If you installed Simple Voice with Homebrew before, run `brew uninstall --cask simple-voice`
 (app data in `~/.simplevoice` is kept), then the command above.
 
-Then open **Simple Voice** from Applications and grant the permissions it asks for
+Then open **Simple Voice** from Spotlight or `~/Applications` and grant the permissions it asks for
 (Microphone and Accessibility). See [Getting started](docs/getting-started.md).
 
 | Task                          | How                                                                        |
 | ----------------------------- | -------------------------------------------------------------------------- |
 | Upgrade                       | Click **Install update** in the app, or run the install command again      |
-| Uninstall                     | `rm -rf "/Applications/Simple Voice.app"`                                  |
+| Uninstall                     | `rm -rf ~/Applications/"Simple Voice.app"`                                 |
 | Uninstall and delete all data | The line above, then `rm -rf ~/.simplevoice`                               |
 
 Releases are signed with the project's own certificate, so macOS keeps Simple Voice's

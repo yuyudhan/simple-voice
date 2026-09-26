@@ -33,5 +33,5 @@ Everything is stored locally in `~/.simplevoice/`:
 
 You can move the database to another folder in Settings → Data; Simple Voice remembers the new
 location. To remove everything, delete the app and its data:
-`rm -rf "/Applications/Simple Voice.app"` and `rm -rf ~/.simplevoice` (and the folder you moved
+`rm -rf ~/Applications/"Simple Voice.app"` and `rm -rf ~/.simplevoice` (and the folder you moved
 the database to, if any).

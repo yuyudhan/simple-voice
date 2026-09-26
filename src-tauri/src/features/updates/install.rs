@@ -84,7 +84,7 @@ fn abandon(app: &AppHandle, error: AppError) -> AppError {
 }
 
 /// Reached only when the script ends before the app quits: it failed, or it found nothing to
-/// replace (the running build is not the one in /Applications, as under `just dev`).
+/// replace (the running build is not the one in ~/Applications, as under `just dev`).
 fn finish(app: &AppHandle, mut child: Child, log: &Path) {
     let error = match child.wait() {
         Ok(exit) if exit.success() => None,

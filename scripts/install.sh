@@ -8,11 +8,16 @@
 # script before anything runs. Options go after `bash -s --`.
 #
 # It installs from the GitHub release: it checks the zip against the release's .sha256 and the
-# bundle's code signature before it replaces /Applications/Simple Voice.app, quitting the app
+# bundle's code signature before it replaces ~/Applications/Simple Voice.app, quitting the app
 # first and reopening it afterwards when it was running.
 #
-# The app's Install button runs this same pipe without a terminal; sudo then asks for the
-# administrator password in a dialog, and a failure after the app quit reopens the old app.
+# The app goes in the user's own Applications folder, so installing and updating never need an
+# administrator password; Spotlight and Launchpad index that folder like /Applications. A copy
+# left in /Applications by an older script is removed when the user may delete it, so only one
+# Simple Voice remains.
+#
+# The app's Install button runs this same pipe without a terminal; a failure after the app quit
+# reopens the old app.
 #
 # Options:
 #   --version X.Y.Z    Install that release instead of the latest.
@@ -20,8 +25,11 @@ set -euo pipefail
 
 repo="yuyudhan/simple-voice"
 bundle_id="dev.yuyudhan.simplevoice"
-app="/Applications/Simple Voice.app"
-executable="${app}/Contents/MacOS/simple-voice"
+apps_dir="${HOME}/Applications"
+app="${apps_dir}/Simple Voice.app"
+legacy_app="/Applications/Simple Voice.app"
+# Matches the bundle's executable wherever it is installed.
+executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice"
 
 say() {
     printf 'simple-voice: %s\n' "$*"
@@ -65,7 +73,27 @@ installed_version() {
 }
 
 is_running() {
-    pgrep -f "$executable" >/dev/null 2>&1
+    pgrep -f "$executable_pattern" >/dev/null 2>&1
+}
+
+# The copy to reopen: the new one once it is in place, else the one an older script installed.
+current_app() {
+    if [ -d "$app" ]; then
+        echo "$app"
+    elif [ -d "$legacy_app" ]; then
+        echo "$legacy_app"
+    fi
+}
+
+# Deleting an item needs write access to it and to its folder; standard users usually have
+# neither for /Applications, so the old copy then stays and the user is told.
+remove_legacy_app() {
+    [ -e "$legacy_app" ] || return 0
+    if [ -w /Applications ] && [ -w "$legacy_app" ] && rm -rf "$legacy_app" 2>/dev/null; then
+        say "removed the old copy in /Applications"
+    else
+        say "an old copy remains in ${legacy_app}; an administrator can delete it"
+    fi
 }
 
 quit_app() {
@@ -108,49 +136,34 @@ install_release() {
     codesign --verify --deep --strict "$new" 2>/dev/null ||
         fail "the downloaded app's code signature is invalid; nothing was installed"
 
-    sudo=""
-    if [ ! -w /Applications ] || { [ -e "$app" ] && [ ! -w "$app" ]; }; then
-        say "writing to /Applications needs an administrator password"
-        sudo="sudo"
-        if [ -n "${SUDO_ASKPASS:-}" ]; then
-            sudo="sudo -A"
-        fi
-        # Ask before quitting the app, so a cancelled prompt leaves it running.
-        $sudo -v || fail "no administrator password; nothing was installed"
-    fi
-
     if is_running; then
         quit_app
     fi
 
-    # Stage beside the destination so a failed copy never leaves /Applications without the app.
-    staged="/Applications/.Simple Voice.app.installing"
-    $sudo rm -rf "$staged"
-    $sudo ditto "$new" "$staged"
-    $sudo rm -rf "$app"
-    $sudo mv "$staged" "$app"
+    mkdir -p "$apps_dir"
+    # Stage beside the destination so a failed copy never leaves the folder without the app.
+    staged="${apps_dir}/.Simple Voice.app.installing"
+    rm -rf "$staged"
+    ditto "$new" "$staged"
+    rm -rf "$app"
+    mv "$staged" "$app"
     # Releases are not notarized; clearing the flag is the same as approving the app once in
     # System Settings.
-    $sudo xattr -dr com.apple.quarantine "$app" 2>/dev/null || true
+    xattr -dr com.apple.quarantine "$app" 2>/dev/null || true
 
-    say "installed Simple Voice ${version} in /Applications"
-}
-
-write_askpass() {
-    cat >"$1" <<'EOF'
-#!/bin/sh
-exec /usr/bin/osascript \
-    -e 'text returned of (display dialog "Simple Voice needs an administrator password to install the update." default answer "" with hidden answer with title "Simple Voice" with icon caution)'
-EOF
-    chmod 700 "$1"
+    say "installed Simple Voice ${version} in ${apps_dir}"
+    remove_legacy_app
 }
 
 cleanup() {
     code=$?
     rm -rf "$work"
     # A failure after the app quit must not leave the user without it.
-    if [ "$code" -ne 0 ] && $was_running && ! is_running && [ -d "$app" ]; then
-        open "$app" || true
+    if [ "$code" -ne 0 ] && $was_running && ! is_running; then
+        reopen=$(current_app)
+        if [ -n "$reopen" ]; then
+            open "$reopen" || true
+        fi
     fi
 }
 
@@ -184,12 +197,6 @@ main() {
     trap cleanup EXIT
     trap 'exit 130' INT TERM
 
-    # No terminal means the app started this; sudo then asks in a dialog.
-    if ! (: </dev/tty) 2>/dev/null; then
-        write_askpass "${work}/askpass"
-        export SUDO_ASKPASS="${work}/askpass"
-    fi
-
     if [ -z "$version" ]; then
         version=$(latest_version)
     fi
@@ -198,7 +205,7 @@ main() {
     if $was_running && ! is_running; then
         open "$app"
     elif ! is_running; then
-        say "open Simple Voice from Applications"
+        say "open Simple Voice from Spotlight or ${apps_dir}"
     fi
 
     cat <<'EOF'

@@ -3,7 +3,7 @@
 # Getting started
 
 Install Simple Voice with the install script as described in the
-[README](../README.md#install), then open it from Applications or Spotlight.
+[README](../README.md#install), then open it from Spotlight or `~/Applications`.
 
 ## Permissions
 
@@ -36,8 +36,8 @@ curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/ins
 
 It installs straight from the GitHub release, checks the download's checksum and code
 signature, quits Simple Voice
-while it updates and reopens it afterwards. When `/Applications` needs an administrator password,
-a dialog asks for it before the app quits. If the update fails, the banner says why and the full
+while it updates and reopens it afterwards. It installs into `~/Applications`, so no
+administrator password is needed. If the update fails, the banner says why and the full
 output is in `~/.simplevoice/update.log`; running the command above in Terminal does the same
 update. Dismissing the banner skips that version only. Settings → System → Updates shows the
 running version, checks on demand, installs the update, and turns the daily check off.

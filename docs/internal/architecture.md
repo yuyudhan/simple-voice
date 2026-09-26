@@ -426,9 +426,9 @@ both with an Install update button.
 `install_update` runs `curl -fsSL <repo>/releases/latest/download/install.sh | bash` in its own
 process group with stdin closed and stdout and stderr in `~/.simplevoice/update.log`, so the
 script survives the app quitting under it. The script downloads the release zip, verifies its
-checksum and code signature, quits the app, replaces it and reopens it. Without a terminal the
-script sets `SUDO_ASKPASS` to an `osascript` password dialog, asks for the password before
-quitting the app, and reopens the old app when it fails after
-quitting it. If the script exits while the app still runs, the slice clears `installing` and, on
+checksum and code signature, quits the app, replaces `~/Applications/Simple Voice.app` and reopens
+it; it never needs an administrator password, removes a copy an older script left in
+`/Applications` when the user may delete it, and reopens the old app when it fails after quitting
+it. If the script exits while the app still runs, the slice clears `installing` and, on
 failure, sets `installError` to the script's last `simple-voice:` line (else the last output
 line) plus the log path.
