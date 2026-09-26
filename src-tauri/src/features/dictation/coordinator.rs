@@ -15,6 +15,7 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
 use super::edit::{capture_selection, edit_state, SelectionTask};
+use super::learning;
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
 use crate::features::permissions;
@@ -185,6 +186,8 @@ impl Coordinator {
             },
             Err(error) => return self.fail_start(id, None, &error.to_string()),
         };
+        // Before anything this recording pastes can reach the watched field.
+        learning::prepare(&app, &settings);
 
         let (frontmost, permissions) = tokio::join!(
             tokio::time::timeout(START_PROBE_TIMEOUT, state.engine.frontmost_app()),

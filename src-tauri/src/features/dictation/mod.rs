@@ -1,11 +1,12 @@
 // FilePath: src-tauri/src/features/dictation/mod.rs
 //! Dictation: the recording coordinator, the transcription → formatting → post-processing
-//! pipeline, edit mode (the selected text rewritten by a spoken instruction), and ordered
-//! delivery into the frontmost app.
+//! pipeline, edit mode (the selected text rewritten by a spoken instruction), ordered delivery
+//! into the frontmost app, and learning from the corrections made to pasted text.
 
 mod coordinator;
 mod delivery;
 mod edit;
+mod learning;
 mod llm;
 mod pipeline;
 mod transcription;

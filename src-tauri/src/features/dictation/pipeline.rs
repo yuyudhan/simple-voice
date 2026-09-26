@@ -22,7 +22,7 @@ use super::edit::{self, SelectionTask};
 use super::transcription::{
     discard_audio, keep_audio, transcribe, transcribe_fresh, vocabulary, Audio,
 };
-use super::{elapsed_ms, llm, publish, publish_message, publish_phase};
+use super::{elapsed_ms, learning, llm, publish, publish_message, publish_phase};
 use crate::events;
 use crate::features::history::remove_audio;
 use crate::state::AppState;
@@ -176,8 +176,11 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     row.status = status;
     row.final_text = final_text;
     let shown = sv_text::preview(&row.final_text);
-    if let Err(error) = db.insert_history(row).await {
-        tracing::error!(%error, "could not save the dictation to history");
+    let watch_edits = delivered == Delivery::Pasted && learning::enabled(&settings);
+    match db.insert_history(row).await {
+        Ok(entry) if watch_edits => learning::watch(&app, entry.id, pasted),
+        Ok(_) => {}
+        Err(error) => tracing::error!(%error, "could not save the dictation to history"),
     }
     discard_audio(&audio).await;
     events::history_changed(&app);

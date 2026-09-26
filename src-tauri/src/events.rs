@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter};
 
 pub(crate) const DICTATION_STATE: &str = "dictation-state";
 pub(crate) const HISTORY_CHANGED: &str = "history-changed";
+pub(crate) const DICTIONARY_CHANGED: &str = "dictionary-changed";
 pub(crate) const SETTINGS_CHANGED: &str = "settings-changed";
 pub(crate) const MODEL_PROGRESS: &str = "model-progress";
 pub(crate) const PERMISSIONS_CHANGED: &str = "permissions-changed";
@@ -27,4 +28,8 @@ pub(crate) fn emit_to<S: Serialize + Clone>(app: &AppHandle, label: &str, event:
 
 pub(crate) fn history_changed(app: &AppHandle) {
     emit(app, HISTORY_CHANGED, ());
+}
+
+pub(crate) fn dictionary_changed(app: &AppHandle) {
+    emit(app, DICTIONARY_CHANGED, ());
 }
