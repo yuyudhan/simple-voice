@@ -131,6 +131,8 @@ span.sv-chip {
     border: 1px solid var(--border);
     border-radius: var(--radius-control);
     background: var(--panel);
+    max-height: 240px;
+    overflow-y: auto;
 }
 
 .sv-langs__result {

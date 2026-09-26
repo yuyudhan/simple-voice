@@ -9,7 +9,7 @@ use std::time::Instant;
 use serde::Serialize;
 use sv_audio::{encode_wav, Cue, Recording};
 use sv_cloud::ChatEndpoint;
-use sv_domain::models::GROQ_WHISPER;
+use sv_domain::models::{APPLE_INTELLIGENCE, GROQ_WHISPER};
 use sv_domain::{
     AppError, AppResult, DictationPhase, DictationState, HistoryEntry, HistoryStatus, NewHistory,
     PostProcessing, Settings,
@@ -96,6 +96,7 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
         final_text: String::new(),
         error: None,
         model: settings.transcription_model.clone(),
+        format_model: None,
         language: None,
         style: settings.style,
         audio_ms: recording.duration_ms,
@@ -138,7 +139,10 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
     }
     let polish = post_process(&state, &settings, &vocabulary.terms, &formatted.text).await;
     let (final_text, mut status, note) = match polish {
-        Polish::Polished(text) => (text, HistoryStatus::Pasted, None),
+        Polish::Polished(text) => {
+            row.format_model = formatting_model(&settings);
+            (text, HistoryStatus::Pasted, None)
+        }
         Polish::NotRun => (formatted.text, HistoryStatus::Pasted, None),
         Polish::Unformatted(reason) => {
             tracing::info!(reason, "post-processing skipped; pasting formatted text");
@@ -220,6 +224,7 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         final_text: entry.text,
         error: None,
         model: settings.transcription_model.clone(),
+        format_model: None,
         language: entry.language,
         style: settings.style,
         audio_ms: entry.audio_ms,
@@ -253,7 +258,10 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     let formatted = sv_text::format(&heard.text, &vocabulary, settings.style);
     let polish = post_process(&state, &settings, &vocabulary.terms, &formatted.text).await;
     let final_text = match polish {
-        Polish::Polished(text) => text,
+        Polish::Polished(text) => {
+            row.format_model = formatting_model(&settings);
+            text
+        }
         Polish::NotRun | Polish::Unformatted(_) => formatted.text,
     };
     // A retry only copies: the app the dictation was meant for is no longer focused.
@@ -366,6 +374,16 @@ fn will_post_process(settings: &Settings, text: &str) -> bool {
     settings.post_processing != PostProcessing::Off
         && !text.trim().is_empty()
         && sv_text::should_skip_polish(text).is_none()
+}
+
+/// The model id a successful formatting pass ran on, as recorded in history.
+fn formatting_model(settings: &Settings) -> Option<String> {
+    match settings.post_processing {
+        PostProcessing::Off => None,
+        PostProcessing::Groq => Some(settings.groq_formatting_model.clone()),
+        PostProcessing::Custom => Some(settings.custom_model.trim().to_owned()),
+        PostProcessing::Apple => Some(APPLE_INTELLIGENCE.to_owned()),
+    }
 }
 
 async fn post_process(

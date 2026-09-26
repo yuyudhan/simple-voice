@@ -8,6 +8,7 @@ import {
     parseDayKey,
     pluralize,
 } from "../../lib/format";
+import "./charts.css";
 import "./heatmap.css";
 
 interface Cell {
@@ -87,10 +88,19 @@ export interface StreakHeatmapProps {
 export function StreakHeatmap({ days, currentStreak }: StreakHeatmapProps) {
     const columns = useMemo(() => buildColumns(days, currentStreak), [days, currentStreak]);
     const [hovered, setHovered] = useState<string | null>(null);
-    const activeDays = days.filter((day) => day.dictations > 0).length;
+    const active = days.filter((day) => day.dictations > 0);
+    const activeDays = active.length;
+    const windowWords = active.reduce((sum, day) => sum + day.words, 0);
+    const bestDayWords = active.reduce((best, day) => Math.max(best, day.words), 0);
+    const perActiveDay = activeDays > 0 ? Math.round(windowWords / activeDays) : 0;
     const summary =
         `Daily activity for the last 26 weeks: ` +
         `${String(activeDays)} active ${pluralize(activeDays, "day")}`;
+    const figures = [
+        { label: "Active days", value: activeDays, unit: pluralize(activeDays, "day") },
+        { label: "Best day", value: bestDayWords, unit: pluralize(bestDayWords, "word") },
+        { label: "Per active day", value: perActiveDay, unit: pluralize(perActiveDay, "word") },
+    ];
 
     return (
         <div className="heatmap">
@@ -145,7 +155,7 @@ export function StreakHeatmap({ days, currentStreak }: StreakHeatmapProps) {
                                     }}
                                 >
                                     {hovered === cell.day.date && (
-                                        <span className={`heatmap__tooltip${edge}`}>
+                                        <span className={`chart-tooltip${edge}`}>
                                             <strong>
                                                 {cell.day.words > 0
                                                     ? `${formatNumber(cell.day.words)} ` +
@@ -161,6 +171,17 @@ export function StreakHeatmap({ days, currentStreak }: StreakHeatmapProps) {
                     </div>
                 ))}
             </div>
+            <dl className="heatmap__summary">
+                {figures.map((figure) => (
+                    <div key={figure.label}>
+                        <dt className="caps-label">{figure.label}</dt>
+                        <dd>
+                            <span className="readout">{formatNumber(figure.value)}</span>{" "}
+                            {figure.unit}
+                        </dd>
+                    </div>
+                ))}
+            </dl>
             <div className="heatmap__legend" aria-hidden="true">
                 <span>Less</span>
                 {[0, 1, 2, 3, 4].map((level) => (

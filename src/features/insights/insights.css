@@ -30,6 +30,10 @@
     grid-template-columns: minmax(0, 1fr);
 }
 
+.insights-row--pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .insights-card {
     display: flex;
     flex-direction: column;

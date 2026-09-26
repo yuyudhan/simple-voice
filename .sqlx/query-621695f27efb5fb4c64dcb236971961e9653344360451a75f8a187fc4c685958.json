@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n            id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n            raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n            error AS \"error?: String\", model AS \"model!: String\",\n            language AS \"language?: String\", style AS \"style!: String\",\n            audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n            word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n            words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n            bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n            audio_path AS \"audio_path?: String\"\n           FROM history WHERE id = ?1",
+  "query": "SELECT\n            id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n            raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n            error AS \"error?: String\", model AS \"model!: String\",\n            format_model AS \"format_model?: String\",\n            language AS \"language?: String\", style AS \"style!: String\",\n            audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n            word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n            words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n            bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n            audio_path AS \"audio_path?: String\"\n           FROM history WHERE id = ?1",
   "describe": {
     "columns": [
       {
@@ -81,8 +81,19 @@
         }
       },
       {
-        "name": "language?: String",
+        "name": "format_model?: String",
         "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "format_model"
+          }
+        }
+      },
+      {
+        "name": "language?: String",
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "style!: String",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "audio_ms!: i64",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "latency_ms!: i64",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "word_count!: i64",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -137,7 +148,7 @@
       },
       {
         "name": "dictionary_fixes!: i64",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -148,7 +159,7 @@
       },
       {
         "name": "words_corrected!: i64",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "app_name?: String",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -170,7 +181,7 @@
       },
       {
         "name": "bundle_id?: String",
-        "ordinal": 15,
+        "ordinal": 16,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -181,7 +192,7 @@
       },
       {
         "name": "app_category!: String",
-        "ordinal": 16,
+        "ordinal": 17,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -192,7 +203,7 @@
       },
       {
         "name": "audio_path?: String",
-        "ordinal": 17,
+        "ordinal": 18,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -214,6 +225,7 @@
       true,
       false,
       true,
+      true,
       false,
       false,
       false,
@@ -226,5 +238,5 @@
       true
     ]
   },
-  "hash": "f4f5ef4eb31891b6ea1896e3db1069897bf5f995c1976ab711f12401fa04273d"
+  "hash": "621695f27efb5fb4c64dcb236971961e9653344360451a75f8a187fc4c685958"
 }

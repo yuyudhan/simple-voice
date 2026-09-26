@@ -1,0 +1,121 @@
+/* FilePath: src/features/insights/charts.css */
+
+/* Hover readout shared by the daily heatmap and the time-of-day chart. */
+.chart-tooltip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 7px 10px;
+    border-radius: var(--radius-control);
+    background: var(--ink);
+    color: var(--on-ink);
+    font-size: 11.5px;
+    white-space: nowrap;
+    box-shadow: var(--shadow-overlay);
+    transform: translateX(-50%);
+    pointer-events: none;
+    animation: sv-fade-in 120ms var(--ease);
+}
+
+.chart-tooltip.is-start {
+    left: 0;
+    transform: none;
+}
+
+.chart-tooltip.is-end {
+    left: auto;
+    right: 0;
+    transform: none;
+}
+
+.chart-tooltip strong {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip span {
+    opacity: 0.7;
+}
+
+/* Time of day: one bar per local hour on a hairline baseline; only the peak is lit. */
+.hour-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: auto;
+}
+
+.hour-chart__bars {
+    display: grid;
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+    align-items: end;
+    gap: 3px;
+    height: 120px;
+    border-bottom: 1px solid var(--border);
+}
+
+.hour-chart__slot {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    height: 100%;
+}
+
+.hour-chart__bar {
+    display: block;
+    width: 100%;
+    border-radius: 2px 2px 0 0;
+    background: var(--faint);
+    transition: height 400ms var(--ease);
+}
+
+.hour-chart__bar.is-empty {
+    background: var(--surface-hover);
+}
+
+.hour-chart__bar.is-peak {
+    background: var(--accent);
+}
+
+.hour-chart__slot:hover .hour-chart__bar {
+    outline: 1px solid var(--text);
+    outline-offset: 1px;
+}
+
+/* Four equal columns, six hours each, so every label sits under the start of its hour. */
+.hour-chart__axis {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Personal bests: stacked readouts, each with the day the record was set. */
+.bests-list {
+    margin: 0;
+}
+
+.bests-list__value {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.bests-list__date {
+    margin-left: auto;
+    color: var(--faint);
+    font-size: 11.5px;
+}

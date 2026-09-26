@@ -32,6 +32,30 @@ pub struct AppUsage {
     pub words: i64,
 }
 
+/// Dictation totals for one local hour of the day, summed over all history.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HourActivity {
+    /// 0..=23, local time.
+    pub hour: i64,
+    pub words: i64,
+    pub dictations: i64,
+}
+
+/// All-time records. When two days tie, the earlier one holds the record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalBests {
+    /// Most words in a single dictation.
+    pub longest_dictation_words: i64,
+    /// Most words in one local day; the date is `YYYY-MM-DD`, `None` without history.
+    pub best_day_words: i64,
+    pub best_day_date: Option<String>,
+    /// Most dictations in one local day.
+    pub busiest_day_dictations: i64,
+    pub busiest_day_date: Option<String>,
+}
+
 /// Only dictations that produced text (every status except `failed`) count.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,4 +80,7 @@ pub struct Insights {
     pub categories: Vec<CategoryUsage>,
     /// Top 5 apps by words.
     pub top_apps: Vec<AppUsage>,
+    /// 24 entries, hour 0 first, zero hours included.
+    pub hours: Vec<HourActivity>,
+    pub bests: PersonalBests,
 }

@@ -66,6 +66,9 @@ export interface HistoryEntry {
     text: string;
     error: string | null;
     model: string;
+    modelName: string;
+    /** Set only when a formatting pass produced the pasted text. */
+    formatModelName: string | null;
     language: string | null;
     style: Style;
     audioMs: number;
@@ -112,6 +115,23 @@ export interface AppUsage {
     words: number;
 }
 
+export interface HourActivity {
+    /** 0..23, local time. */
+    hour: number;
+    words: number;
+    dictations: number;
+}
+
+/** All-time records; on a tie the earlier day holds the record. */
+export interface PersonalBests {
+    longestDictationWords: number;
+    bestDayWords: number;
+    /** `YYYY-MM-DD`, null without history. */
+    bestDayDate: string | null;
+    busiestDayDictations: number;
+    busiestDayDate: string | null;
+}
+
 export interface Insights {
     totalWords: number;
     totalDictations: number;
@@ -130,6 +150,9 @@ export interface Insights {
     days: DayActivity[];
     categories: CategoryUsage[];
     topApps: AppUsage[];
+    /** 24 entries, hour 0 first, zero hours included. */
+    hours: HourActivity[];
+    bests: PersonalBests;
 }
 
 export type ModelKind = "transcription" | "post_processing";

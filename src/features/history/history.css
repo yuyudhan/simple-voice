@@ -159,14 +159,47 @@
     min-width: 0;
 }
 
+/* The meta line runs to the row's edge at rest; on hover it yields room to the actions, which
+   slides the model fine print left instead of hiding it under them. */
 .history-row__meta {
     display: flex;
     align-items: center;
     gap: 8px;
     min-height: 20px;
-    padding-right: 104px;
     color: var(--muted);
     font-size: 12px;
+    transition: padding-right var(--dur) var(--ease);
+}
+
+.history-row:hover .history-row__meta,
+.history-row:focus-within .history-row__meta {
+    padding-right: 104px;
+}
+
+.history-row__models {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    padding-left: 8px;
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.history-row__model {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.history-row__model svg {
+    width: 11px;
+    height: 11px;
+    opacity: 0.8;
 }
 
 .history-row__app {

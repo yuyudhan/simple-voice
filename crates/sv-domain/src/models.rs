@@ -9,6 +9,10 @@ pub const PARAKEET_TDT_V2: &str = "parakeet-tdt-v2";
 pub const PARAKEET_FLASH: &str = "parakeet-flash";
 pub const APPLE_SPEECH: &str = "apple-speech";
 pub const APPLE_INTELLIGENCE: &str = "apple-intelligence";
+/// The Groq post-processing entry (the transcription model is `groq-whisper`).
+pub const GROQ_LLM: &str = "groq";
+/// The custom OpenAI-compatible post-processing entry.
+pub const CUSTOM_LLM: &str = "custom";
 
 /// Transcription model ids the helper handles (everything except Groq).
 pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
@@ -17,6 +21,22 @@ pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
     PARAKEET_FLASH,
     APPLE_SPEECH,
 ];
+
+/// Display name of a catalog model id. History records a Groq or custom formatting pass by the
+/// provider's own model id (e.g. `qwen/qwen3.8-27b`), which has no entry here.
+pub fn model_name(id: &str) -> Option<&'static str> {
+    match id {
+        GROQ_WHISPER => Some("Groq Whisper"),
+        PARAKEET_TDT_V3 => Some("Parakeet TDT v3"),
+        PARAKEET_TDT_V2 => Some("Parakeet TDT v2"),
+        PARAKEET_FLASH => Some("Flash Dictation (Beta)"),
+        APPLE_SPEECH => Some("Apple Speech"),
+        APPLE_INTELLIGENCE => Some("Apple Intelligence"),
+        GROQ_LLM => Some("Groq"),
+        CUSTOM_LLM => Some("Custom"),
+        _ => None,
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

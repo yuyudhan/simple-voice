@@ -1,6 +1,6 @@
 // FilePath: src/features/history/HistoryRow.tsx
 import { useEffect, useRef, useState } from "react";
-import { Copy, RotateCcw, Trash2 } from "lucide-react";
+import { AudioLines, Copy, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import type { HistoryEntry } from "../../lib/api";
 import { CATEGORY_META } from "../../lib/categories";
 import { formatTime } from "../../lib/format";
@@ -27,6 +27,25 @@ function StatusBadge({ entry }: { entry: HistoryEntry }) {
         case "not_pasted":
             return <Badge tone="warning">Not pasted</Badge>;
     }
+}
+
+function ModelsUsed({ entry }: { entry: HistoryEntry }) {
+    const formatter = entry.formatModelName;
+    return (
+        <span className="history-row__models">
+            <span className="history-row__model" title={`Transcribed with ${entry.modelName}`}>
+                <AudioLines aria-hidden="true" />
+                {entry.modelName}
+            </span>
+            {formatter && (
+                <span className="history-row__model" title={`Formatted with ${formatter}`}>
+                    <Sparkles aria-hidden="true" />
+                    {/* Provider ids carry a vendor prefix ("qwen/…"); the tooltip keeps it. */}
+                    {formatter.slice(formatter.lastIndexOf("/") + 1)}
+                </span>
+            )}
+        </span>
+    );
 }
 
 export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: HistoryRowProps) {
@@ -62,6 +81,7 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                         {entry.appName ?? category.label}
                     </span>
                     <StatusBadge entry={entry} />
+                    <ModelsUsed entry={entry} />
                 </div>
 
                 {text.trim().length > 0 ? (

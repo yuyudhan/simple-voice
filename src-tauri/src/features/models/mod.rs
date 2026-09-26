@@ -5,7 +5,7 @@ mod catalog;
 
 use std::time::Duration;
 
-use sv_domain::models::{APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS};
+use sv_domain::models::{model_name, APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS};
 use sv_domain::{
     AppError, AppResult, ModelInfo, ModelProgress, ModelProgressStatus, ModelStatus, Settings,
 };
@@ -32,7 +32,7 @@ async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry)
         id: entry.id.to_owned(),
         kind: entry.kind,
         provider: entry.provider,
-        name: entry.name.to_owned(),
+        name: model_name(entry.id).unwrap_or(entry.id).to_owned(),
         subtitle: entry.subtitle.to_owned(),
         speed: entry.speed,
         accuracy: entry.accuracy,
@@ -201,4 +201,20 @@ fn progress(
         message,
     };
     events::emit(app, events::MODEL_PROGRESS, payload);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_catalog_entry_has_a_display_name() {
+        for entry in CATALOG {
+            assert!(
+                model_name(entry.id).is_some(),
+                "{} has no display name",
+                entry.id
+            );
+        }
+    }
 }

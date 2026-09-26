@@ -126,6 +126,7 @@
 
 /* The status block: an on-air indicator above the hold and toggle shortcut hints. */
 .sv-status {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -133,6 +134,23 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     background: var(--panel);
+}
+
+/* Shortcuts are changed often, so the card offers a jump to them; hidden until hover or focus. */
+.sv-status__settings {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    opacity: 0;
+    transition:
+        opacity var(--dur) var(--ease),
+        background-color var(--dur) var(--ease),
+        color var(--dur) var(--ease);
+}
+
+.sv-status:hover .sv-status__settings,
+.sv-status:focus-within .sv-status__settings {
+    opacity: 1;
 }
 
 .sv-status__line {
