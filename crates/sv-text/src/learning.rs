@@ -85,10 +85,20 @@ const SHOTS: [Shot; 3] = [
     },
 ];
 
+/// The text without the zero-width characters web editors insert around an edit (Gmail puts a
+/// zero-width space before retyped words), which would otherwise end up inside a learned word.
+/// Zero-width joiners stay: Devanagari spelling depends on them.
+pub fn without_invisible(text: &str) -> String {
+    text.chars()
+        .filter(|c| !matches!(c, '\u{200B}' | '\u{2060}' | '\u{FEFF}'))
+        .collect()
+}
+
 /// The word-level fixes between the pasted text and what it read after the user edited it, at
 /// most [`MAX_CORRECTIONS`]. Empty when either text is blank or too long, or when so many words
 /// changed that the edit is a rewrite rather than a correction.
 pub fn corrections(pasted: &str, edited: &str) -> Vec<Correction> {
+    let (pasted, edited) = (without_invisible(pasted), without_invisible(edited));
     let raw_before: Vec<&str> = pasted.split_whitespace().collect();
     let raw_after: Vec<&str> = edited.split_whitespace().collect();
     if raw_before.is_empty()
@@ -437,6 +447,18 @@ mod tests {
     #[test]
     fn a_numeric_replacement_is_ignored() {
         assert!(corrections("meet at twenty past five", "meet at 20 past five").is_empty());
+    }
+
+    #[test]
+    fn zero_width_spaces_never_reach_a_learned_word() {
+        assert_eq!(
+            pairs(
+                "I really like your specs",
+                "I really like your \u{200B}Specks"
+            ),
+            vec![pair("specs", "Specks")]
+        );
+        assert!(corrections("see you soon", "see you \u{200B}soon").is_empty());
     }
 
     #[test]

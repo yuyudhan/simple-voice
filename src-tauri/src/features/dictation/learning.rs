@@ -56,6 +56,7 @@ async fn learn(app: &AppHandle, history_id: i64, pasted: &str) {
         tracing::debug!(reason = ?watch.reason, "no corrections read");
         return;
     };
+    let edited = sv_text::without_invisible(&edited);
     let edited = edited.trim();
     if edited.is_empty() || edited == pasted.trim() {
         return;

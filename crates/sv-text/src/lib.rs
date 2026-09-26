@@ -17,8 +17,8 @@ pub mod vocabulary;
 pub use edit::{accept_edit, edit_max_tokens, edit_prompt, edit_timeout, EDIT_MAX_CHARS};
 pub use formatting::{format, Formatted};
 pub use learning::{
-    accept_learning, corrections, learning_prompt, Correction, LEARNING_MAX_TOKENS,
-    LEARNING_TIMEOUT, MAX_CORRECTIONS,
+    accept_learning, corrections, learning_prompt, without_invisible, Correction,
+    LEARNING_MAX_TOKENS, LEARNING_TIMEOUT, MAX_CORRECTIONS,
 };
 pub use polish::{
     accept_polish, polish_prompt, polish_timeout, should_skip_polish, PolishOutcome, PolishPrompt,

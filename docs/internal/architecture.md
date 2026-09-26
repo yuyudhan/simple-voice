@@ -242,6 +242,7 @@ pub struct Correction { pub before: String, pub after: String, pub context: Stri
 pub const MAX_CORRECTIONS: usize = 8;
 pub const LEARNING_MAX_TOKENS: u32 = 64;
 pub const LEARNING_TIMEOUT: Duration = Duration::from_secs(10);
+pub fn without_invisible(text: &str) -> String; // drops U+200B, U+2060, U+FEFF (Gmail); keeps ZWJ/ZWNJ
 pub fn corrections(pasted: &str, edited: &str) -> Vec<Correction>;
     // substitutions of ≤ 3 words per side; none for punctuation-only changes, pure inserts or
     // deletes, or a rewrite (more than max(4, half the pasted words) changed)
