@@ -57,6 +57,9 @@ pub struct HistoryEntry {
     pub text: String,
     /// The selected text an edit replaced; `None` for a dictation.
     pub source_text: Option<String>,
+    /// What the pasted text read after the user corrected it in the target app; `None` when it
+    /// was never corrected.
+    pub edited_text: Option<String>,
     pub error: Option<String>,
     /// Transcription model id, e.g. `groq-whisper`.
     pub model: String,

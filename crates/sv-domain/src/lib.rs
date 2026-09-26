@@ -19,7 +19,7 @@ pub mod updates;
 
 pub use apps::{categorize, AppCategory};
 pub use dictation::{DictationPhase, DictationState, ModelProgress, ModelProgressStatus};
-pub use dictionary::{DictionaryEntry, ImportSummary};
+pub use dictionary::{DictionaryEntry, DictionarySource, ImportSummary};
 pub use error::{AppError, AppResult};
 pub use history::{HistoryEntry, HistoryStatus, NewHistory};
 pub use insights::{

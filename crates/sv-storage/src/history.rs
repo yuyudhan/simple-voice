@@ -21,6 +21,7 @@ struct HistoryRow {
     raw_text: String,
     final_text: String,
     source_text: Option<String>,
+    edited_text: Option<String>,
     error: Option<String>,
     model: String,
     format_model: Option<String>,
@@ -54,6 +55,7 @@ impl HistoryRow {
             raw_text: self.raw_text,
             text: self.final_text,
             source_text: self.source_text,
+            edited_text: self.edited_text,
             error: self.error,
             model_name: display_name(&self.model),
             format_model_name: self.format_model.as_deref().map(display_name),
@@ -198,6 +200,23 @@ impl Db {
         fetch_entry(&inner.pool, id).await
     }
 
+    /// Records what the pasted text read after the user corrected it in the target app.
+    pub async fn set_history_edited_text(&self, id: i64, text: &str) -> AppResult<()> {
+        let inner = self.read().await;
+        let updated = sqlx::query!(
+            "UPDATE history SET edited_text = ?1 WHERE id = ?2",
+            text,
+            id
+        )
+        .execute(&inner.pool)
+        .await
+        .map_err(AppError::database)?;
+        if updated.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("Dictation {id}")));
+        }
+        Ok(())
+    }
+
     pub async fn history_audio_path(&self, id: i64) -> AppResult<Option<String>> {
         let inner = self.read().await;
         let path = sqlx::query_scalar!(
@@ -231,7 +250,7 @@ impl Db {
             r#"SELECT
                 id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
                 raw_text AS "raw_text!: String", final_text AS "final_text!: String",
-                source_text AS "source_text?: String",
+                source_text AS "source_text?: String", edited_text AS "edited_text?: String",
                 error AS "error?: String", model AS "model!: String",
                 format_model AS "format_model?: String",
                 language AS "language?: String", style AS "style!: String",
@@ -305,7 +324,7 @@ async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntr
         r#"SELECT
             id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
             raw_text AS "raw_text!: String", final_text AS "final_text!: String",
-            source_text AS "source_text?: String",
+            source_text AS "source_text?: String", edited_text AS "edited_text?: String",
             error AS "error?: String", model AS "model!: String",
             format_model AS "format_model?: String",
             language AS "language?: String", style AS "style!: String",
@@ -627,5 +646,26 @@ mod tests {
         db.insert_history(entry("no audio")).await.unwrap();
         assert_eq!(db.clear_history().await.unwrap(), vec!["/tmp/two.wav"]);
         assert!(db.list_history(None, 50, None).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn edited_text_is_stored_and_returned() {
+        let (_dir, db) = open().await;
+        let stored = db
+            .insert_history(entry("Whisper Flow is great"))
+            .await
+            .unwrap();
+        assert_eq!(stored.edited_text, None);
+
+        db.set_history_edited_text(stored.id, "Wispr Flow is great")
+            .await
+            .unwrap();
+        let found = db.history_entry(stored.id).await.unwrap().unwrap();
+        assert_eq!(found.edited_text.as_deref(), Some("Wispr Flow is great"));
+        assert_eq!(found.text, "Whisper Flow is great");
+        assert_eq!(db.list_history(None, 10, None).await.unwrap(), vec![found]);
+
+        let missing = db.set_history_edited_text(stored.id + 1, "x").await;
+        assert!(matches!(missing, Err(AppError::NotFound(_))));
     }
 }

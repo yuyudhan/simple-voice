@@ -185,6 +185,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         check_for_updates,
         skipped_update,
         dictionary_sort,
+        learn_from_edits,
     } = patch;
 
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
@@ -222,6 +223,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.check_for_updates, check_for_updates);
     set_trimmed(&mut settings.skipped_update, skipped_update);
     set(&mut settings.dictionary_sort, dictionary_sort);
+    set(&mut settings.learn_from_edits, learn_from_edits);
 }
 
 fn set<T>(field: &mut T, value: Option<T>) {
@@ -397,6 +399,7 @@ mod tests {
             microphone: Some(Some("MacBook Pro Microphone".to_owned())),
             languages: Some(vec!["en".to_owned()]),
             max_recording_seconds: Some(600),
+            learn_from_edits: Some(true),
             ..SettingsPatch::default()
         };
         let returned = db.update_settings(patch).await.unwrap();
@@ -412,6 +415,7 @@ mod tests {
         assert_eq!(stored.microphone.as_deref(), Some("MacBook Pro Microphone"));
         assert_eq!(stored.languages, vec!["en"]);
         assert_eq!(stored.max_recording_seconds, 600);
+        assert!(stored.learn_from_edits);
 
         let reset = SettingsPatch {
             microphone: Some(None),

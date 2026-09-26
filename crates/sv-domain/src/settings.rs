@@ -113,6 +113,8 @@ pub struct Settings {
     /// Release version whose banner the user dismissed; empty = none. A newer one shows again.
     pub skipped_update: String,
     pub dictionary_sort: DictionarySort,
+    /// Watch the text field after a paste and add the words the user corrects to the dictionary.
+    pub learn_from_edits: bool,
     /// Derived: directory currently holding the database.
     pub database_dir: String,
 }
@@ -150,6 +152,8 @@ impl Default for Settings {
             check_for_updates: true,
             skipped_update: String::new(),
             dictionary_sort: DictionarySort::NameAsc,
+            // Off by default: learning reads the focused text field after every paste.
+            learn_from_edits: false,
             database_dir: String::new(),
         }
     }
@@ -187,6 +191,7 @@ pub struct SettingsPatch {
     pub check_for_updates: Option<bool>,
     pub skipped_update: Option<String>,
     pub dictionary_sort: Option<DictionarySort>,
+    pub learn_from_edits: Option<bool>,
 }
 
 /// Distinguishes an absent key (`None`) from an explicit `null` (`Some(None)`).

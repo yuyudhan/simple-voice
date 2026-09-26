@@ -4,6 +4,33 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Who added a dictionary row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DictionarySource {
+    /// Typed, imported or edited by the user.
+    Manual,
+    /// Learned from a correction the user made after a paste.
+    Learned,
+}
+
+impl DictionarySource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Manual => "manual",
+            Self::Learned => "learned",
+        }
+    }
+
+    /// Unknown values read as `Manual`: a row nobody can attribute is treated as the user's own.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "learned" => Self::Learned,
+            _ => Self::Manual,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DictionaryEntry {
@@ -12,6 +39,7 @@ pub struct DictionaryEntry {
     pub replacement: Option<String>,
     /// Unix milliseconds.
     pub created_at: i64,
+    pub source: DictionarySource,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

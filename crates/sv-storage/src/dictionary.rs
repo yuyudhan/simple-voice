@@ -1,27 +1,52 @@
 // FilePath: crates/sv-storage/src/dictionary.rs
-//! Personal dictionary: plain words that bias recognition and `heard -> written` rules.
+//! Personal dictionary: plain words that bias recognition and `heard -> written` rules. Words
+//! learned from corrections are plain words marked `learned`; deleting one records it in
+//! `dictionary_rejected` so it is never learned again.
 
-use sqlx::SqlitePool;
-use sv_domain::{AppError, AppResult, DictionaryEntry, ImportSummary};
+use sqlx::{Executor, Sqlite};
+use sv_domain::{AppError, AppResult, DictionaryEntry, DictionarySource, ImportSummary};
 
 use crate::db::Db;
 
 const MAX_PHRASE_CHARS: usize = 100;
 const RULE_ARROW: &str = "->";
 
+#[derive(Debug)]
+struct DictionaryRow {
+    id: i64,
+    phrase: String,
+    replacement: Option<String>,
+    created_at: i64,
+    source: String,
+}
+
+impl DictionaryRow {
+    fn into_entry(self) -> DictionaryEntry {
+        DictionaryEntry {
+            id: self.id,
+            phrase: self.phrase,
+            replacement: self.replacement,
+            created_at: self.created_at,
+            source: DictionarySource::parse(&self.source),
+        }
+    }
+}
+
 impl Db {
     /// Every entry, ordered by phrase (case-insensitive).
     pub async fn dictionary(&self) -> AppResult<Vec<DictionaryEntry>> {
         let inner = self.read().await;
-        sqlx::query_as!(
-            DictionaryEntry,
+        let rows = sqlx::query_as!(
+            DictionaryRow,
             r#"SELECT id AS "id!: i64", phrase AS "phrase!: String",
-                      replacement AS "replacement?: String", created_at AS "created_at!: i64"
+                      replacement AS "replacement?: String", created_at AS "created_at!: i64",
+                      source AS "source!: String"
                FROM dictionary ORDER BY phrase COLLATE NOCASE, id"#
         )
         .fetch_all(&inner.pool)
         .await
-        .map_err(AppError::database)
+        .map_err(AppError::database)?;
+        Ok(rows.into_iter().map(DictionaryRow::into_entry).collect())
     }
 
     pub async fn add_dictionary_entry(
@@ -32,19 +57,27 @@ impl Db {
         let (phrase, replacement) = clean(&phrase, replacement.as_deref())?;
         let inner = self.read().await;
         let now = chrono::Utc::now().timestamp_millis();
+        let source = DictionarySource::Manual.as_str();
+        let mut tx = inner.pool.begin().await.map_err(AppError::database)?;
         let id = sqlx::query!(
-            "INSERT INTO dictionary (phrase, replacement, created_at) VALUES (?1, ?2, ?3)",
+            "INSERT INTO dictionary (phrase, replacement, created_at, source)
+             VALUES (?1, ?2, ?3, ?4)",
             phrase,
             replacement,
-            now
+            now,
+            source
         )
-        .execute(&inner.pool)
+        .execute(&mut *tx)
         .await
         .map_err(|error| duplicate_or_database(error, &phrase))?
         .last_insert_rowid();
-        stored_entry(&inner.pool, id).await
+        unreject(&mut *tx, &phrase).await?;
+        let entry = stored_entry(&mut *tx, id).await?;
+        tx.commit().await.map_err(AppError::database)?;
+        Ok(entry)
     }
 
+    /// An edited learned word becomes the user's own, so it turns `manual`.
     pub async fn update_dictionary_entry(
         &self,
         id: i64,
@@ -53,10 +86,12 @@ impl Db {
     ) -> AppResult<DictionaryEntry> {
         let (phrase, replacement) = clean(&phrase, replacement.as_deref())?;
         let inner = self.read().await;
+        let source = DictionarySource::Manual.as_str();
         let updated = sqlx::query!(
-            "UPDATE dictionary SET phrase = ?1, replacement = ?2 WHERE id = ?3",
+            "UPDATE dictionary SET phrase = ?1, replacement = ?2, source = ?3 WHERE id = ?4",
             phrase,
             replacement,
+            source,
             id
         )
         .execute(&inner.pool)
@@ -68,12 +103,37 @@ impl Db {
         stored_entry(&inner.pool, id).await
     }
 
+    /// Deleting a learned word is the user saying it was wrong, so it is never learned again.
     pub async fn delete_dictionary_entry(&self, id: i64) -> AppResult<()> {
         let inner = self.read().await;
+        let mut tx = inner.pool.begin().await.map_err(AppError::database)?;
+        let row = sqlx::query!(
+            r#"SELECT phrase AS "phrase!: String", source AS "source!: String"
+               FROM dictionary WHERE id = ?1"#,
+            id
+        )
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::database)?;
         sqlx::query!("DELETE FROM dictionary WHERE id = ?1", id)
-            .execute(&inner.pool)
+            .execute(&mut *tx)
             .await
             .map_err(AppError::database)?;
+        let learned =
+            row.filter(|row| DictionarySource::parse(&row.source) == DictionarySource::Learned);
+        if let Some(row) = learned {
+            let now = chrono::Utc::now().timestamp_millis();
+            sqlx::query!(
+                "INSERT INTO dictionary_rejected (phrase, rejected_at) VALUES (?1, ?2)
+                 ON CONFLICT (phrase) DO NOTHING",
+                row.phrase,
+                now
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::database)?;
+        }
+        tx.commit().await.map_err(AppError::database)?;
         Ok(())
     }
 
@@ -83,6 +143,7 @@ impl Db {
         let entries: Vec<(String, Option<String>)> = text.lines().filter_map(parse_line).collect();
         let inner = self.read().await;
         let now = chrono::Utc::now().timestamp_millis();
+        let source = DictionarySource::Manual.as_str();
         let mut summary = ImportSummary {
             added: 0,
             skipped: 0,
@@ -90,11 +151,13 @@ impl Db {
         let mut tx = inner.pool.begin().await.map_err(AppError::database)?;
         for (phrase, replacement) in entries {
             let inserted = sqlx::query!(
-                "INSERT INTO dictionary (phrase, replacement, created_at) VALUES (?1, ?2, ?3)
+                "INSERT INTO dictionary (phrase, replacement, created_at, source)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT (phrase) DO NOTHING",
                 phrase,
                 replacement,
-                now
+                now,
+                source
             )
             .execute(&mut *tx)
             .await
@@ -104,24 +167,75 @@ impl Db {
             } else {
                 summary.added = summary.added.saturating_add(1);
             }
+            unreject(&mut *tx, &phrase).await?;
         }
         tx.commit().await.map_err(AppError::database)?;
         Ok(summary)
     }
+
+    /// Adds words learned from corrections as plain `learned` words. Invalid phrases, phrases
+    /// already in the dictionary and phrases the user rejected are skipped; returns the rows
+    /// actually added.
+    pub async fn learn_words(&self, phrases: &[String]) -> AppResult<Vec<DictionaryEntry>> {
+        let inner = self.read().await;
+        let now = chrono::Utc::now().timestamp_millis();
+        let source = DictionarySource::Learned.as_str();
+        let mut learned = Vec::new();
+        let mut tx = inner.pool.begin().await.map_err(AppError::database)?;
+        for phrase in phrases {
+            let Ok((phrase, _)) = clean(phrase, None) else {
+                continue;
+            };
+            let inserted = sqlx::query!(
+                "INSERT INTO dictionary (phrase, created_at, source)
+                 SELECT ?1, ?2, ?3
+                 WHERE NOT EXISTS (SELECT 1 FROM dictionary_rejected WHERE phrase = ?1)
+                 ON CONFLICT (phrase) DO NOTHING",
+                phrase,
+                now,
+                source
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::database)?;
+            if inserted.rows_affected() == 1 {
+                learned.push(stored_entry(&mut *tx, inserted.last_insert_rowid()).await?);
+            }
+        }
+        tx.commit().await.map_err(AppError::database)?;
+        Ok(learned)
+    }
 }
 
-async fn stored_entry(pool: &SqlitePool, id: i64) -> AppResult<DictionaryEntry> {
+async fn stored_entry<'e, E>(executor: E, id: i64) -> AppResult<DictionaryEntry>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
     sqlx::query_as!(
-        DictionaryEntry,
+        DictionaryRow,
         r#"SELECT id AS "id!: i64", phrase AS "phrase!: String",
-                  replacement AS "replacement?: String", created_at AS "created_at!: i64"
+                  replacement AS "replacement?: String", created_at AS "created_at!: i64",
+                  source AS "source!: String"
            FROM dictionary WHERE id = ?1"#,
         id
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
     .map_err(AppError::database)?
+    .map(DictionaryRow::into_entry)
     .ok_or_else(|| AppError::NotFound("Dictionary entry".to_owned()))
+}
+
+/// The user added the phrase themselves, so an earlier rejection of it no longer stands.
+async fn unreject<'e, E>(executor: E, phrase: &str) -> AppResult<()>
+where
+    E: Executor<'e, Database = Sqlite>,
+{
+    sqlx::query!("DELETE FROM dictionary_rejected WHERE phrase = ?1", phrase)
+        .execute(executor)
+        .await
+        .map_err(AppError::database)?;
+    Ok(())
 }
 
 /// Trims both sides; an empty replacement means a plain word.
@@ -287,6 +401,127 @@ mod tests {
                 ("Oh my pi", None),
                 ("omp", None),
             ]
+        );
+    }
+
+    fn phrases(words: &[&str]) -> Vec<String> {
+        words.iter().map(|word| (*word).to_owned()).collect()
+    }
+
+    #[tokio::test]
+    async fn learn_words_adds_plain_learned_words_and_skips_known_and_invalid() {
+        let (_dir, db) = open().await;
+        let manual = db
+            .add_dictionary_entry("Ghostty".to_owned(), None)
+            .await
+            .unwrap();
+        assert_eq!(manual.source, DictionarySource::Manual);
+
+        let long = "x".repeat(101);
+        let batch = [
+            " Wispr Flow ",
+            "ghostty",
+            "  ",
+            long.as_str(),
+            "wispr flow",
+            "Tauri",
+        ];
+        let learned = db.learn_words(&phrases(&batch)).await.unwrap();
+        let pairs: Vec<(&str, Option<&str>, DictionarySource)> = learned
+            .iter()
+            .map(|entry| {
+                (
+                    entry.phrase.as_str(),
+                    entry.replacement.as_deref(),
+                    entry.source,
+                )
+            })
+            .collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("Wispr Flow", None, DictionarySource::Learned),
+                ("Tauri", None, DictionarySource::Learned),
+            ]
+        );
+
+        let stored = db.dictionary().await.unwrap();
+        assert_eq!(stored.len(), 3);
+        assert!(stored.contains(&manual));
+        assert!(learned.iter().all(|entry| stored.contains(entry)));
+    }
+
+    #[tokio::test]
+    async fn deleting_a_learned_word_blocks_relearning_but_a_manual_word_does_not() {
+        let (_dir, db) = open().await;
+        let learned = db.learn_words(&phrases(&["Wispr"])).await.unwrap();
+        db.delete_dictionary_entry(learned[0].id).await.unwrap();
+        assert!(db
+            .learn_words(&phrases(&["WISPR"]))
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(db.dictionary().await.unwrap().is_empty());
+
+        let manual = db
+            .add_dictionary_entry("kanata".to_owned(), None)
+            .await
+            .unwrap();
+        db.delete_dictionary_entry(manual.id).await.unwrap();
+        let relearned = db.learn_words(&phrases(&["kanata"])).await.unwrap();
+        assert_eq!(relearned.len(), 1);
+        assert_eq!(relearned[0].source, DictionarySource::Learned);
+    }
+
+    #[tokio::test]
+    async fn adding_or_importing_a_rejected_word_clears_the_rejection() {
+        let (_dir, db) = open().await;
+        let learned = db
+            .learn_words(&phrases(&["Wispr", "Raycast"]))
+            .await
+            .unwrap();
+        for entry in &learned {
+            db.delete_dictionary_entry(entry.id).await.unwrap();
+        }
+
+        let added = db
+            .add_dictionary_entry("wispr".to_owned(), None)
+            .await
+            .unwrap();
+        db.import_vocabulary("RAYCAST\n").await.unwrap();
+        let imported = db.dictionary().await.unwrap();
+        assert!(imported
+            .iter()
+            .all(|entry| entry.source == DictionarySource::Manual));
+
+        db.delete_dictionary_entry(added.id).await.unwrap();
+        for entry in imported.iter().filter(|entry| entry.id != added.id) {
+            db.delete_dictionary_entry(entry.id).await.unwrap();
+        }
+        let relearned = db
+            .learn_words(&phrases(&["Wispr", "Raycast"]))
+            .await
+            .unwrap();
+        assert_eq!(relearned.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn editing_a_learned_word_makes_it_manual() {
+        let (_dir, db) = open().await;
+        let learned = db.learn_words(&phrases(&["Wispr"])).await.unwrap();
+        let edited = db
+            .update_dictionary_entry(learned[0].id, "Wispr Flow".to_owned(), None)
+            .await
+            .unwrap();
+        assert_eq!(edited.source, DictionarySource::Manual);
+
+        db.delete_dictionary_entry(edited.id).await.unwrap();
+        assert_eq!(
+            db.learn_words(&phrases(&["Wispr Flow"]))
+                .await
+                .unwrap()
+                .len(),
+            1
         );
     }
 }
