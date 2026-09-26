@@ -1,23 +1,18 @@
 // FilePath: src-tauri/src/features/models/catalog.rs
-//! The fixed list of models Settings → Models offers. Live status comes from the engine helper.
+//! The fixed list of models Settings → Models offers. Live status comes from the engine helper;
+//! display names come from `sv_domain::models::model_name`, which history shares.
 
 use sv_domain::models::{
-    APPLE_INTELLIGENCE, APPLE_SPEECH, GROQ_WHISPER, PARAKEET_FLASH, PARAKEET_TDT_V2,
-    PARAKEET_TDT_V3,
+    APPLE_INTELLIGENCE, APPLE_SPEECH, CUSTOM_LLM, GROQ_LLM, GROQ_WHISPER, PARAKEET_FLASH,
+    PARAKEET_TDT_V2, PARAKEET_TDT_V3,
 };
 use sv_domain::{ModelKind, ModelProvider};
-
-/// Id of the Groq post-processing entry (the transcription model is `groq-whisper`).
-pub(crate) const GROQ_LLM: &str = "groq";
-/// Id of the custom OpenAI-compatible post-processing entry.
-pub(crate) const CUSTOM_LLM: &str = "custom";
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct CatalogEntry {
     pub(crate) id: &'static str,
     pub(crate) kind: ModelKind,
     pub(crate) provider: ModelProvider,
-    pub(crate) name: &'static str,
     pub(crate) subtitle: &'static str,
     pub(crate) speed: u8,
     pub(crate) accuracy: u8,
@@ -32,7 +27,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: GROQ_WHISPER,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Groq,
-        name: "Groq Whisper",
         subtitle: "Whisper Large v3 Turbo on Groq — needs an API key",
         speed: 95,
         accuracy: 90,
@@ -44,7 +38,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: PARAKEET_TDT_V3,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Parakeet,
-        name: "Parakeet TDT v3",
         subtitle: "Blazing Fast — Multilingual",
         speed: 100,
         accuracy: 92,
@@ -56,7 +49,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: PARAKEET_TDT_V2,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Parakeet,
-        name: "Parakeet TDT v2",
         subtitle: "Blazing Fast — English",
         speed: 100,
         accuracy: 96,
@@ -68,7 +60,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: PARAKEET_FLASH,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Parakeet,
-        name: "Flash Dictation (Beta)",
         subtitle: "Streaming Parakeet for the lowest latency",
         speed: 100,
         accuracy: 75,
@@ -80,7 +71,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: APPLE_SPEECH,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Apple,
-        name: "Apple Speech",
         subtitle: "On-device, built into macOS 26+",
         speed: 85,
         accuracy: 80,
@@ -92,7 +82,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: GROQ_LLM,
         kind: ModelKind::PostProcessing,
         provider: ModelProvider::Groq,
-        name: "Groq",
         subtitle: "Fast cloud formatting with the Groq API key",
         speed: 95,
         accuracy: 92,
@@ -104,7 +93,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: APPLE_INTELLIGENCE,
         kind: ModelKind::PostProcessing,
         provider: ModelProvider::Apple,
-        name: "Apple Intelligence",
         subtitle: "On-device formatting, macOS 26+",
         speed: 80,
         accuracy: 80,
@@ -116,7 +104,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         id: CUSTOM_LLM,
         kind: ModelKind::PostProcessing,
         provider: ModelProvider::Custom,
-        name: "Custom",
         subtitle: "Any OpenAI-compatible endpoint (Ollama, LM Studio, …)",
         speed: 70,
         accuracy: 85,

@@ -3,6 +3,7 @@
 //! writer computes them the same way.
 
 use sqlx::SqlitePool;
+use sv_domain::models::model_name;
 use sv_domain::{
     categorize, text_stats, AppCategory, AppError, AppResult, HistoryEntry, HistoryStatus,
     NewHistory, Style,
@@ -21,6 +22,7 @@ struct HistoryRow {
     final_text: String,
     error: Option<String>,
     model: String,
+    format_model: Option<String>,
     language: Option<String>,
     style: String,
     audio_ms: i64,
@@ -49,6 +51,8 @@ impl HistoryRow {
             raw_text: self.raw_text,
             text: self.final_text,
             error: self.error,
+            model_name: display_name(&self.model),
+            format_model_name: self.format_model.as_deref().map(display_name),
             model: self.model,
             language: self.language,
             style: parse_style(&self.style),
@@ -95,16 +99,18 @@ impl Db {
         let derived = Derived::of(&entry);
         let id = sqlx::query!(
             "INSERT INTO history (
-                created_at, status, raw_text, final_text, error, model, language, style,
-                audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,
+                created_at, status, raw_text, final_text, error, model, format_model, language,
+                style, audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,
                 app_name, bundle_id, app_category, audio_path
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
+                ?18)",
             entry.created_at,
             derived.status,
             entry.raw_text,
             entry.final_text,
             entry.error,
             entry.model,
+            entry.format_model,
             entry.language,
             derived.style,
             entry.audio_ms,
@@ -131,16 +137,17 @@ impl Db {
         let updated = sqlx::query!(
             "UPDATE history SET
                 created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
-                model = ?6, language = ?7, style = ?8, audio_ms = ?9, latency_ms = ?10,
-                word_count = ?11, dictionary_fixes = ?12, words_corrected = ?13, app_name = ?14,
-                bundle_id = ?15, app_category = ?16, audio_path = ?17
-             WHERE id = ?18",
+                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
+                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
+                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18
+             WHERE id = ?19",
             entry.created_at,
             derived.status,
             entry.raw_text,
             entry.final_text,
             entry.error,
             entry.model,
+            entry.format_model,
             entry.language,
             derived.style,
             entry.audio_ms,
@@ -201,6 +208,7 @@ impl Db {
                 id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
                 raw_text AS "raw_text!: String", final_text AS "final_text!: String",
                 error AS "error?: String", model AS "model!: String",
+                format_model AS "format_model?: String",
                 language AS "language?: String", style AS "style!: String",
                 audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
                 word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
@@ -271,6 +279,7 @@ async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntr
             id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
             raw_text AS "raw_text!: String", final_text AS "final_text!: String",
             error AS "error?: String", model AS "model!: String",
+            format_model AS "format_model?: String",
             language AS "language?: String", style AS "style!: String",
             audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
             word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
@@ -290,6 +299,11 @@ async fn stored_entry(pool: &SqlitePool, id: i64) -> AppResult<HistoryEntry> {
     fetch_entry(pool, id)
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Dictation {id}")))
+}
+
+/// Catalog ids get their display name; provider model ids are shown as recorded.
+fn display_name(id: &str) -> String {
+    model_name(id).unwrap_or(id).to_owned()
 }
 
 fn style_str(style: Style) -> &'static str {
@@ -334,6 +348,7 @@ mod tests {
             final_text: final_text.to_owned(),
             error: None,
             model: "groq-whisper".to_owned(),
+            format_model: None,
             language: Some("en".to_owned()),
             style: Style::Formal,
             audio_ms: 4_000,
@@ -407,6 +422,40 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(missing, AppError::NotFound(_)));
+    }
+
+    #[tokio::test]
+    async fn models_are_shown_by_display_name() {
+        let (_dir, db) = open().await;
+        let local = db
+            .insert_history(NewHistory {
+                model: "parakeet-tdt-v3".to_owned(),
+                format_model: Some("apple-intelligence".to_owned()),
+                ..entry("Ship it")
+            })
+            .await
+            .unwrap();
+        assert_eq!(local.model_name, "Parakeet TDT v3");
+        assert_eq!(
+            local.format_model_name.as_deref(),
+            Some("Apple Intelligence")
+        );
+
+        let cloud = db
+            .update_history(
+                local.id,
+                NewHistory {
+                    format_model: Some("qwen/qwen3.8-27b".to_owned()),
+                    ..entry("Ship it")
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(cloud.model_name, "Groq Whisper");
+        assert_eq!(cloud.format_model_name.as_deref(), Some("qwen/qwen3.8-27b"));
+
+        let unformatted = db.update_history(local.id, entry("Ship it")).await.unwrap();
+        assert_eq!(unformatted.format_model_name, None);
     }
 
     #[tokio::test]

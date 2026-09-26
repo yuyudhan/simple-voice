@@ -55,7 +55,13 @@ pub struct HistoryEntry {
     /// What was pasted (or would have been).
     pub text: String,
     pub error: Option<String>,
+    /// Transcription model id, e.g. `groq-whisper`.
     pub model: String,
+    /// Display name of `model`.
+    pub model_name: String,
+    /// Display name of the model that formatted the text; `None` when no formatting pass
+    /// produced the pasted text (off, skipped, failed, or recorded before this was tracked).
+    pub format_model_name: Option<String>,
     pub language: Option<String>,
     pub style: Style,
     pub audio_ms: i64,
@@ -80,6 +86,8 @@ pub struct NewHistory {
     pub final_text: String,
     pub error: Option<String>,
     pub model: String,
+    /// Model id of the formatting pass that produced `final_text`, if one did.
+    pub format_model: Option<String>,
     pub language: Option<String>,
     pub style: Style,
     pub audio_ms: i64,

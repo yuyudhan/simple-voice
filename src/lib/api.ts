@@ -66,6 +66,9 @@ export interface HistoryEntry {
     text: string;
     error: string | null;
     model: string;
+    modelName: string;
+    /** Set only when a formatting pass produced the pasted text. */
+    formatModelName: string | null;
     language: string | null;
     style: Style;
     audioMs: number;
