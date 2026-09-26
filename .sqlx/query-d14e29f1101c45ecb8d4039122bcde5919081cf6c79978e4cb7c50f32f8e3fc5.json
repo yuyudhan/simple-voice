@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO dictionary (phrase, replacement, created_at, source)\n                 VALUES (?1, ?2, ?3, ?4)\n                 ON CONFLICT (phrase) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "d14e29f1101c45ecb8d4039122bcde5919081cf6c79978e4cb7c50f32f8e3fc5"
+}

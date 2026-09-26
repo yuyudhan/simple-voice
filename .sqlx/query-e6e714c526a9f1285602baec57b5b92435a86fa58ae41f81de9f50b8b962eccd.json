@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n                raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n                source_text AS \"source_text?: String\",\n                error AS \"error?: String\", model AS \"model!: String\",\n                format_model AS \"format_model?: String\",\n                language AS \"language?: String\", style AS \"style!: String\",\n                audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n                transcribe_ms AS \"transcribe_ms?: i64\", format_ms AS \"format_ms?: i64\",\n                word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n                words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n                bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n                audio_path AS \"audio_path?: String\"\n               FROM history\n               WHERE (?1 IS NULL\n                      OR final_text LIKE ?1 ESCAPE '\\'\n                      OR raw_text LIKE ?1 ESCAPE '\\'\n                      OR source_text LIKE ?1 ESCAPE '\\'\n                      OR app_name LIKE ?1 ESCAPE '\\')\n                 AND (?2 IS NULL OR id < ?2)\n               ORDER BY id DESC\n               LIMIT ?3",
+  "query": "SELECT\n            id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n            raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n            source_text AS \"source_text?: String\", edited_text AS \"edited_text?: String\",\n            error AS \"error?: String\", model AS \"model!: String\",\n            format_model AS \"format_model?: String\",\n            language AS \"language?: String\", style AS \"style!: String\",\n            audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n            transcribe_ms AS \"transcribe_ms?: i64\", format_ms AS \"format_ms?: i64\",\n            word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n            words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n            bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n            audio_path AS \"audio_path?: String\"\n           FROM history WHERE id = ?1",
   "describe": {
     "columns": [
       {
@@ -70,8 +70,19 @@
         }
       },
       {
-        "name": "error?: String",
+        "name": "edited_text?: String",
         "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "edited_text"
+          }
+        }
+      },
+      {
+        "name": "error?: String",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "model!: String",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "format_model?: String",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "language?: String",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "style!: String",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "audio_ms!: i64",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -137,7 +148,7 @@
       },
       {
         "name": "latency_ms!: i64",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -148,7 +159,7 @@
       },
       {
         "name": "transcribe_ms?: i64",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "format_ms?: i64",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -170,7 +181,7 @@
       },
       {
         "name": "word_count!: i64",
-        "ordinal": 15,
+        "ordinal": 16,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -181,7 +192,7 @@
       },
       {
         "name": "dictionary_fixes!: i64",
-        "ordinal": 16,
+        "ordinal": 17,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -192,7 +203,7 @@
       },
       {
         "name": "words_corrected!: i64",
-        "ordinal": 17,
+        "ordinal": 18,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -203,7 +214,7 @@
       },
       {
         "name": "app_name?: String",
-        "ordinal": 18,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -214,7 +225,7 @@
       },
       {
         "name": "bundle_id?: String",
-        "ordinal": 19,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -225,7 +236,7 @@
       },
       {
         "name": "app_category!: String",
-        "ordinal": 20,
+        "ordinal": 21,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -236,7 +247,7 @@
       },
       {
         "name": "audio_path?: String",
-        "ordinal": 21,
+        "ordinal": 22,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -247,7 +258,7 @@
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 1
     },
     "nullable": [
       false,
@@ -255,6 +266,7 @@
       false,
       false,
       false,
+      true,
       true,
       true,
       false,
@@ -274,5 +286,5 @@
       true
     ]
   },
-  "hash": "cd81132e252da1331e6719b96d651fab29e25bd6f7442267d33556856c8dd62f"
+  "hash": "e6e714c526a9f1285602baec57b5b92435a86fa58ae41f81de9f50b8b962eccd"
 }

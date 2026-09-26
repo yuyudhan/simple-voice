@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE dictionary SET phrase = ?1, replacement = ?2, source = ?3 WHERE id = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1c9d2597de54429b2806b87cba254d5798a53342a602a3ac802b5879e5472747"
+}

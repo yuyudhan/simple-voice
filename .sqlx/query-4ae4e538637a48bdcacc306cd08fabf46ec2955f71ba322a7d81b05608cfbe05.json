@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO dictionary (phrase, replacement, created_at, source)\n             VALUES (?1, ?2, ?3, ?4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "4ae4e538637a48bdcacc306cd08fabf46ec2955f71ba322a7d81b05608cfbe05"
+}

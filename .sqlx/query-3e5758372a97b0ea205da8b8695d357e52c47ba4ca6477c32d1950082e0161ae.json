@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM dictionary_rejected WHERE phrase = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "3e5758372a97b0ea205da8b8695d357e52c47ba4ca6477c32d1950082e0161ae"
+}

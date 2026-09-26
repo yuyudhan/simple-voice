@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO dictionary (phrase, created_at, source)\n                 SELECT ?1, ?2, ?3\n                 WHERE NOT EXISTS (SELECT 1 FROM dictionary_rejected WHERE phrase = ?1)\n                 ON CONFLICT (phrase) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0bbe277bf49c3ac7805c070574910481444794541a6aee2445e211a6eaf9ea29"
+}
