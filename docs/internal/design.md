@@ -52,7 +52,10 @@ document; when the language changes, change it here in the same commit.
 | Motion     | `--dur` 150ms, `--ease`                                                  | All transitions                                           |
 
 Components never hard-code colours. The overlay pill is the single exception: it floats over
-arbitrary apps, so it keeps a fixed graphite palette in both themes.
+arbitrary apps, so it keeps a fixed graphite palette in both themes. It is drawn natively by the
+Swift helper, so its palette, sizes and motion live in `PillStyle`
+(`engine/Sources/SimpleVoiceEngine/PillView.swift`), not in `src/styles/`; its icons are SF
+Symbols.
 
 ## Type scale
 

@@ -7,8 +7,8 @@ Simple Voice is a Tauri 2 app with three parts:
 | Part          | Path         | Language                                         | Owns                                                                                                                                                                               |
 | ------------- | ------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Core          | `src-tauri/` | Rust (`#![forbid(unsafe_code)]`)                 | Database, audio capture, dictation pipeline, Groq, shortcuts, windows, tray, sounds                                                                                                |
-| Engine helper | `engine/`    | Swift (SwiftPM executable `simple-voice-engine`) | Everything that needs Apple frameworks: Parakeet (FluidAudio, Core ML), Apple Speech (`SpeechAnalyzer`), model downloads, permissions, frontmost app, synthetic Cmd+V, output mute |
-| UI            | `src/`       | React + TypeScript (Vite)                        | Main window (`index.html`, route by window label) and the floating overlay pill                                                                                                    |
+| Engine helper | `engine/`    | Swift (SwiftPM executable `simple-voice-engine`) | Everything that needs Apple frameworks: Parakeet (FluidAudio, Core ML), Apple Speech (`SpeechAnalyzer`), model downloads, permissions, frontmost app, synthetic Cmd+V, output mute, the floating overlay pill |
+| UI            | `src/`       | React + TypeScript (Vite)                        | The main window (`index.html`)                                                                                                                                                     |
 
 Rust forbids `unsafe`, so every Objective-C / C API call lives in the Swift helper. The helper is
 bundled as a Tauri sidecar (`bundle.externalBin = ["binaries/simple-voice-engine"]`), started
@@ -256,7 +256,7 @@ impl EngineClient {
 ### UI (`src/`)
 
 Vertical slices in `src/features/<feature>/` (`history/`, `insights/`, `dictionary/`, `style/`,
-`settings/`, `onboarding/`, `overlay/`); shared primitives in `src/ui/`; design tokens in
+`settings/`, `onboarding/`); shared primitives in `src/ui/`; design tokens in
 `src/styles/`; the command/event contract in `src/lib/api.ts`; shell (sidebar, routing) in
 `src/app/`.
 
@@ -269,7 +269,7 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 section is a first-class page: the sidebar lists it under a Settings group at the bottom and
 `settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri events are
 consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
-`useToast()` from `src/ui`. The overlay window mounts `<Overlay/>` without these providers.
+`useToast()` from `src/ui`.
 
 Accessibility access: `settings/permissions/AccessibilityWarning.tsx` has no dismiss control. The
 shell pins it (sticky) above every page whenever `permissions.accessibility !== "granted"`, saying
@@ -288,7 +288,7 @@ backend (`src/app/theme.ts`). The main window always carries the resolved theme 
 `prefers-color-scheme` and re-resolved live when macOS changes), and calls
 `getCurrentWindow().setTheme(theme)`, or `setTheme(null)` for `system`, so the native title
 bar matches. The last choice is cached in `localStorage["sv.theme"]` and painted before React
-mounts, so launch never flashes the other theme. The overlay pill keeps its fixed palette.
+mounts, so launch never flashes the other theme. The overlay pill (§ 5) keeps its fixed palette.
 `src-tauri/capabilities/default.json` grants `core:window:allow-set-theme` for this.
 
 ## 3. Tauri commands (invoked from the UI; TypeScript types in `src/lib/api.ts`)
@@ -335,7 +335,6 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | Event                 | Payload                                                                                                                                           |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dictation-state`     | `DictationState`                                                                                                                                  |
-| `dictation-level`     | `{ level: number }` 0..1, ~30 Hz while recording                                                                                                  |
 | `history-changed`     | `null`                                                                                                                                            |
 | `settings-changed`    | `Settings`                                                                                                                                        |
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
@@ -356,13 +355,17 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
   binds Cmd+Q to "Close to Menu Bar" (hides `main`, like closing) and offers "Quit Simple Voice"
   without a shortcut; the tray's Quit, the Dock's Quit, logout and the update installer still quit
   the app.
-- `overlay` — 200×56, transparent, no decorations, no shadow, always on top, skip taskbar,
-  visible on all workspaces, never focused (`focused: false`, `focusable: false`), cursor events
-  ignored. Shown bottom-centre of the screen under the cursor while a session is active (or
-  always when `showBarAlways`). Ordered in once at launch and never ordered out: "hidden" parks
-  it beyond every display, because ordering it out while another app is frontmost makes a
-  Dock-visible app activate and steal focus from the dictation target. Loads the same bundle;
-  `src/main.tsx` renders `<Overlay/>` when the window label is `overlay`.
+- The overlay pill is not a Tauri window: the Swift helper draws it (`engine/.../Overlay.swift`,
+  `PillView.swift`) because floating over full-screen apps needs the AppKit
+  `fullScreenAuxiliary` collection behaviour, which Tauri does not expose and Rust cannot set
+  without `unsafe`. It is a 200×56 borderless, non-activating `NSPanel` at status-bar level,
+  joining all Spaces, click-through, never key, untitled (tiling window managers such as
+  AeroSpace treat it as a popup). The helper is an accessory app, so ordering the pill in or out
+  never activates Simple Voice or takes focus from the dictation target. `platform/overlay.rs`
+  decides what it shows and when: visible while a session is active (or always when
+  `showBarAlways`), hidden 1.2 s after `done` / `error` / `cancelled`, placed bottom-centre of
+  the visible frame of the screen under the cursor, 80 pt up. It replays the last state and
+  visibility to a restarted helper.
 
 ## 6. Engine helper protocol (`engine/`)
 
@@ -394,6 +397,15 @@ produces nothing.
 | `set_output_muted`   | `muted: bool`                                            | `{"previous": bool}`                                                                                                                                         |
 | `polish`             | `system`, `shots: [{user, assistant}]`, `user`           | `{"text": s, "finished": bool}` via Apple Foundation Models (`LanguageModelSession`, temperature 0)                                                          |
 | `watch_fn_key`       | `enabled: bool`                                          | `{"active": bool}`: whether the listen-only event tap is installed; without Accessibility access it retries every 2 s while enabled                          |
+
+Notification (app → helper, no id, never answered, applied on the main thread in the order sent):
+`{"cmd": "<name>", ...params}`. They drive the overlay pill:
+
+| cmd               | Params                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------- |
+| `overlay_state`   | `state: DictationState` (§ 4); done, error and cancelled settle back to idle after 1.1 s, 2 s and 0.35 s |
+| `overlay_visible` | `visible: bool`; `true` (re)places the pill under the cursor and orders it in             |
+| `overlay_level`   | `level: number` 0..1 (RMS), ~30 Hz while recording                                        |
 
 Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech` (transcription);
 `apple-intelligence` (post-processing; `model_status` reports availability, never downloads).

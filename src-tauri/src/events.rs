@@ -5,18 +5,12 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 pub(crate) const DICTATION_STATE: &str = "dictation-state";
-pub(crate) const DICTATION_LEVEL: &str = "dictation-level";
 pub(crate) const HISTORY_CHANGED: &str = "history-changed";
 pub(crate) const SETTINGS_CHANGED: &str = "settings-changed";
 pub(crate) const MODEL_PROGRESS: &str = "model-progress";
 pub(crate) const PERMISSIONS_CHANGED: &str = "permissions-changed";
 pub(crate) const NAVIGATE: &str = "navigate";
 pub(crate) const UPDATE_STATUS: &str = "update-status";
-
-#[derive(Debug, Clone, Copy, Serialize)]
-pub(crate) struct Level {
-    pub(crate) level: f32,
-}
 
 /// Emits to every window. A failed emit only means no webview is listening, so it is logged.
 pub(crate) fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {

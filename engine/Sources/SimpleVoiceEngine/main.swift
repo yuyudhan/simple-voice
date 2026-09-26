@@ -1,11 +1,13 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/main.swift
 // Entry point: `simple-voice-engine --models-dir <path>`, JSON lines on stdin/stdout.
 
+import AppKit
 import FluidAudio
 import Foundation
 
 /// Routes one request to the feature that implements it. Every request runs in its own task, so
-/// a long transcription or download never delays `permissions` or `paste`.
+/// a long transcription or download never delays `permissions` or `paste`. A line without an id is
+/// a notification: it gets no reply and is applied on the main thread in the order it arrived.
 final class Engine: Sendable {
     private let output: Output
     private let store: ModelStore
@@ -26,7 +28,15 @@ final class Engine: Sendable {
             return
         }
         guard let id = envelope.id else {
-            Log.error("ignoring a request without an id: \(line.prefix(200))")
+            guard let cmd = envelope.cmd else {
+                Log.error("ignoring a line without `id` or `cmd`: \(line.prefix(200))")
+                return
+            }
+            // The main queue is FIFO, so notifications keep their order (a hide never overtakes
+            // the state it follows); a Task per line would not guarantee that.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { OverlayController.shared.handle(cmd, body: body) }
+            }
             return
         }
         let output = output
@@ -232,6 +242,11 @@ guard protocolDescriptor >= 0, dup2(STDERR_FILENO, STDOUT_FILENO) >= 0 else {
 
 AppLogger.minimumLevel = .info
 
+// The overlay pill is an AppKit window, so the helper is an accessory app: no Dock icon, no menu
+// bar, and it never activates.
+let application = NSApplication.shared
+application.setActivationPolicy(.accessory)
+
 let engine = Engine(
     modelsDirectory: modelsDirectory,
     output: Output(handle: FileHandle(fileDescriptor: protocolDescriptor, closeOnDealloc: false))
@@ -251,6 +266,6 @@ Task.detached { [engine] in
     exit(0)
 }
 
-// The main run loop delivers the NSWorkspace notifications behind `frontmost_app` and runs the
-// main-actor work (System Settings, frontmost app).
-RunLoop.main.run()
+// The application's run loop delivers the NSWorkspace notifications behind `frontmost_app`, runs
+// the main-actor work (System Settings, frontmost app, the overlay pill) and draws the pill.
+application.run()

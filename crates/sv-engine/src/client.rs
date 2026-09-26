@@ -153,6 +153,19 @@ impl EngineClient {
             .await
     }
 
+    /// Sends a notification: a command without an id, which the helper applies in the order sent
+    /// and never answers. For UI updates that must neither wait for nor queue behind replies.
+    pub fn notify(&self, cmd: &str, params: Value) -> AppResult<()> {
+        let mut body = named_params(cmd, params)?;
+        let transport = self
+            .lock()
+            .transport
+            .clone()
+            .ok_or_else(|| AppError::Engine(NOT_RUNNING.to_owned()))?;
+        body.insert("cmd".to_owned(), Value::from(cmd));
+        transport.send_line(Value::Object(body).to_string())
+    }
+
     async fn send_request<T: DeserializeOwned>(
         &self,
         cmd: &str,
@@ -160,15 +173,7 @@ impl EngineClient {
         on_progress: Option<Arc<ProgressCallback>>,
         timeout: Duration,
     ) -> AppResult<T> {
-        let mut body = match params {
-            Value::Object(map) => map,
-            Value::Null => Map::new(),
-            other => {
-                return Err(AppError::invalid(format!(
-                    "Engine command {cmd} needs named parameters, got {other}"
-                )))
-            }
-        };
+        let mut body = named_params(cmd, params)?;
         let (reply, receiver) = oneshot::channel();
         let (transport, id) = {
             let mut inner = self.lock();
@@ -252,6 +257,16 @@ impl EngineClient {
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock()
+    }
+}
+
+fn named_params(cmd: &str, params: Value) -> AppResult<Map<String, Value>> {
+    match params {
+        Value::Object(map) => Ok(map),
+        Value::Null => Ok(Map::new()),
+        other => Err(AppError::invalid(format!(
+            "Engine command {cmd} needs named parameters, got {other}"
+        ))),
     }
 }
 
@@ -507,6 +522,23 @@ mod tests {
                     action: crate::FnKeyAction::Release
                 },
             ]
+        );
+    }
+
+    /// The helper answers every line that has an id, so a notification must never carry one.
+    #[test]
+    fn notification_is_flat_and_has_no_id() {
+        let (client, mut rx) = connected();
+        let params = serde_json::json!({ "visible": true });
+        client.notify("overlay_visible", params).unwrap();
+        let line: Value = serde_json::from_str(&rx.try_recv().unwrap()).unwrap();
+        assert_eq!(
+            line,
+            serde_json::json!({ "cmd": "overlay_visible", "visible": true })
+        );
+        assert_eq!(
+            format!("{client:?}"),
+            "EngineClient { connected: true, pending: 0 }"
         );
     }
 

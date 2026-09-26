@@ -16,8 +16,8 @@ use tokio::sync::mpsc;
 
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
-use crate::events;
 use crate::features::permissions;
+use crate::platform::overlay;
 use crate::platform::shortcuts::{self, Binding};
 use crate::state::{lock, now_ms, AppState};
 
@@ -346,7 +346,7 @@ fn is_silent(samples: &[i16]) -> bool {
         .all(|sample| i32::from(*sample).abs() < SILENCE_PEAK)
 }
 
-/// Forwards the recorder's level to the UI at most ~30 times a second.
+/// Forwards the recorder's level to the pill at most ~30 times a second.
 fn level_emitter(app: AppHandle) -> Box<dyn Fn(f32) + Send + 'static> {
     let last = Mutex::new(None::<Instant>);
     Box::new(move |level: f32| {
@@ -357,13 +357,7 @@ fn level_emitter(app: AppHandle) -> Box<dyn Fn(f32) + Send + 'static> {
             }
             *last = Some(Instant::now());
         }
-        events::emit(
-            &app,
-            events::DICTATION_LEVEL,
-            events::Level {
-                level: level.clamp(0.0, 1.0),
-            },
-        );
+        overlay::level(&app, level.clamp(0.0, 1.0));
     })
 }
 

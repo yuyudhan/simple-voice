@@ -1,66 +1,29 @@
 // FilePath: src-tauri/src/platform/overlay.rs
-//! The floating pill shown while dictating. It must never take focus: the dictated text is
-//! pasted into whatever app was frontmost, so the overlay is non-focusable and click-through.
-//!
-//! The window is ordered in once at launch and never ordered out again: in a Dock-visible
-//! (Regular) app, ordering the pill out while another app is frontmost makes AppKit activate
-//! Simple Voice and pull focus away from the app being dictated into. "Hidden" therefore means
-//! parked beyond every display.
+//! The floating pill shown while dictating. The Swift helper draws it (docs/internal/engine.md):
+//! only AppKit window flags let a window float over full-screen apps, and the helper, being a
+//! separate accessory process, can show it without ever activating Simple Voice. This module
+//! decides what the pill shows and when, and sends it as `overlay_*` notifications.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::Duration;
 
-use sv_domain::DictationPhase;
-use tauri::{
-    AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    WindowEvent,
-};
+use sv_domain::{AppResult, DictationPhase, DictationState};
+use tauri::{AppHandle, Manager};
 
-pub(crate) const OVERLAY: &str = "overlay";
-const WIDTH: f64 = 200.0;
-const HEIGHT: f64 = 56.0;
-/// Logical points between the pill and the bottom of the work area (above the Dock).
-const BOTTOM_MARGIN: f64 = 80.0;
+use crate::state::{lock, AppState};
+
 const HIDE_DELAY: Duration = Duration::from_millis(1200);
-/// Physical pixels between the parked pill and the nearest display edge; larger than the pill
-/// at any scale factor, so no part of it reaches a screen.
-const PARK_GAP: i32 = 1000;
 
 #[derive(Debug, Default)]
 pub(crate) struct OverlayState {
     always: AtomicBool,
-    /// Whether the pill is meant to be on screen; while false it is kept parked.
+    /// Whether the pill is meant to be on screen.
     shown: AtomicBool,
     /// Bumped on every phase change so a pending hide is skipped once a newer phase arrives.
     generation: AtomicU64,
-}
-
-pub(crate) fn create(app: &AppHandle) -> tauri::Result<()> {
-    let window = WebviewWindowBuilder::new(app, OVERLAY, WebviewUrl::default())
-        .title("Simple Voice")
-        .inner_size(WIDTH, HEIGHT)
-        .resizable(false)
-        .transparent(true)
-        .decorations(false)
-        .shadow(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible_on_all_workspaces(true)
-        .focused(false)
-        .focusable(false)
-        .visible(false)
-        .build()?;
-    window.set_ignore_cursor_events(true)?;
-    park(app, &window)?;
-    window.show()?;
-    // A display change can make AppKit pull an off-screen window back onto a screen.
-    let handle = app.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::Moved(position) = event {
-            keep_parked(&handle, *position);
-        }
-    });
-    Ok(())
+    /// The last state sent, replayed to a restarted helper.
+    last: Mutex<Option<DictationState>>,
 }
 
 /// Keeps the pill visible at all times when the user asked for it.
@@ -69,129 +32,75 @@ pub(crate) fn set_always(app: &AppHandle, always: bool) {
         .always
         .store(always, Ordering::SeqCst);
     if always {
-        show(app);
-    } else if !app
-        .state::<crate::state::AppState>()
-        .dictation
-        .is_recording()
-    {
-        hide(app);
+        set_visible(app, true);
+    } else if !app.state::<AppState>().dictation.is_recording() {
+        set_visible(app, false);
     }
 }
 
-/// Follows the published dictation phase: visible while a session is active, hidden shortly
+/// Follows the published dictation state: visible while a session is active, hidden shortly
 /// after it ends.
-pub(crate) fn follow(app: &AppHandle, phase: DictationPhase) {
+pub(crate) fn follow(app: &AppHandle, state: &DictationState) {
     let overlay = app.state::<OverlayState>();
+    *lock(&overlay.last) = Some(state.clone());
+    send("state", app.state::<AppState>().engine.overlay_state(state));
     let generation = overlay.generation.fetch_add(1, Ordering::SeqCst) + 1;
-    match phase {
+    match state.phase {
         DictationPhase::Idle => {
             if !overlay.always.load(Ordering::SeqCst) {
-                hide(app);
+                set_visible(app, false);
             }
         }
         DictationPhase::Recording | DictationPhase::Transcribing | DictationPhase::Formatting => {
-            show(app);
+            set_visible(app, true);
         }
         DictationPhase::Done | DictationPhase::Error | DictationPhase::Cancelled => {
-            show(app);
+            set_visible(app, true);
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 tokio::time::sleep(HIDE_DELAY).await;
                 let overlay = app.state::<OverlayState>();
                 let unchanged = overlay.generation.load(Ordering::SeqCst) == generation;
                 if unchanged && !overlay.always.load(Ordering::SeqCst) {
-                    hide(&app);
+                    set_visible(&app, false);
                 }
             });
         }
     }
 }
 
-fn window(app: &AppHandle) -> Option<WebviewWindow> {
-    let window = app.get_webview_window(OVERLAY);
-    if window.is_none() {
-        tracing::warn!("overlay window missing");
-    }
-    window
+/// Forwards the recorder's level to the pill's meter.
+pub(crate) fn level(app: &AppHandle, level: f32) {
+    send("level", app.state::<AppState>().engine.overlay_level(level));
 }
 
-fn show(app: &AppHandle) {
-    let Some(window) = window(app) else { return };
+/// Replays the pill to a freshly started helper, which starts out hidden and idle.
+pub(crate) fn resync(app: &AppHandle) {
+    let overlay = app.state::<OverlayState>();
+    let engine = &app.state::<AppState>().engine;
+    if let Some(state) = lock(&overlay.last).clone() {
+        send("state", engine.overlay_state(&state));
+    }
+    send(
+        "visibility",
+        engine.overlay_visible(overlay.shown.load(Ordering::SeqCst)),
+    );
+}
+
+fn set_visible(app: &AppHandle, visible: bool) {
     app.state::<OverlayState>()
         .shown
-        .store(true, Ordering::SeqCst);
-    if let Err(error) = position_under_cursor(app, &window) {
-        tracing::debug!(%error, "could not position the overlay");
+        .store(visible, Ordering::SeqCst);
+    send(
+        "visibility",
+        app.state::<AppState>().engine.overlay_visible(visible),
+    );
+}
+
+/// The pill is best effort: while the helper is down (it restarts on its own and gets a
+/// `resync`), dictation carries on without it.
+fn send(what: &str, result: AppResult<()>) {
+    if let Err(error) = result {
+        tracing::debug!(%error, what, "overlay update not delivered");
     }
-}
-
-fn hide(app: &AppHandle) {
-    let Some(window) = window(app) else { return };
-    app.state::<OverlayState>()
-        .shown
-        .store(false, Ordering::SeqCst);
-    if let Err(error) = park(app, &window) {
-        tracing::warn!(%error, "could not hide the overlay");
-    }
-}
-
-fn park(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
-    window.set_position(parked_position(app)?)
-}
-
-fn keep_parked(app: &AppHandle, position: PhysicalPosition<i32>) {
-    if app.state::<OverlayState>().shown.load(Ordering::SeqCst) {
-        return;
-    }
-    let Some(window) = window(app) else { return };
-    match parked_position(app) {
-        Ok(parked) if parked == position => {}
-        Ok(parked) => {
-            if let Err(error) = window.set_position(parked) {
-                tracing::warn!(%error, "could not re-park the overlay");
-            }
-        }
-        Err(error) => tracing::warn!(%error, "could not re-park the overlay"),
-    }
-}
-
-/// Above and to the left of every display, so the pill is on no screen.
-fn parked_position(app: &AppHandle) -> tauri::Result<PhysicalPosition<i32>> {
-    let monitors = app.available_monitors()?;
-    let left = monitors
-        .iter()
-        .map(|monitor| monitor.position().x)
-        .min()
-        .unwrap_or(0);
-    let top = monitors
-        .iter()
-        .map(|monitor| monitor.position().y)
-        .min()
-        .unwrap_or(0);
-    Ok(PhysicalPosition::new(
-        left.saturating_sub(PARK_GAP),
-        top.saturating_sub(PARK_GAP),
-    ))
-}
-
-/// Bottom-centre of the work area of the monitor the cursor is on, so the pill appears on the
-/// screen the user is looking at.
-fn position_under_cursor(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
-    let cursor = app.cursor_position()?;
-    let monitor = match app.monitor_from_point(cursor.x, cursor.y)? {
-        Some(monitor) => monitor,
-        None => match app.primary_monitor()? {
-            Some(monitor) => monitor,
-            None => return Ok(()),
-        },
-    };
-    let scale = monitor.scale_factor();
-    let area = monitor.work_area();
-    let width = WIDTH * scale;
-    let height = HEIGHT * scale;
-    let x = f64::from(area.position.x) + (f64::from(area.size.width) - width) / 2.0;
-    let y =
-        f64::from(area.position.y) + f64::from(area.size.height) - height - BOTTOM_MARGIN * scale;
-    window.set_position(PhysicalPosition::new(x.round(), y.round()))
 }

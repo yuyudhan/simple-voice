@@ -259,10 +259,6 @@ export const events = {
         listen<DictationState>("dictation-state", (e) => {
             cb(e.payload);
         }),
-    dictationLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
-        listen<{ level: number }>("dictation-level", (e) => {
-            cb(e.payload.level);
-        }),
     historyChanged: (cb: () => void): Promise<UnlistenFn> =>
         listen<null>("history-changed", () => {
             cb();

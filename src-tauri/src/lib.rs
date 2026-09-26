@@ -127,7 +127,6 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     windows::create_main(app, !launched_in_background || startup_error.is_some())?;
     windows::install_app_menu(app)?;
-    overlay::create(app)?;
     tray::create(app)?;
 
     dock::apply_dock(app, settings.show_in_dock);
