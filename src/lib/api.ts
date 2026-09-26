@@ -8,12 +8,15 @@ export type Style = "formal" | "casual";
 export type SoundTheme = "soft" | "glass" | "pop" | "chime";
 export type Theme = "system" | "light" | "dark";
 export type PostProcessing = "groq" | "apple" | "custom" | "off";
+export type DictionarySort = "name_asc" | "name_desc" | "newest" | "oldest";
 export type PermissionKind = "microphone" | "accessibility" | "speech";
 export type PermissionStatus = "granted" | "denied" | "not_determined" | "restricted";
 
 export interface Settings {
     holdShortcut: string;
     toggleShortcut: string;
+    /** Hold to edit the selected text by voice; empty = edit mode off. Never "Fn". */
+    editShortcut: string;
     microphone: string | null;
     languages: string[];
     fallbackLanguage: string;
@@ -39,6 +42,7 @@ export interface Settings {
     checkForUpdates: boolean;
     /** Release version whose banner the user dismissed; empty = none. */
     skippedUpdate: string;
+    dictionarySort: DictionarySort;
     databaseDir: string;
 }
 
@@ -64,6 +68,8 @@ export interface HistoryEntry {
     status: HistoryStatus;
     rawText: string;
     text: string;
+    /** The selected text an edit replaced; null for a dictation. */
+    sourceText: string | null;
     error: string | null;
     model: string;
     modelName: string;
@@ -73,6 +79,10 @@ export interface HistoryEntry {
     style: Style;
     audioMs: number;
     latencyMs: number;
+    /** How long the transcription model took; null when it failed or was never measured. */
+    transcribeMs: number | null;
+    /** How long the formatting pass took; set exactly when `formatModelName` is. */
+    formatMs: number | null;
     wordCount: number;
     dictionaryFixes: number;
     wordsCorrected: number;
@@ -155,6 +165,26 @@ export interface Insights {
     bests: PersonalBests;
 }
 
+/** One model's speed over every dictation where its stage was timed. */
+export interface ModelTiming {
+    model: string;
+    name: string;
+    runs: number;
+    averageMs: number;
+    fastestMs: number;
+    slowestMs: number;
+    /** Sums over the timed runs, so speed is total work over total time. */
+    totalMs: number;
+    audioMs: number;
+    words: number;
+}
+
+/** Each list sorted by runs, descending. */
+export interface ModelInsights {
+    transcription: ModelTiming[];
+    formatting: ModelTiming[];
+}
+
 export type ModelKind = "transcription" | "post_processing";
 export type ModelProvider = "groq" | "parakeet" | "apple" | "custom";
 export type ModelStatus = "cloud" | "ready" | "not_downloaded" | "downloading" | "unsupported";
@@ -218,6 +248,8 @@ export interface DictationState {
     message?: string;
     words?: number;
     note?: string;
+    /** The session edits the selected text (edit mode); absent for a dictation. */
+    edit?: boolean;
 }
 
 export interface ModelProgress {
@@ -258,6 +290,7 @@ export const api = {
     deleteDictionaryEntry: (id: number) => invoke<null>("delete_dictionary_entry", { id }),
     importVocabulary: (path: string) => invoke<ImportSummary>("import_vocabulary", { path }),
     getInsights: () => invoke<Insights>("get_insights"),
+    getModelInsights: () => invoke<ModelInsights>("get_model_insights"),
     listModels: () => invoke<ModelInfo[]>("list_models"),
     downloadModel: (id: string) => invoke<null>("download_model", { id }),
     deleteModel: (id: string) => invoke<null>("delete_model", { id }),

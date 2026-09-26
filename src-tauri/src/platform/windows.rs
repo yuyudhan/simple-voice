@@ -9,7 +9,7 @@ use tauri::{
 };
 
 use crate::events;
-use crate::features::updates;
+use crate::features::{settings, updates};
 
 pub(crate) const MAIN: &str = "main";
 const APP_MENU_SETTINGS: &str = "app-settings";
@@ -31,14 +31,21 @@ pub(crate) fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<()> {
         .build()?;
 
     // Closing only hides: the app keeps running in the menu bar so the shortcuts keep working.
+    // Focus re-reads the login item, which the user may have removed in System Settings.
     let handle = window.clone();
-    window.on_window_event(move |event| {
-        if let WindowEvent::CloseRequested { api, .. } = event {
+    let focus_app = app.clone();
+    window.on_window_event(move |event| match event {
+        WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
             if let Err(error) = handle.hide() {
                 tracing::warn!(%error, "could not hide the main window");
             }
         }
+        WindowEvent::Focused(true) => {
+            let app = focus_app.clone();
+            tauri::async_runtime::spawn(async move { settings::follow_login_item(&app).await });
+        }
+        _ => {}
     });
     Ok(())
 }

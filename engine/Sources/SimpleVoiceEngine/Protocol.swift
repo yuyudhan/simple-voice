@@ -211,6 +211,11 @@ struct FrontmostAppResult: Encodable, Sendable {
     let bundleId: String?
 }
 
+/// `text` is absent when nothing is selected.
+struct SelectedTextResult: Encodable, Sendable {
+    let text: String?
+}
+
 struct MutedResult: Encodable, Sendable {
     let previous: Bool
 }

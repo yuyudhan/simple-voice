@@ -13,7 +13,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-use crate::features::{models, permissions};
+use crate::features::{models, permissions, settings};
 use crate::platform::shortcuts;
 use crate::state::{lock, AppState};
 
@@ -160,6 +160,7 @@ async fn on_connected(app: AppHandle) {
     if let Err(error) = permissions::refresh(&app).await {
         tracing::debug!(%error, "permission check after engine start failed");
     }
+    settings::follow_login_item(&app).await;
     let model = match state.db() {
         Ok(db) => match db.settings().await {
             Ok(settings) => settings.transcription_model,

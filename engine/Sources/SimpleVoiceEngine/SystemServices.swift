@@ -1,5 +1,5 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/SystemServices.swift
-// Frontmost app, synthetic Cmd+V, System Settings panes and output muting.
+// Frontmost app, synthetic Cmd+V and Cmd+C, System Settings panes and output muting.
 
 import AppKit
 import ApplicationServices
@@ -21,12 +21,17 @@ enum SystemServices {
         guard await AccessibilityTrust.isTrusted() else {
             throw EngineError("accessibility permission missing")
         }
-        let vKey: CGKeyCode = 9
+        try await postCommandKey(9)
+    }
+
+    /// Posts Cmd+<key> to whichever app has focus. The flags are set explicitly, so modifiers
+    /// the user is still holding (the edit shortcut's Option) do not change the combination.
+    static func postCommandKey(_ key: CGKeyCode) async throws {
         let source = CGEventSource(stateID: .combinedSessionState)
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
-            let up = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true),
+            let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
         else {
-            throw EngineError("cannot create the Cmd+V keyboard events")
+            throw EngineError("cannot create the synthetic keyboard events")
         }
         down.flags = .maskCommand
         up.flags = .maskCommand

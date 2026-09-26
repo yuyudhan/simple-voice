@@ -4,6 +4,18 @@ import "./Badge.css";
 
 export type BadgeTone = "neutral" | "accent" | "success" | "warning" | "danger";
 
-export function Badge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {
-    return <span className={`sv-badge sv-badge--${tone}`}>{children}</span>;
+export function Badge({
+    tone = "neutral",
+    title,
+    children,
+}: {
+    tone?: BadgeTone;
+    title?: string;
+    children: ReactNode;
+}) {
+    return (
+        <span className={`sv-badge sv-badge--${tone}`} title={title}>
+            {children}
+        </span>
+    );
 }

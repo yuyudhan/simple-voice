@@ -85,6 +85,8 @@ final class Engine: Sendable {
         case "paste":
             try await SystemServices.paste()
             return EmptyResult()
+        case "selected_text":
+            return try await Selection.read()
         case "set_output_muted":
             let muted = try request.params(MuteParams.self).muted
             let previous = try await muter.setMuted(muted)
@@ -97,6 +99,11 @@ final class Engine: Sendable {
             let output = output
             let active = await MainActor.run { FnKeyMonitor.shared.setEnabled(enabled, output: output) }
             return FnKeyWatchResult(active: active)
+        case "login_item":
+            return try LoginItem.status()
+        case "set_login_item":
+            let enabled = try request.params(LoginItemParams.self).enabled
+            return try LoginItem.setEnabled(enabled)
         default:
             throw EngineError("unknown command `\(request.cmd)`")
         }

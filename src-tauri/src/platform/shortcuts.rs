@@ -1,5 +1,6 @@
 // FilePath: src-tauri/src/platform/shortcuts.rs
-//! Global shortcuts: hold-to-talk, toggle, and Esc (cancel) while recording.
+//! Global shortcuts: hold-to-talk, toggle, hold-to-edit (edit mode), and Esc (cancel) while
+//! recording.
 //!
 //! Key combinations go through the global-shortcut plugin (Carbon hot keys). Carbon cannot
 //! register a lone modifier, so the Fn key is watched by the engine helper, which reports it as
@@ -9,7 +10,7 @@ use std::str::FromStr;
 use std::sync::Mutex;
 
 use sv_domain::settings::FN_KEY_ACCELERATOR;
-use sv_domain::{AppError, AppResult};
+use sv_domain::{AppError, AppResult, Settings};
 use sv_engine::{EngineEvent, FnKeyAction};
 use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Manager, Wry};
@@ -27,7 +28,27 @@ pub(crate) enum Binding {
     Toggle,
     /// Hold and toggle share one accelerator: a tap toggles, a long press is push-to-talk.
     Both,
+    /// Hold to record an instruction that edits the selected text.
+    Edit,
     Escape,
+}
+
+/// The configured accelerators; `edit` is empty while edit mode is off.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Accelerators<'a> {
+    pub(crate) hold: &'a str,
+    pub(crate) toggle: &'a str,
+    pub(crate) edit: &'a str,
+}
+
+impl<'a> Accelerators<'a> {
+    pub(crate) fn of(settings: &'a Settings) -> Self {
+        Self {
+            hold: &settings.hold_shortcut,
+            toggle: &settings.toggle_shortcut,
+            edit: &settings.edit_shortcut,
+        }
+    }
 }
 
 /// Registration calls hop to the main thread and wait for it, while the shortcut handler runs
@@ -59,6 +80,7 @@ impl Trigger {
 struct Lookup {
     hold: Option<Trigger>,
     toggle: Option<Trigger>,
+    edit: Option<Shortcut>,
     /// Fn events keep arriving while the user records a new shortcut; they are dropped here.
     suspended: bool,
 }
@@ -73,6 +95,7 @@ impl Lookup {
 struct Registered {
     hold: Option<Trigger>,
     toggle: Option<Trigger>,
+    edit: Option<Shortcut>,
     escape: bool,
     suspended: bool,
 }
@@ -85,6 +108,7 @@ impl Registered {
             .iter()
             .chain(&self.toggle)
             .filter_map(|trigger| trigger.key())
+            .chain(self.edit)
             .collect();
         shortcuts.dedup();
         shortcuts
@@ -109,6 +133,7 @@ fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
         (true, true) => Binding::Both,
         (true, false) => Binding::Hold,
         (false, true) => Binding::Toggle,
+        (false, false) if lookup.edit == Some(*shortcut) => Binding::Edit,
         (false, false) if *shortcut == escape() => Binding::Escape,
         (false, false) => return,
     };
@@ -159,11 +184,30 @@ fn unregister_all(app: &AppHandle, shortcuts: &[Shortcut]) {
     }
 }
 
-/// Replaces the hold and toggle shortcuts. Both are parsed and registered before anything is
-/// committed; on failure the previous shortcuts are registered again and nothing changes.
-pub(crate) fn register(app: &AppHandle, hold: &str, toggle: &str) -> AppResult<()> {
-    let hold_trigger = parse(hold)?;
-    let toggle_trigger = parse(toggle)?;
+/// Edit mode needs a key combination of its own: Fn belongs to dictation's watch, and a
+/// combination shared with a dictation shortcut could not tell the two apart.
+fn parse_edit(accelerator: &str, dictation: [Trigger; 2]) -> AppResult<Option<Shortcut>> {
+    if accelerator.trim().is_empty() {
+        return Ok(None);
+    }
+    match parse(accelerator)? {
+        Trigger::Fn => Err(AppError::invalid(
+            "Fn can't be the edit shortcut; choose a key combination",
+        )),
+        trigger if dictation.contains(&trigger) => Err(AppError::invalid(format!(
+            "{} is already a dictation shortcut; choose another for editing",
+            accelerator.trim()
+        ))),
+        Trigger::Key(shortcut) => Ok(Some(shortcut)),
+    }
+}
+
+/// Replaces the hold, toggle and edit shortcuts. All are parsed and registered before anything
+/// is committed; on failure the previous shortcuts are registered again and nothing changes.
+pub(crate) fn register(app: &AppHandle, accelerators: Accelerators<'_>) -> AppResult<()> {
+    let hold_trigger = parse(accelerators.hold)?;
+    let toggle_trigger = parse(accelerators.toggle)?;
+    let edit_shortcut = parse_edit(accelerators.edit, [hold_trigger, toggle_trigger])?;
     let registry = app.state::<ShortcutRegistry>();
     let mut registered = lock(&registry.inner);
 
@@ -173,13 +217,17 @@ pub(crate) fn register(app: &AppHandle, hold: &str, toggle: &str) -> AppResult<(
     let mut next: Vec<Shortcut> = [hold_trigger, toggle_trigger]
         .into_iter()
         .filter_map(Trigger::key)
+        .chain(edit_shortcut)
         .collect();
     next.dedup();
     if let Err(failed) = register_all(app, &next) {
-        let accelerator = if next.get(failed).copied().map(Trigger::Key) == Some(hold_trigger) {
-            hold
+        let failed = next.get(failed).copied();
+        let accelerator = if failed.is_some() && failed == edit_shortcut {
+            accelerators.edit
+        } else if failed.map(Trigger::Key) == Some(hold_trigger) {
+            accelerators.hold
         } else {
-            toggle
+            accelerators.toggle
         };
         unregister_all(app, &next);
         if !registered.suspended {
@@ -192,11 +240,13 @@ pub(crate) fn register(app: &AppHandle, hold: &str, toggle: &str) -> AppResult<(
 
     registered.hold = Some(hold_trigger);
     registered.toggle = Some(toggle_trigger);
+    registered.edit = edit_shortcut;
     // Saving a new shortcut ends the capture that suspended them.
     registered.suspended = false;
     *lock(&registry.lookup) = Lookup {
         hold: Some(hold_trigger),
         toggle: Some(toggle_trigger),
+        edit: edit_shortcut,
         suspended: false,
     };
     drop(registered);

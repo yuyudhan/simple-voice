@@ -28,6 +28,9 @@ pub(crate) struct AppState {
     pub(crate) permissions: Mutex<Option<Permissions>>,
     pub(crate) engine_version: Mutex<Option<String>>,
     pub(crate) updates: Mutex<UpdateStatus>,
+    /// Held while the login item is read or changed together with `launchAtLogin`, so a status
+    /// read (on focus, on helper connect) never overwrites a change that is still in flight.
+    pub(crate) login_item: tokio::sync::Mutex<()>,
 }
 
 impl AppState {
@@ -53,6 +56,7 @@ impl AppState {
             permissions: Mutex::new(None),
             engine_version: Mutex::new(None),
             updates: Mutex::new(UpdateStatus::new(app_version)),
+            login_item: tokio::sync::Mutex::new(()),
         }
     }
 

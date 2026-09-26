@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
+use sv_domain::settings::FN_KEY_ACCELERATOR;
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch};
 
 use crate::db::Db;
@@ -119,6 +120,11 @@ async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Sett
         stored_key(pool, GROQ_API_KEY).await?.is_some() || env_groq_key().is_some();
     settings.custom_api_key_present = stored_key(pool, CUSTOM_API_KEY).await?.is_some();
     settings.database_dir = database_dir.to_string_lossy().into_owned();
+    // The default edit shortcut can collide with a dictation shortcut chosen before edit mode
+    // existed. Edit mode then starts off instead of every later settings save failing.
+    if validate_edit_shortcut(&settings).is_err() {
+        settings.edit_shortcut.clear();
+    }
     Ok(settings)
 }
 
@@ -155,6 +161,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     let SettingsPatch {
         hold_shortcut,
         toggle_shortcut,
+        edit_shortcut,
         microphone,
         languages,
         fallback_language,
@@ -177,10 +184,12 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         onboarding_complete,
         check_for_updates,
         skipped_update,
+        dictionary_sort,
     } = patch;
 
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
     set_trimmed(&mut settings.toggle_shortcut, toggle_shortcut);
+    set_trimmed(&mut settings.edit_shortcut, edit_shortcut);
     if let Some(microphone) = microphone {
         settings.microphone = microphone
             .map(|name| name.trim().to_owned())
@@ -212,6 +221,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.onboarding_complete, onboarding_complete);
     set(&mut settings.check_for_updates, check_for_updates);
     set_trimmed(&mut settings.skipped_update, skipped_update);
+    set(&mut settings.dictionary_sort, dictionary_sort);
 }
 
 fn set<T>(field: &mut T, value: Option<T>) {
@@ -235,6 +245,7 @@ fn validate(settings: &Settings) -> AppResult<()> {
     if settings.toggle_shortcut.is_empty() {
         return Err(AppError::invalid("The toggle shortcut can't be empty"));
     }
+    validate_edit_shortcut(settings)?;
     if !settings.sound_volume.is_finite() || !(0.0..=1.0).contains(&settings.sound_volume) {
         return Err(AppError::invalid("Sound volume must be between 0 and 1"));
     }
@@ -266,6 +277,29 @@ fn validate(settings: &Settings) -> AppResult<()> {
         return Err(AppError::invalid(
             "The custom endpoint URL must start with http:// or https://",
         ));
+    }
+    Ok(())
+}
+
+/// Edit mode is hold-only on its own key combination: the Fn key is taken by dictation's watch,
+/// and a combination shared with a dictation shortcut could never tell the two apart.
+fn validate_edit_shortcut(settings: &Settings) -> AppResult<()> {
+    let edit = settings.edit_shortcut.as_str();
+    if edit.is_empty() {
+        return Ok(());
+    }
+    if edit.eq_ignore_ascii_case(FN_KEY_ACCELERATOR) {
+        return Err(AppError::invalid(
+            "Fn can't be the edit shortcut; choose a key combination",
+        ));
+    }
+    let shared = [&settings.hold_shortcut, &settings.toggle_shortcut]
+        .into_iter()
+        .any(|dictation| dictation.eq_ignore_ascii_case(edit));
+    if shared {
+        return Err(AppError::invalid(format!(
+            "{edit} is already a dictation shortcut; choose another for editing"
+        )));
     }
     Ok(())
 }
@@ -420,6 +454,14 @@ mod tests {
                 ..SettingsPatch::default()
             },
             SettingsPatch {
+                edit_shortcut: Some("fn".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                edit_shortcut: Some("control+slash".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
                 custom_base_url: Some("localhost:11434".to_owned()),
                 ..SettingsPatch::default()
             },
@@ -434,6 +476,34 @@ mod tests {
             assert!(matches!(error, AppError::InvalidInput(_)), "{error}");
         }
         assert_eq!(db.settings().await.unwrap(), before);
+    }
+
+    #[tokio::test]
+    async fn default_edit_shortcut_colliding_with_a_dictation_shortcut_starts_off() {
+        let (_dir, db) = open().await;
+        let collide = SettingsPatch {
+            toggle_shortcut: Some(sv_domain::settings::DEFAULT_EDIT_SHORTCUT.to_owned()),
+            edit_shortcut: Some(String::new()),
+            ..SettingsPatch::default()
+        };
+        db.update_settings(collide).await.unwrap();
+        {
+            // A database from before edit mode has no edit shortcut row at all.
+            let inner = db.read().await;
+            sqlx::query!("DELETE FROM settings WHERE key = 'editShortcut'")
+                .execute(&inner.pool)
+                .await
+                .unwrap();
+        }
+        assert_eq!(db.settings().await.unwrap().edit_shortcut, "");
+        let later = SettingsPatch {
+            style: Some(Style::Casual),
+            ..SettingsPatch::default()
+        };
+        assert_eq!(
+            db.update_settings(later).await.unwrap().style,
+            Style::Casual
+        );
     }
 
     #[tokio::test]

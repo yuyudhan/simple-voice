@@ -2,20 +2,35 @@
 // Shows a configured global shortcut and records a replacement from the next key combination.
 // Global shortcuts are suspended while recording so pressing the current combination does not
 // start a dictation; they are always resumed afterwards, including on unmount and window blur.
-// The webview does not reliably report the Fn key on its own, so it is offered as a button.
+// The webview does not reliably report the Fn key on its own, so it is offered as a button for
+// the dictation shortcuts. The edit shortcut can be turned off instead; Fn is never allowed there.
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage } from "../../../lib/api";
+import { api, errorMessage, type SettingsPatch } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
 import { Button, ShortcutKeys } from "../../../ui";
 import { FN_KEY, captureKey } from "./accelerator";
 import "./ShortcutRecorder.css";
 
-export type ShortcutField = "holdShortcut" | "toggleShortcut";
+export type ShortcutField = "holdShortcut" | "toggleShortcut" | "editShortcut";
+
+const FIELDS: ShortcutField[] = ["holdShortcut", "toggleShortcut", "editShortcut"];
 
 const FIELD_LABEL: Record<ShortcutField, string> = {
     holdShortcut: "Hold to speak",
     toggleShortcut: "Toggle to speak",
+    editShortcut: "Hold to edit",
 };
+
+function patchFor(field: ShortcutField, accelerator: string): SettingsPatch {
+    switch (field) {
+        case "holdShortcut":
+            return { holdShortcut: accelerator };
+        case "toggleShortcut":
+            return { toggleShortcut: accelerator };
+        case "editShortcut":
+            return { editShortcut: accelerator };
+    }
+}
 
 export function ShortcutRecorder({ field }: { field: ShortcutField }) {
     const { settings, refresh } = useSettings();
@@ -43,10 +58,22 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
         }
     };
 
+    const save = async (accelerator: string) => {
+        setError(null);
+        setSaving(true);
+        try {
+            await api.updateSettings(patchFor(field, accelerator));
+            await refresh();
+        } catch (e) {
+            setError(errorMessage(e));
+        } finally {
+            setSaving(false);
+        }
+    };
+
     useEffect(() => {
         if (!recording) return;
         let finished = false;
-        const other: ShortcutField = field === "holdShortcut" ? "toggleShortcut" : "holdShortcut";
 
         const finish = async (accelerator: string | null) => {
             if (finished) return;
@@ -55,16 +82,15 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
             try {
                 const current = contextRef.current.settings;
                 if (accelerator !== null && accelerator !== current[field]) {
-                    if (accelerator === current[other]) {
-                        setError(`${accelerator} is already used for ${FIELD_LABEL[other]}.`);
+                    const taken = FIELDS.find(
+                        (other) => other !== field && current[other] === accelerator,
+                    );
+                    if (taken !== undefined) {
+                        setError(`${accelerator} is already used for ${FIELD_LABEL[taken]}.`);
                         return;
                     }
                     setSaving(true);
-                    await api.updateSettings(
-                        field === "holdShortcut"
-                            ? { holdShortcut: accelerator }
-                            : { toggleShortcut: accelerator },
-                    );
+                    await api.updateSettings(patchFor(field, accelerator));
                     await contextRef.current.refresh();
                 }
             } catch (e) {
@@ -123,6 +149,7 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
         };
     }, [recording, field]);
 
+    const off = settings[field] === "";
     return (
         <div className="sv-shortcut-rec">
             <div className="sv-shortcut-rec__row">
@@ -134,20 +161,24 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
                             <span className="sv-shortcut-rec__prompt">Press a key combination</span>
                         )}
                     </div>
+                ) : off ? (
+                    <span className="sv-shortcut-rec__prompt">Off</span>
                 ) : (
                     <ShortcutKeys accelerator={settings[field]} />
                 )}
                 {recording ? (
                     <>
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => {
-                                finishRef.current(FN_KEY);
-                            }}
-                        >
-                            Use fn
-                        </Button>
+                        {field !== "editShortcut" && (
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                    finishRef.current(FN_KEY);
+                                }}
+                            >
+                                Use fn
+                            </Button>
+                        )}
                         <Button
                             size="sm"
                             variant="ghost"
@@ -159,16 +190,30 @@ export function ShortcutRecorder({ field }: { field: ShortcutField }) {
                         </Button>
                     </>
                 ) : (
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={saving}
-                        onClick={() => {
-                            void start();
-                        }}
-                    >
-                        Change
-                    </Button>
+                    <>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={saving}
+                            onClick={() => {
+                                void start();
+                            }}
+                        >
+                            {off ? "Set" : "Change"}
+                        </Button>
+                        {field === "editShortcut" && !off && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={saving}
+                                onClick={() => {
+                                    void save("");
+                                }}
+                            >
+                                Turn off
+                            </Button>
+                        )}
+                    </>
                 )}
             </div>
             {recording && !error && <p className="sv-shortcut-rec__hint">Esc to cancel</p>}

@@ -9,12 +9,14 @@ use serde::Serialize;
 use sv_audio::{Cue, Microphone};
 use sv_domain::models::LOCAL_TRANSCRIPTION_MODELS;
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch, SoundTheme};
-use tauri::{AppHandle, State};
+use sv_engine::LoginItemStatus;
+use tauri::{AppHandle, Manager, State};
 
 use crate::events;
 use crate::features::dictation::{self, PostProcessingTest};
 use crate::features::models;
-use crate::platform::{dock, overlay, shortcuts};
+use crate::platform::shortcuts::{self, Accelerators};
+use crate::platform::{dock, login_item, overlay};
 use crate::state::{lock, AppState};
 
 /// Gap between the start and stop cue in a preview.
@@ -35,8 +37,8 @@ pub(crate) async fn get_settings(state: State<'_, AppState>) -> AppResult<Settin
     state.db()?.settings().await
 }
 
-/// Saves a partial update. Shortcut changes are registered first so an accelerator another app
-/// owns is rejected before anything is stored.
+/// Saves a partial update. The login item and shortcut changes are applied first so a change
+/// macOS refuses (or an accelerator another app owns) is rejected before anything is stored.
 #[tauri::command]
 pub(crate) async fn update_settings(
     app: AppHandle,
@@ -44,7 +46,17 @@ pub(crate) async fn update_settings(
     patch: SettingsPatch,
 ) -> AppResult<Settings> {
     let db = state.db()?;
+    let _login_guard = match patch.launch_at_login {
+        Some(_) => Some(state.login_item.lock().await),
+        None => None,
+    };
     let old = db.settings().await?;
+    let login = patch
+        .launch_at_login
+        .filter(|enabled| *enabled != old.launch_at_login);
+    if let Some(enabled) = login {
+        login_item::set(&app, enabled).await?;
+    }
     let hold = patch
         .hold_shortcut
         .clone()
@@ -53,21 +65,33 @@ pub(crate) async fn update_settings(
         .toggle_shortcut
         .clone()
         .unwrap_or_else(|| old.toggle_shortcut.clone());
-    let shortcuts_changed = hold != old.hold_shortcut || toggle != old.toggle_shortcut;
+    let edit = patch
+        .edit_shortcut
+        .clone()
+        .unwrap_or_else(|| old.edit_shortcut.clone());
+    let shortcuts_changed =
+        hold != old.hold_shortcut || toggle != old.toggle_shortcut || edit != old.edit_shortcut;
     if shortcuts_changed {
-        shortcuts::register(&app, &hold, &toggle)?;
+        let next = Accelerators {
+            hold: &hold,
+            toggle: &toggle,
+            edit: edit.trim(),
+        };
+        if let Err(error) = shortcuts::register(&app, next) {
+            restore_login_item(&app, login).await;
+            return Err(error);
+        }
     }
 
     let new = match db.update_settings(patch).await {
         Ok(new) => new,
         Err(error) => {
             if shortcuts_changed {
-                if let Err(restore) =
-                    shortcuts::register(&app, &old.hold_shortcut, &old.toggle_shortcut)
-                {
+                if let Err(restore) = shortcuts::register(&app, Accelerators::of(&old)) {
                     tracing::warn!(%restore, "could not restore the previous shortcuts");
                 }
             }
+            restore_login_item(&app, login).await;
             return Err(error);
         }
     };
@@ -81,9 +105,6 @@ fn apply_changes(app: &AppHandle, old: &Settings, new: &Settings) {
     if old.show_in_dock != new.show_in_dock {
         dock::apply_dock(app, new.show_in_dock);
     }
-    if old.launch_at_login != new.launch_at_login {
-        dock::sync_autostart(app, new.launch_at_login);
-    }
     if old.show_bar_always != new.show_bar_always {
         overlay::set_always(app, new.show_bar_always);
     }
@@ -92,6 +113,62 @@ fn apply_changes(app: &AppHandle, old: &Settings, new: &Settings) {
         let app = app.clone();
         let model = model.clone();
         tauri::async_runtime::spawn(async move { models::preload(&app, &model).await });
+    }
+}
+
+async fn restore_login_item(app: &AppHandle, changed_to: Option<bool>) {
+    if let Some(enabled) = changed_to {
+        if let Err(error) = login_item::set(app, !enabled).await {
+            tracing::warn!(%error, "could not restore the previous login item");
+        }
+    }
+}
+
+/// Makes the setting match macOS, so switching Simple Voice off under Open at Login in System
+/// Settings switches the toggle off too. Runs when the helper connects and whenever the main
+/// window gains focus. Development builds cannot register a login item and are left alone.
+pub(crate) async fn follow_login_item(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let _guard = state.login_item.lock().await;
+    let mut status = match state.engine.login_item().await {
+        Ok(status) => status,
+        Err(error) => {
+            tracing::debug!(%error, "login item status unavailable");
+            return;
+        }
+    };
+    let Ok(db) = state.db() else { return };
+    let settings = match db.settings().await {
+        Ok(settings) => settings,
+        Err(error) => {
+            tracing::warn!(%error, "could not read settings to follow the login item");
+            return;
+        }
+    };
+    // Until now an older version's LaunchAgent carried the setting; hand it over once.
+    if login_item::remove_legacy_agent()
+        && settings.launch_at_login
+        && status != LoginItemStatus::Enabled
+    {
+        status = match login_item::set(app, true).await {
+            Ok(()) => LoginItemStatus::Enabled,
+            Err(error) => {
+                tracing::warn!(%error, "could not move launch at login to the login item");
+                status
+            }
+        };
+    }
+    let enabled = status == LoginItemStatus::Enabled;
+    if enabled == settings.launch_at_login {
+        return;
+    }
+    let patch = SettingsPatch {
+        launch_at_login: Some(enabled),
+        ..SettingsPatch::default()
+    };
+    match db.update_settings(patch).await {
+        Ok(settings) => events::emit(app, events::SETTINGS_CHANGED, settings),
+        Err(error) => tracing::warn!(%error, "could not store the login item status"),
     }
 }
 

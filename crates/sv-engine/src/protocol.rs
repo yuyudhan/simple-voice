@@ -63,6 +63,34 @@ pub struct PolishReply {
 }
 
 #[derive(Debug, Deserialize)]
+struct SelectedText {
+    text: Option<String>,
+}
+
+/// Turns the helper's missing-trust error into a permission error that names what needs it.
+fn needs_accessibility(error: AppError, action: &str) -> AppError {
+    match error {
+        AppError::Engine(message) if message.contains(ACCESSIBILITY_MISSING) => {
+            AppError::Permission(format!(
+                "Accessibility permission is needed to {action}. Allow Simple Voice in System \
+                 Settings → Privacy & Security → Accessibility."
+            ))
+        }
+        other => other,
+    }
+}
+
+/// Where Simple Voice stands as a login item (`SMAppService.mainApp`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoginItemStatus {
+    Enabled,
+    Disabled,
+    /// Registered but switched off in System Settings; only the user can allow it again there.
+    RequiresApproval,
+}
+
+#[derive(Debug, Deserialize)]
 struct DownloadResult {
     status: ModelStatus,
 }
@@ -75,6 +103,11 @@ struct MutedResult {
 #[derive(Debug, Deserialize)]
 struct FnKeyWatch {
     active: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct LoginItem {
+    status: LoginItemStatus,
 }
 
 /// Builds a flat parameter object, leaving out absent optional values.
@@ -191,17 +224,19 @@ impl EngineClient {
 
     /// Posts Cmd+V to the focused app.
     pub async fn paste(&self) -> AppResult<()> {
-        match self.command("paste", Value::Null, QUICK).await {
-            Ok(()) => Ok(()),
-            Err(AppError::Engine(message)) if message.contains(ACCESSIBILITY_MISSING) => {
-                Err(AppError::Permission(
-                    "Accessibility permission is needed to paste. Allow Simple Voice in System \
-                     Settings → Privacy & Security → Accessibility."
-                        .to_owned(),
-                ))
-            }
-            Err(error) => Err(error),
-        }
+        self.command("paste", Value::Null, QUICK)
+            .await
+            .map_err(|error| needs_accessibility(error, "paste"))
+    }
+
+    /// The text selected in the focused app; `None` when nothing is selected. The helper may
+    /// copy the selection with Cmd+C to read it and restores the clipboard afterwards.
+    pub async fn selected_text(&self) -> AppResult<Option<String>> {
+        let result: SelectedText = self
+            .request("selected_text", Value::Null, QUICK)
+            .await
+            .map_err(|error| needs_accessibility(error, "read the selected text"))?;
+        Ok(result.text)
     }
 
     /// Mutes or restores system output; returns whether output was muted before the call.
@@ -217,6 +252,19 @@ impl EngineClient {
         let params = params([("enabled", Some(Value::from(enabled)))]);
         let result: FnKeyWatch = self.request("watch_fn_key", params, QUICK).await?;
         Ok(result.active)
+    }
+
+    pub async fn login_item(&self) -> AppResult<LoginItemStatus> {
+        let result: LoginItem = self.request("login_item", Value::Null, QUICK).await?;
+        Ok(result.status)
+    }
+
+    /// Registers or removes the app as a login item and returns the status afterwards. When
+    /// macOS holds a registration for approval the helper opens the Login Items pane.
+    pub async fn set_login_item(&self, enabled: bool) -> AppResult<LoginItemStatus> {
+        let params = params([("enabled", Some(Value::from(enabled)))]);
+        let result: LoginItem = self.request("set_login_item", params, QUICK).await?;
+        Ok(result.status)
     }
 
     /// Runs the post-processing prompt on Apple Intelligence. `shots` are `(user, assistant)`
@@ -344,6 +392,26 @@ mod tests {
         let (client, _transport) =
             scripted(r#"{"id":$ID,"ok":false,"error":"accessibility permission missing"}"#);
         assert!(matches!(client.paste().await, Err(AppError::Permission(_))));
+    }
+
+    #[tokio::test]
+    async fn selected_text_reads_a_selection_or_none() {
+        let (client, transport) = scripted(r#"{"id":$ID,"ok":true,"result":{"text":"hi there"}}"#);
+        assert_eq!(
+            client.selected_text().await.unwrap().as_deref(),
+            Some("hi there")
+        );
+        assert_eq!(transport.seen.lock()[0]["cmd"], "selected_text");
+
+        let (client, _transport) = scripted(r#"{"id":$ID,"ok":true,"result":{}}"#);
+        assert_eq!(client.selected_text().await.unwrap(), None);
+
+        let (client, _transport) =
+            scripted(r#"{"id":$ID,"ok":false,"error":"accessibility permission missing"}"#);
+        assert!(matches!(
+            client.selected_text().await,
+            Err(AppError::Permission(_))
+        ));
     }
 
     #[tokio::test]

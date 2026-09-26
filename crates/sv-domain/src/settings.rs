@@ -50,11 +50,25 @@ pub enum PostProcessing {
     Off,
 }
 
+/// Order of the Dictionary page list. Remembered so the page opens the way it was left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DictionarySort {
+    #[default]
+    NameAsc,
+    NameDesc,
+    /// Most recently added first.
+    Newest,
+    Oldest,
+}
+
 /// The Fn (Globe) key on its own. Carbon hot keys cannot register a lone modifier, so the app
 /// watches this key through the engine helper instead of the global-shortcut plugin.
 pub const FN_KEY_ACCELERATOR: &str = "Fn";
 pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
+/// Hold-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
+pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
 pub const DEFAULT_TRANSCRIPTION_MODEL: &str = "groq-whisper";
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
@@ -64,6 +78,8 @@ pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 pub struct Settings {
     pub hold_shortcut: String,
     pub toggle_shortcut: String,
+    /// Hold to edit the selected text by voice; empty = edit mode off. Never `Fn`.
+    pub edit_shortcut: String,
     /// Input device name; `None` = automatic (built-in microphone preferred).
     pub microphone: Option<String>,
     /// Allowed dictation languages, ISO 639-1.
@@ -96,6 +112,7 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// Release version whose banner the user dismissed; empty = none. A newer one shows again.
     pub skipped_update: String,
+    pub dictionary_sort: DictionarySort,
     /// Derived: directory currently holding the database.
     pub database_dir: String,
 }
@@ -105,6 +122,7 @@ impl Default for Settings {
         Self {
             hold_shortcut: DEFAULT_HOLD_SHORTCUT.to_owned(),
             toggle_shortcut: DEFAULT_TOGGLE_SHORTCUT.to_owned(),
+            edit_shortcut: DEFAULT_EDIT_SHORTCUT.to_owned(),
             microphone: None,
             languages: vec!["en".to_owned(), "hi".to_owned()],
             fallback_language: "hi".to_owned(),
@@ -131,6 +149,7 @@ impl Default for Settings {
             onboarding_complete: false,
             check_for_updates: true,
             skipped_update: String::new(),
+            dictionary_sort: DictionarySort::NameAsc,
             database_dir: String::new(),
         }
     }
@@ -143,6 +162,7 @@ impl Default for Settings {
 pub struct SettingsPatch {
     pub hold_shortcut: Option<String>,
     pub toggle_shortcut: Option<String>,
+    pub edit_shortcut: Option<String>,
     #[serde(with = "double_option")]
     pub microphone: Option<Option<String>>,
     pub languages: Option<Vec<String>>,
@@ -166,6 +186,7 @@ pub struct SettingsPatch {
     pub onboarding_complete: Option<bool>,
     pub check_for_updates: Option<bool>,
     pub skipped_update: Option<String>,
+    pub dictionary_sort: Option<DictionarySort>,
 }
 
 /// Distinguishes an absent key (`None`) from an explicit `null` (`Some(None)`).
@@ -210,7 +231,8 @@ mod tests {
     #[test]
     fn enums_use_the_wire_names_the_ui_sends() {
         let patch: Result<SettingsPatch, _> = serde_json::from_str(
-            r#"{"style":"casual","soundTheme":"chime","postProcessing":"apple","theme":"dark"}"#,
+            r#"{"style":"casual","soundTheme":"chime","postProcessing":"apple","theme":"dark",
+                "dictionarySort":"name_desc"}"#,
         );
         let patch = patch.ok();
         assert_eq!(patch.as_ref().and_then(|p| p.style), Some(Style::Casual));
@@ -219,6 +241,10 @@ mod tests {
             Some(SoundTheme::Chime)
         );
         assert_eq!(patch.as_ref().and_then(|p| p.theme), Some(Theme::Dark));
+        assert_eq!(
+            patch.as_ref().and_then(|p| p.dictionary_sort),
+            Some(DictionarySort::NameDesc)
+        );
         assert_eq!(
             patch.and_then(|p| p.post_processing),
             Some(PostProcessing::Apple)

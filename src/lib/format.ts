@@ -17,6 +17,10 @@ const longDateFormat = new Intl.DateTimeFormat(undefined, {
     year: "numeric",
 });
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "short" });
+const secondsFormat = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+});
 
 export function formatNumber(value: number): string {
     return numberFormat.format(value);
@@ -65,14 +69,22 @@ export function startOfWeek(date: Date): Date {
     return addDays(day, -offset);
 }
 
-/** "Today", "Yesterday", or "Mon 22 Sep" (with the year when it is not the current one). */
-export function dayLabel(date: Date, now: Date = new Date()): string {
+/**
+ * "Today", "Yesterday", or "Mon 22 Sep" (with the year when it is not the current one).
+ * `weekday: false` drops the weekday ("22 Sep") for narrow columns.
+ */
+export function dayLabel(
+    date: Date,
+    now: Date = new Date(),
+    { weekday = true }: { weekday?: boolean } = {},
+): string {
     const today = startOfDay(now);
     const day = startOfDay(date);
     const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
     if (diff === 0) return "Today";
     if (diff === 1) return "Yesterday";
-    const base = `${weekdayFormat.format(day)} ${dayMonthFormat.format(day)}`;
+    const dayMonth = dayMonthFormat.format(day);
+    const base = weekday ? `${weekdayFormat.format(day)} ${dayMonth}` : dayMonth;
     return day.getFullYear() === today.getFullYear()
         ? base
         : `${base} ${String(day.getFullYear())}`;
@@ -95,4 +107,9 @@ export function formatMinutes(minutes: number): string {
     const hours = Math.floor(rounded / 60);
     const rest = rounded % 60;
     return rest === 0 ? `${String(hours)} hr` : `${String(hours)} hr ${String(rest)} min`;
+}
+
+/** Milliseconds as seconds with one decimal: "0.4s", "12.3s". */
+export function formatSeconds(ms: number): string {
+    return `${secondsFormat.format(ms / 1000)}s`;
 }
