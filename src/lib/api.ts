@@ -43,6 +43,8 @@ export interface Settings {
     /** Release version whose banner the user dismissed; empty = none. */
     skippedUpdate: string;
     dictionarySort: DictionarySort;
+    /** Learn dictionary words from corrections made to pasted text; needs post-processing. */
+    learnFromEdits: boolean;
     databaseDir: string;
 }
 
@@ -90,12 +92,17 @@ export interface HistoryEntry {
     bundleId: string | null;
     appCategory: AppCategory;
     canRetry: boolean;
+    /** What the pasted text read after the user corrected it; null when never corrected. */
+    editedText: string | null;
 }
+
+export type DictionarySource = "manual" | "learned";
 
 export interface DictionaryEntry {
     id: number;
     phrase: string;
     replacement: string | null;
+    source: DictionarySource;
     createdAt: number;
 }
 
@@ -318,6 +325,10 @@ export const events = {
         }),
     historyChanged: (cb: () => void): Promise<UnlistenFn> =>
         listen<null>("history-changed", () => {
+            cb();
+        }),
+    dictionaryChanged: (cb: () => void): Promise<UnlistenFn> =>
+        listen<null>("dictionary-changed", () => {
             cb();
         }),
     settingsChanged: (cb: (settings: Settings) => void): Promise<UnlistenFn> =>

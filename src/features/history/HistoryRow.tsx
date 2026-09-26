@@ -118,6 +118,11 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                         </Badge>
                     )}
                     <StatusBadge entry={entry} />
+                    {entry.editedText !== null && (
+                        <Badge tone="neutral" title={`You changed it to: ${entry.editedText}`}>
+                            Corrected
+                        </Badge>
+                    )}
                     <ModelsUsed entry={entry} />
                 </div>
 

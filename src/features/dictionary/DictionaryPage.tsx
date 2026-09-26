@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ArrowRight, BookA, Pencil, Plus, Search, SearchX, Trash2, Upload } from "lucide-react";
-import { api, errorMessage, type DictionaryEntry } from "../../lib/api";
+import { api, errorMessage, events, type DictionaryEntry } from "../../lib/api";
+import { useTauriEvent } from "../../lib/useTauriEvent";
 import { dayLabel, formatLongDate, formatNumber, pluralize } from "../../lib/format";
 import { useSettings } from "../../app/SettingsContext";
 import {
+    Badge,
     Button,
     EmptyState,
     IconButton,
@@ -23,6 +25,7 @@ import "./dictionary.css";
 type EditorState = { entry: DictionaryEntry | null; key: number } | null;
 
 const DESCRIPTION = "Terms to spell your way, and rules that rewrite what you say.";
+const LEARNED_TIP = "Learned from your corrections. Delete it and it will not be learned again.";
 const EMPTY_DESCRIPTION =
     "Add a word you use often, or import a vocabulary file with one entry per line. Lines " +
     "written as “heard -> written” become replacement rules.";
@@ -50,6 +53,10 @@ export function DictionaryPage() {
     useEffect(() => {
         void load();
     }, [load]);
+
+    useTauriEvent(events.dictionaryChanged, () => {
+        void load();
+    });
 
     const sorted = useMemo(() => sortEntries(entries ?? [], sort), [entries, sort]);
 
@@ -221,6 +228,11 @@ export function DictionaryPage() {
                                         <span className="dictionary-row__written selectable">
                                             {entry.phrase}
                                         </span>
+                                        {entry.source === "learned" && (
+                                            <Badge tone="accent" title={LEARNED_TIP}>
+                                                Learned
+                                            </Badge>
+                                        )}
                                     </span>
                                 ) : (
                                     <span className="dictionary-row__entry">
@@ -326,6 +338,7 @@ export function DictionaryPage() {
                         ? `“${pendingDelete?.phrase ?? ""}” will no longer guide recognition.`
                         : `“${pendingDelete.phrase}” will no longer be rewritten as ` +
                           `“${pendingDelete.replacement}”.`}
+                    {pendingDelete?.source === "learned" && " It will not be learned again."}
                 </p>
             </Modal>
         </>

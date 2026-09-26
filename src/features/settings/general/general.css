@@ -218,3 +218,8 @@ span.sv-chip {
     border-radius: var(--radius-control);
     background: var(--surface);
 }
+
+/* Separates the requirement from the description it follows inside the same row text. */
+.sv-learning__note {
+    margin-top: 6px;
+}
