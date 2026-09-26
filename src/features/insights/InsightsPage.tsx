@@ -5,6 +5,8 @@ import { api, errorMessage, events, type Insights } from "../../lib/api";
 import { formatMinutes, formatNumber, pluralize } from "../../lib/format";
 import { useTauriEvent } from "../../lib/useTauriEvent";
 import { Card, EmptyState, PageHeader, Spinner, useToast } from "../../ui";
+import { BestsCard } from "./BestsCard";
+import { HourChart } from "./HourChart";
 import { StreakHeatmap } from "./StreakHeatmap";
 import { UsageCard } from "./UsageCard";
 import { WpmGauge } from "./WpmGauge";
@@ -124,6 +126,7 @@ export function InsightsPage() {
     }
 
     const speedup = insights.wordsPerMinute / TYPING_WPM;
+    const wordsPerDictation = Math.round(insights.totalWords / insights.totalDictations);
     return (
         <>
             {header}
@@ -184,8 +187,19 @@ export function InsightsPage() {
                                 {formatNumber(insights.totalDictations)}
                             </dd>
                         </div>
+                        <div className="fix-stat">
+                            <dt className="caps-label insights-label">Words per dictation</dt>
+                            <dd className="readout insights-figure--small">
+                                {formatNumber(wordsPerDictation)}
+                            </dd>
+                        </div>
                     </dl>
                 </Card>
+            </div>
+
+            <div className="insights-row insights-row--pair">
+                <HourChart hours={insights.hours} />
+                <BestsCard bests={insights.bests} />
             </div>
 
             <div className="insights-row insights-row--two">

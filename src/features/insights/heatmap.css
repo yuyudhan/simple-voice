@@ -93,45 +93,41 @@
     transform: translate(-50%, -50%);
 }
 
-.heatmap__tooltip {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    z-index: 20;
+/* Window totals under the map: readouts divided by hairlines, like the streak figures. */
+.heatmap__summary {
+    display: flex;
+    margin: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.heatmap__summary > div {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 7px 10px;
-    border-radius: var(--radius-control);
-    background: var(--ink);
-    color: var(--on-ink);
-    font-size: 11.5px;
-    white-space: nowrap;
-    box-shadow: var(--shadow-overlay);
-    transform: translateX(-50%);
-    pointer-events: none;
-    animation: sv-fade-in 120ms var(--ease);
+    gap: 6px;
+    padding: 0 20px;
 }
 
-.heatmap__tooltip.is-start {
-    left: 0;
-    transform: none;
+.heatmap__summary > div:first-child {
+    padding-left: 0;
 }
 
-.heatmap__tooltip.is-end {
-    left: auto;
-    right: 0;
-    transform: none;
+.heatmap__summary > div + div {
+    border-left: 1px solid var(--border);
 }
 
-.heatmap__tooltip strong {
-    font-family: var(--font-mono);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
+.heatmap__summary dd {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
 }
 
-.heatmap__tooltip span {
-    opacity: 0.7;
+.heatmap__summary .readout {
+    color: var(--text);
+    font-size: 16px;
 }
 
 .heatmap__legend {
