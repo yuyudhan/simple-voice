@@ -93,7 +93,7 @@ pub(crate) fn publish(app: &AppHandle, state: DictationState) {
         return;
     }
     tray::set_recording(app, state.phase == DictationPhase::Recording);
-    overlay::follow(app, state.phase);
+    overlay::follow(app, &state);
     events::emit(app, events::DICTATION_STATE, state);
 }
 

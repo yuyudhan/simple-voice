@@ -114,6 +114,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(shortcuts::ShortcutRegistry::default());
     app.manage(overlay::OverlayState::default());
     app.manage(engine_process::EngineProcess::default());
+    app.manage(dock::DockSetting::default());
     let events_app = app.clone();
     app.state::<AppState>()
         .engine
@@ -123,7 +124,6 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     windows::create_main(app, !launched_at_login || startup_error.is_some())?;
     windows::install_app_menu(app)?;
-    overlay::create(app)?;
     tray::create(app)?;
 
     dock::apply_dock(app, settings.show_in_dock);

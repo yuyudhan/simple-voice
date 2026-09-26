@@ -6,8 +6,8 @@ The Swift helper that Simple Voice runs as a Tauri sidecar. Everything that need
 or Objective-C / C APIs lives here, so the Rust crates can forbid `unsafe`: Parakeet transcription
 (FluidAudio on Core ML), Apple Speech (`SpeechAnalyzer`), Apple Intelligence post-processing
 (Foundation Models), model downloads, permission checks, the frontmost app, synthetic Cmd+V,
-muting the output device and launch at login (`SMAppService.mainApp`, which resolves to the
-Simple Voice.app the helper sits in).
+muting the output device, the floating overlay pill and launch at login (`SMAppService.mainApp`,
+which resolves to the Simple Voice.app the helper sits in).
 
 ## Protocol
 
@@ -19,12 +19,24 @@ JSON object per line on stdout. The commands, parameters and results are specifi
 - result `{"id": 7, "ok": true, "result": {...}}` or `{"id": 7, "ok": false, "error": "..."}`;
 - zero or more `{"id": 7, "event": "progress", "fraction": 0.4, "message": "..."}` before a
   result (downloads).
+- notifications `{"cmd": "overlay_state", ...}` carry no `id` and get no reply; they drive the
+  overlay pill and are applied on the main thread in the order they arrive.
 
 Requests run concurrently, so a long transcription or download never delays `permissions` or
 `paste`; responses can therefore arrive out of order and are matched by `id`. Each line is written
 with a single write. Logs go to stderr only: at startup the helper points file descriptor 1 at
 stderr and keeps the real stdout private, so output from any framework cannot corrupt the stream.
 The helper exits when stdin closes.
+
+## Overlay pill
+
+`Overlay.swift` owns the pill window and `PillView.swift` draws it in SwiftUI. The helper runs as
+an accessory application (`NSApplication` with `LSUIElement` in its Info.plist): no Dock icon, no
+menu bar, never activated. The pill is a borderless, non-activating `NSPanel` at status-bar level
+with `canJoinAllSpaces` and `fullScreenAuxiliary`, which is what lets it float over full-screen
+apps; it ignores the mouse and can never become key. The app sends `overlay_state` (the
+`DictationState`), `overlay_visible` and ~30 Hz `overlay_level`; the view animates the level bars
+once per displayed frame, scaled to 60 Hz so ProMotion displays move them at the same speed.
 
 Quick check from a shell:
 

@@ -27,8 +27,9 @@ pub struct DictationState {
     /// Error text or short status line.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// Start of the pasted text, one line (done phase only; `sv_text::preview`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub words: Option<i64>,
+    pub text: Option<String>,
     /// e.g. "unformatted" when post-processing fell back.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
@@ -44,7 +45,7 @@ impl DictationState {
             session_id,
             started_at: None,
             message: None,
-            words: None,
+            text: None,
             note: None,
             edit: false,
         }

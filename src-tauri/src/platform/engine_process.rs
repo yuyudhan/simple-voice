@@ -14,7 +14,7 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 use crate::features::{models, permissions, settings};
-use crate::platform::shortcuts;
+use crate::platform::{overlay, shortcuts};
 use crate::state::{lock, AppState};
 
 const SIDECAR: &str = "simple-voice-engine";
@@ -157,6 +157,7 @@ async fn on_connected(app: AppHandle) {
         }
     }
     shortcuts::sync_fn_key(&app);
+    overlay::resync(&app);
     if let Err(error) = permissions::refresh(&app).await {
         tracing::debug!(%error, "permission check after engine start failed");
     }
