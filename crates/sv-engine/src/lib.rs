@@ -12,5 +12,6 @@ mod protocol;
 pub use client::{EngineClient, ProgressCallback, Transport};
 pub use event::{EngineEvent, EventHandler, FnKeyAction};
 pub use protocol::{
-    EngineTranscript, FrontmostApp, LoginItemStatus, ModelStatusResult, PingResult, PolishReply,
+    EditWatch, EngineTranscript, FrontmostApp, LoginItemStatus, ModelStatusResult, PingResult,
+    PolishReply,
 };

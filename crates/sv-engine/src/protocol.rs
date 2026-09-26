@@ -22,6 +22,8 @@ const TRANSCRIBE: Duration = Duration::from_secs(120);
 /// The user may leave the system prompt open for a while before answering it.
 const REQUEST_PERMISSION: Duration = Duration::from_secs(10 * 60);
 const POLISH: Duration = Duration::from_secs(30);
+/// The helper answers `watch_edits` when its watch window closes; this covers the rest.
+const EDIT_WATCH_SLACK: Duration = Duration::from_secs(10);
 
 const ACCESSIBILITY_MISSING: &str = "accessibility permission missing";
 
@@ -60,6 +62,15 @@ pub struct PolishReply {
     /// False when generation stopped early (context or guardrail limits); the caller should
     /// treat the text as truncated.
     pub finished: bool,
+}
+
+/// The pasted span as it read when the helper stopped watching it. `text` is absent when the
+/// span could not be read, and `reason` then says why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditWatch {
+    pub text: Option<String>,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,6 +248,31 @@ impl EngineClient {
             .await
             .map_err(|error| needs_accessibility(error, "read the selected text"))?;
         Ok(result.text)
+    }
+
+    /// Enables the frontmost app's accessibility tree ahead of a paste, so a web view has
+    /// built it by the time `watch_edits` reads the field. Supersedes a running watch.
+    pub async fn prepare_edit_watch(&self) -> AppResult<()> {
+        self.command("prepare_edit_watch", Value::Null, QUICK)
+            .await
+            .map_err(|error| needs_accessibility(error, "watch for corrections"))
+    }
+
+    /// Follows the just-pasted `text` in the focused field for up to `window` and returns how it
+    /// reads when the watch ends (focus moved, field cleared, window over or superseded).
+    pub async fn watch_edits(&self, text: &str, window: Duration) -> AppResult<EditWatch> {
+        let timeout_ms = u64::try_from(window.as_millis()).unwrap_or(u64::MAX);
+        let params = params([
+            ("text", Some(Value::from(text))),
+            ("timeoutMs", Some(Value::from(timeout_ms))),
+        ]);
+        self.request(
+            "watch_edits",
+            params,
+            window.saturating_add(EDIT_WATCH_SLACK),
+        )
+        .await
+        .map_err(|error| needs_accessibility(error, "watch for corrections"))
     }
 
     /// Mutes or restores system output; returns whether output was muted before the call.
@@ -472,5 +508,59 @@ mod tests {
             .download_model("parakeet-flash", None, Box::new(|_, _| {}))
             .await;
         assert!(matches!(result, Err(AppError::Engine(_))));
+    }
+
+    #[tokio::test]
+    async fn prepare_edit_watch_sends_the_command_and_maps_missing_trust() {
+        let (client, transport) = scripted(r#"{"id":$ID,"ok":true,"result":{}}"#);
+        client.prepare_edit_watch().await.unwrap();
+        assert_eq!(transport.seen.lock()[0]["cmd"], "prepare_edit_watch");
+
+        let (client, _transport) =
+            scripted(r#"{"id":$ID,"ok":false,"error":"accessibility permission missing"}"#);
+        assert!(matches!(
+            client.prepare_edit_watch().await,
+            Err(AppError::Permission(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn watch_edits_sends_text_and_window_and_reads_the_snapshot() {
+        let (client, transport) =
+            scripted(r#"{"id":$ID,"ok":true,"result":{"text":"Wispr Flow is great"}}"#);
+        let watch = client
+            .watch_edits("Whisper Flow is great", Duration::from_millis(1500))
+            .await
+            .unwrap();
+        assert_eq!(
+            watch,
+            EditWatch {
+                text: Some("Wispr Flow is great".to_owned()),
+                reason: None,
+            }
+        );
+        let request = transport.seen.lock()[0].clone();
+        assert_eq!(request["cmd"], "watch_edits");
+        assert_eq!(request["text"], "Whisper Flow is great");
+        assert_eq!(request["timeoutMs"], 1500);
+    }
+
+    #[tokio::test]
+    async fn watch_edits_reports_why_nothing_was_read() {
+        let (client, _transport) =
+            scripted(r#"{"id":$ID,"ok":true,"result":{"reason":"secure field"}}"#);
+        let watch = client
+            .watch_edits("hi", Duration::from_secs(60))
+            .await
+            .unwrap();
+        assert_eq!(watch.text, None);
+        assert_eq!(watch.reason.as_deref(), Some("secure field"));
+
+        let (client, _transport) =
+            scripted(r#"{"id":$ID,"ok":false,"error":"accessibility permission missing"}"#);
+        assert!(matches!(
+            client.watch_edits("hi", Duration::from_secs(60)).await,
+            Err(AppError::Permission(_))
+        ));
     }
 }
