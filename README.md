@@ -33,8 +33,6 @@ curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/ins
 
 The script checks the download against the release's SHA-256 checksum and the app's code signature before it replaces `~/Applications/Simple Voice.app`; no administrator password is needed. To install a specific release, use `... | bash -s -- --version X.Y.Z`.
 
-If you installed Simple Voice with Homebrew before, run `brew uninstall --cask simple-voice` (app data in `~/.simplevoice` is kept), then the command above.
-
 Then open **Simple Voice** from Spotlight or `~/Applications` and grant the permissions it asks for: Microphone and Accessibility, plus Speech Recognition if you use Apple Speech. See [Getting started](docs/getting-started.md).
 
 | Task                          | How                                                                   |
