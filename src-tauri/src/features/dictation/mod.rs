@@ -1,12 +1,17 @@
 // FilePath: src-tauri/src/features/dictation/mod.rs
 //! Dictation: the recording coordinator, the transcription → formatting → post-processing
-//! pipeline, and ordered delivery into the frontmost app.
+//! pipeline, edit mode (the selected text rewritten by a spoken instruction), and ordered
+//! delivery into the frontmost app.
 
 mod coordinator;
 mod delivery;
+mod edit;
+mod llm;
 mod pipeline;
+mod transcription;
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 use sv_domain::{AppResult, DictationPhase, DictationState};
 use tauri::{AppHandle, Manager, State};
@@ -105,6 +110,10 @@ pub(crate) fn publish_message(
     let mut state = DictationState::new(phase, session_id);
     state.message = Some(message.into());
     publish(app, state);
+}
+
+fn elapsed_ms(since: Instant) -> i64 {
+    i64::try_from(since.elapsed().as_millis()).unwrap_or(i64::MAX)
 }
 
 #[tauri::command]

@@ -15,7 +15,7 @@ import {
     TextField,
     useToast,
 } from "../../ui";
-import { HistoryRow } from "./HistoryRow";
+import { HistoryRow, displayText } from "./HistoryRow";
 import { StatsStrip } from "./StatsStrip";
 import { useHistory } from "./useHistory";
 import "./history.css";
@@ -69,7 +69,7 @@ export function HistoryPage() {
 
     async function copy(entry: HistoryEntry) {
         try {
-            await api.copyText(entry.text.trim().length > 0 ? entry.text : entry.rawText);
+            await api.copyText(displayText(entry));
             toast("Copied to clipboard", "success");
         } catch (error) {
             toast(errorMessage(error), "danger");

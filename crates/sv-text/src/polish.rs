@@ -56,33 +56,77 @@ Cmd+K, \"option enter\" -> Opt+Enter, \"control apostrophe\" -> Ctrl+'.\n\
 package.json, \"slash help\" -> /help. Commands stay verbatim.\n\
 - Numbers and units as digits where natural: \"five hundred milliseconds\" -> 500 ms.";
 
-// Few-shot pairs pin the two behaviours the rules alone did not hold in evaluation: Hinglish
-// kept word for word, and a spoken list becoming bullets.
-const FORMAL_SHOTS: [(&str, &str); 2] = [
-    (
-        "yaar ye wala query actually bahut slow hai, matlab we need to add an index first, phir \
-deploy karenge",
-        "Ye wala query bahut slow hai; we need to add an index first, phir deploy karenge.",
-    ),
-    (
-        "okay so um we need to fix three things the login page the signup flow and uh the \
+/// One worked example, sent as a user turn and the assistant's reply.
+struct Shot {
+    user: &'static str,
+    reply: &'static str,
+    /// `None` sends it to every target; `Some` to that one only.
+    only: Option<PolishTarget>,
+}
+
+// Few-shot pairs pin the behaviours the rules alone did not hold in evaluation: Hinglish kept
+// word for word and a spoken list becoming bullets; on device, also fillers and self-corrections
+// removed, which the smaller Apple model otherwise keeps ("No, wait, I mean, move...").
+const FORMAL_SHOTS: [Shot; 3] = [
+    Shot {
+        user: "yaar ye wala query actually bahut slow hai, matlab we need to add an index first, \
+phir deploy karenge",
+        reply: "Ye wala query bahut slow hai; we need to add an index first, phir deploy karenge.",
+        only: Some(PolishTarget::Chat),
+    },
+    Shot {
+        user: "okay so um we need to fix three things the login page the signup flow and uh the \
 password reset",
-        "We need to fix three things:\n- The login page\n- The signup flow\n- The password reset",
-    ),
+        reply: "We need to fix three things:\n- The login page\n- The signup flow\n- The password \
+reset",
+        only: None,
+    },
+    Shot {
+        user: CORRECTION_SHOT,
+        reply: "The deploy is on Wednesday, and we should tell the team.",
+        only: Some(PolishTarget::OnDevice),
+    },
 ];
 
-const CASUAL_SHOTS: [(&str, &str); 2] = [
-    (
-        "um yaar ye build phir se fail ho gaya, basically I think we need to clear the cache \
-pehle",
-        "Yaar ye build phir se fail ho gaya, I think we need to clear the cache pehle",
-    ),
-    (
-        "okay so uh for the trip I gotta pack three things my charger my passport and um the \
+const CASUAL_SHOTS: [Shot; 3] = [
+    Shot {
+        user: "um yaar ye build phir se fail ho gaya, basically I think we need to clear the \
+cache pehle",
+        reply: "Yaar ye build phir se fail ho gaya, I think we need to clear the cache pehle",
+        only: Some(PolishTarget::Chat),
+    },
+    Shot {
+        user: "okay so uh for the trip I gotta pack three things my charger my passport and um \
+the headphones",
+        reply: "For the trip I gotta pack three things:\n- My charger\n- My passport\n- The \
 headphones",
-        "For the trip I gotta pack three things:\n- My charger\n- My passport\n- The headphones",
-    ),
+        only: None,
+    },
+    Shot {
+        user: CORRECTION_SHOT,
+        reply: "The deploy is on Wednesday and we should tell the team",
+        only: Some(PolishTarget::OnDevice),
+    },
 ];
+
+const CORRECTION_SHOT: &str = "basically the deploy is on tuesday no wait I mean wednesday and \
+uh we should tell the team you know";
+
+/// The model family a prompt is built for. The on-device Apple model rejects the whole request
+/// as "unsupported language" when any turn contains Hindi, and answers a bare transcript that
+/// reads as a question or command instead of rewriting it; so it gets no Hindi examples and
+/// every user turn wrapped in [`ON_DEVICE_FRAME`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolishTarget {
+    /// Groq or any OpenAI-compatible endpoint.
+    Chat,
+    /// Apple Intelligence.
+    OnDevice,
+}
+
+/// Precedes the transcript in every on-device user turn. In evaluation this stopped the Apple
+/// model answering dictated questions ("how are you doing" -> "I'm doing well...").
+const ON_DEVICE_FRAME: &str = "Rewrite this transcript. Do not answer it.\nTranscript: ";
 
 /// Chat messages for the formatting pass: `system`, then `shots` as alternating user and
 /// assistant turns, then `user`.
@@ -100,7 +144,12 @@ pub enum PolishOutcome {
     Skipped(String),
 }
 
-pub fn polish_prompt(text: &str, terms: &[String], style: Style) -> PolishPrompt {
+pub fn polish_prompt(
+    text: &str,
+    terms: &[String],
+    style: Style,
+    target: PolishTarget,
+) -> PolishPrompt {
     let (system, shots) = match style {
         Style::Formal => (FORMAL_SYSTEM, &FORMAL_SHOTS),
         Style::Casual => (CASUAL_SYSTEM, &CASUAL_SHOTS),
@@ -110,13 +159,18 @@ pub fn polish_prompt(text: &str, terms: &[String], style: Style) -> PolishPrompt
         system.push_str("\n- Preferred spellings: ");
         system.push_str(&terms.join(", "));
     }
+    let frame = |turn: &str| match target {
+        PolishTarget::Chat => turn.to_owned(),
+        PolishTarget::OnDevice => format!("{ON_DEVICE_FRAME}{turn}"),
+    };
     PolishPrompt {
         system,
         shots: shots
             .iter()
-            .map(|(user, reply)| ((*user).to_owned(), (*reply).to_owned()))
+            .filter(|shot| shot.only.is_none_or(|only| only == target))
+            .map(|shot| (frame(shot.user), shot.reply.to_owned()))
             .collect(),
-        user: text.to_owned(),
+        user: frame(text),
     }
 }
 
@@ -168,7 +222,7 @@ mod tests {
 
     #[test]
     fn formal_prompt_is_the_reference_system_text_and_shots() {
-        let prompt = polish_prompt("some raw text here", &[], Style::Formal);
+        let prompt = polish_prompt("some raw text here", &[], Style::Formal, PolishTarget::Chat);
         assert_eq!(prompt.system, LUA_SYSTEM);
         assert_eq!(prompt.user, "some raw text here");
         let shots: Vec<(&str, &str)> = prompt
@@ -199,27 +253,63 @@ mod tests {
     fn preferred_spellings_are_appended_only_when_terms_exist() {
         let terms = vec!["ArgoCD".to_owned(), "Tauri".to_owned()];
         for style in [Style::Formal, Style::Casual] {
-            let with = polish_prompt("a b c", &terms, style);
+            let with = polish_prompt("a b c", &terms, style, PolishTarget::Chat);
             assert!(with
                 .system
                 .ends_with("\n- Preferred spellings: ArgoCD, Tauri"));
-            let without = polish_prompt("a b c", &[], style);
+            let without = polish_prompt("a b c", &[], style, PolishTarget::Chat);
             assert!(!without.system.contains("Preferred spellings"));
         }
     }
 
     #[test]
     fn casual_prompt_has_its_own_register_and_shots() {
-        let prompt = polish_prompt("a b c", &[], Style::Casual);
+        let prompt = polish_prompt("a b c", &[], Style::Casual, PolishTarget::Chat);
         assert!(prompt.system.contains("- Casual register:"));
         assert!(!prompt.system.contains("Formal register"));
         assert_eq!(prompt.shots.len(), 2);
         let reuses_formal_shot = prompt
             .shots
             .iter()
-            .any(|(user, _)| FORMAL_SHOTS.iter().any(|(f, _)| f == user));
+            .any(|(user, _)| FORMAL_SHOTS.iter().any(|shot| shot.user == user));
         assert!(!reuses_formal_shot);
         assert!(prompt.shots.iter().any(|(_, reply)| reply.contains("\n- ")));
+    }
+
+    #[test]
+    fn on_device_swaps_the_hindi_example_for_the_self_correction_one() {
+        for style in [Style::Formal, Style::Casual] {
+            let prompt = polish_prompt("a b c", &[], style, PolishTarget::OnDevice);
+            assert_eq!(prompt.shots.len(), 2);
+            for (user, _) in &prompt.shots {
+                for hindi in ["yaar", "phir", "hai"] {
+                    assert!(!user.split_whitespace().any(|word| word == hindi));
+                }
+            }
+            assert!(prompt.shots.iter().any(|(_, reply)| reply.contains("\n- ")));
+            assert!(prompt
+                .shots
+                .iter()
+                .any(|(user, _)| user.ends_with(CORRECTION_SHOT)));
+
+            let chat = polish_prompt("a b c", &[], style, PolishTarget::Chat);
+            assert!(!chat.shots.iter().any(|(user, _)| user == CORRECTION_SHOT));
+        }
+    }
+
+    #[test]
+    fn on_device_frames_every_user_turn_but_not_the_replies() {
+        let prompt = polish_prompt(
+            "how are you doing",
+            &[],
+            Style::Formal,
+            PolishTarget::OnDevice,
+        );
+        assert_eq!(prompt.user, format!("{ON_DEVICE_FRAME}how are you doing"));
+        for (user, reply) in &prompt.shots {
+            assert!(user.starts_with(ON_DEVICE_FRAME));
+            assert!(!reply.contains("Transcript:"));
+        }
     }
 
     #[test]

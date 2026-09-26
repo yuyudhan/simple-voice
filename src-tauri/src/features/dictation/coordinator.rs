@@ -14,6 +14,7 @@ use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
+use super::edit::{capture_selection, edit_state, SelectionTask};
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
 use crate::events;
@@ -47,6 +48,8 @@ struct Active {
     /// Output mute state before this session muted it; `None` while not (yet) muted.
     mute_previous: Arc<Mutex<Option<bool>>>,
     watchdog: JoinHandle<()>,
+    /// Set for an edit: the selection read started when the edit shortcut went down.
+    selection: Option<SelectionTask>,
 }
 
 struct Coordinator {
@@ -54,6 +57,8 @@ struct Coordinator {
     active: Option<Active>,
     /// The current recording was started by pressing the hold shortcut.
     hold_started: bool,
+    /// The current recording was started by pressing the edit shortcut.
+    edit_started: bool,
     /// When the shared hold/toggle shortcut started the current recording.
     pressed_at: Option<Instant>,
 }
@@ -64,6 +69,7 @@ pub(crate) fn spawn_coordinator(app: AppHandle, mut control: mpsc::UnboundedRece
             app,
             active: None,
             hold_started: false,
+            edit_started: false,
             pressed_at: None,
         };
         while let Some(message) = control.recv().await {
@@ -75,7 +81,7 @@ pub(crate) fn spawn_coordinator(app: AppHandle, mut control: mpsc::UnboundedRece
 impl Coordinator {
     async fn handle(&mut self, message: Control) {
         match message {
-            Control::Start => self.start().await,
+            Control::Start => self.start(false).await,
             Control::Stop => self.stop().await,
             Control::Cancel => self.cancel().await,
             Control::Toggle => self.toggle().await,
@@ -94,7 +100,7 @@ impl Coordinator {
         if self.active.is_some() {
             self.stop().await;
         } else {
-            self.start().await;
+            self.start(false).await;
         }
     }
 
@@ -104,7 +110,7 @@ impl Coordinator {
             (Binding::Toggle, true) => self.toggle().await,
             (Binding::Hold, true) => {
                 if self.active.is_none() {
-                    self.start().await;
+                    self.start(false).await;
                     self.hold_started = self.active.is_some();
                 }
             }
@@ -118,7 +124,7 @@ impl Coordinator {
                 if self.active.is_some() {
                     self.stop().await;
                 } else {
-                    self.start().await;
+                    self.start(false).await;
                     self.pressed_at = self.active.as_ref().map(|_| Instant::now());
                 }
             }
@@ -131,6 +137,18 @@ impl Coordinator {
                     self.stop().await;
                 }
             }
+            // Edit mode is hold-only: press to record the instruction, release to apply it.
+            (Binding::Edit, true) => {
+                if self.active.is_none() {
+                    self.start(true).await;
+                    self.edit_started = self.active.is_some();
+                }
+            }
+            (Binding::Edit, false) => {
+                if self.edit_started {
+                    self.stop().await;
+                }
+            }
             (Binding::Escape | Binding::Toggle, false) => {}
         }
     }
@@ -140,6 +158,7 @@ impl Coordinator {
         let started_by_press = match binding {
             Binding::Hold => self.hold_started,
             Binding::Both => self.pressed_at.is_some(),
+            Binding::Edit => self.edit_started,
             Binding::Toggle | Binding::Escape => false,
         };
         if started_by_press {
@@ -147,11 +166,15 @@ impl Coordinator {
         }
     }
 
-    async fn start(&mut self) {
+    /// Starts recording a dictation, or with `edit` the instruction for an edit of the text
+    /// selected in the focused app.
+    async fn start(&mut self, edit: bool) {
         if self.active.is_some() {
             return;
         }
         let app = self.app.clone();
+        // Read before anything else, while the selection is surely still in place.
+        let selection = edit.then(|| capture_selection(&app));
         let state = app.state::<AppState>();
         let id = state.dictation.next_session();
 
@@ -209,7 +232,11 @@ impl Coordinator {
             spawn_mute(app.clone(), id, Arc::clone(&mute_previous));
         }
 
-        let mut recording = DictationState::new(DictationPhase::Recording, id);
+        let mut recording = if edit {
+            edit_state(DictationPhase::Recording, id)
+        } else {
+            DictationState::new(DictationPhase::Recording, id)
+        };
         recording.started_at = Some(started_at_ms);
         publish(&app, recording);
         shortcuts::set_escape(&app, true);
@@ -233,6 +260,7 @@ impl Coordinator {
             frontmost,
             mute_previous,
             watchdog,
+            selection,
         });
     }
 
@@ -254,8 +282,10 @@ impl Coordinator {
             frontmost,
             mute_previous,
             watchdog,
+            selection,
         } = self.active.take()?;
         self.hold_started = false;
+        self.edit_started = false;
         self.pressed_at = None;
         watchdog.abort();
         let state = self.app.state::<AppState>();
@@ -281,6 +311,7 @@ impl Coordinator {
             started_at_ms,
             frontmost,
             recording,
+            selection,
         })
     }
 
@@ -317,6 +348,7 @@ impl Coordinator {
             started_at_ms: ended.started_at_ms,
             stopped_at,
             frontmost: ended.frontmost,
+            selection: ended.selection,
         };
         tauri::async_runtime::spawn(pipeline::run_session(self.app.clone(), input));
     }
@@ -338,6 +370,7 @@ struct Ended {
     started_at_ms: i64,
     frontmost: Option<FrontmostApp>,
     recording: Result<Recording, AppError>,
+    selection: Option<SelectionTask>,
 }
 
 fn is_silent(samples: &[i16]) -> bool {

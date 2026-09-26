@@ -32,6 +32,9 @@ pub struct DictationState {
     /// e.g. "unformatted" when post-processing fell back.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// The session edits the selected text (edit mode) instead of dictating new text.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub edit: bool,
 }
 
 impl DictationState {
@@ -43,6 +46,7 @@ impl DictationState {
             message: None,
             words: None,
             note: None,
+            edit: false,
         }
     }
 }

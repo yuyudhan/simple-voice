@@ -3,7 +3,7 @@
 // straight from a requestAnimationFrame loop into the DOM so the ~30 Hz level stream never causes
 // React re-renders; React only re-renders on phase changes and the once-a-second timer.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Mic, TriangleAlert } from "lucide-react";
+import { Check, Mic, PenLine, TriangleAlert } from "lucide-react";
 import { events, type DictationState } from "../../lib/api";
 import { useTauriEvent } from "../../lib/useTauriEvent";
 import "./Overlay.css";
@@ -140,28 +140,32 @@ export function Overlay() {
         };
     }, [state.phase, state.sessionId]);
 
-    const { phase } = state;
+    const { phase, edit = false } = state;
     const busy = phase === "transcribing" || phase === "formatting";
 
     let glyph = <Mic size={12} strokeWidth={2.2} />;
     if (phase === "recording") glyph = <span className="sv-pill__dot" />;
+    // An edit keeps its pen from the first word to the result, so it never reads as dictation.
+    if (edit && (phase === "recording" || busy)) glyph = <PenLine size={12} strokeWidth={2.2} />;
     if (phase === "done") glyph = <Check size={13} strokeWidth={2.8} />;
     if (phase === "error") glyph = <TriangleAlert size={12} strokeWidth={2.4} />;
 
     let trailing: ReactNode = null;
     if (phase === "recording") trailing = <Timer startedAt={recordingSince} />;
     if (busy) {
-        trailing = (
-            <span className="sv-pill__label">
-                {phase === "transcribing" ? "Transcribing" : "Formatting"}
-            </span>
-        );
+        let label = phase === "transcribing" ? "Transcribing" : "Formatting";
+        if (edit && phase === "formatting") label = "Editing";
+        trailing = <span className="sv-pill__label">{label}</span>;
     }
 
     let body = <LevelBars live={phase === "recording"} shimmer={busy} />;
     if (phase === "done") {
         const words = state.words ?? 0;
-        body = (
+        body = edit ? (
+            <span className="sv-pill__result">
+                <span>Edited</span>
+            </span>
+        ) : (
             <span className="sv-pill__result">
                 <span>
                     {words} {words === 1 ? "word" : "words"}

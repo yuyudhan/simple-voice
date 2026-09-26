@@ -71,7 +71,8 @@ enum AppleIntelligence {
         case .assetsUnavailable:
             return "The Apple Intelligence model is unavailable right now"
         case .unsupportedLanguageOrLocale:
-            return "Apple Intelligence does not support this language"
+            return "Apple Intelligence does not support this language (Hindi and Hinglish included); "
+                + "use Groq or Custom formatting"
         case .rateLimited:
             return "Apple Intelligence is busy; try again"
         case .concurrentRequests:

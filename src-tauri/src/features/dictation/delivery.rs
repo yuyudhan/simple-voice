@@ -24,7 +24,7 @@ pub(crate) enum Delivery {
     NotPasted(String),
 }
 
-/// Pastes unless a newer session's text already went out.
+/// Pastes `text` as given unless a newer session's text already went out.
 pub(crate) async fn deliver_in_order(
     app: &AppHandle,
     session: u64,
@@ -40,7 +40,8 @@ pub(crate) async fn deliver_in_order(
     {
         return Delivery::Dropped;
     }
-    let previous = match replace_clipboard(text) {
+    let text = text.to_owned();
+    let previous = match replace_clipboard(&text) {
         Ok(previous) => previous,
         Err(error) => return Delivery::NotPasted(format!("Could not use the clipboard: {error}")),
     };
@@ -48,7 +49,7 @@ pub(crate) async fn deliver_in_order(
         Ok(()) => {
             if restore_clipboard {
                 if let Some(previous) = previous {
-                    schedule_restore(text.to_owned(), previous);
+                    schedule_restore(text, previous);
                 }
             }
             Delivery::Pasted
@@ -61,6 +62,16 @@ pub(crate) async fn deliver_in_order(
         }
         Err(error) => Delivery::NotPasted(format!("Text copied — paste failed: {error}")),
     }
+}
+
+/// Back-to-back dictations must not run together (`one.Two`), so pasted text ends in whitespace.
+/// History keeps the text as transcribed; only the paste carries the separator. Edits replace a
+/// selection and are pasted without one.
+pub(crate) fn with_separator(text: &str) -> String {
+    if text.is_empty() || text.ends_with(char::is_whitespace) {
+        return text.to_owned();
+    }
+    format!("{text} ")
 }
 
 pub(crate) fn copy_to_clipboard(text: &str) -> AppResult<()> {
@@ -91,4 +102,18 @@ fn schedule_restore(ours: String, previous: String) {
             tracing::warn!(%error, "could not restore the clipboard");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::with_separator;
+
+    #[test]
+    fn separator_is_added_only_when_text_does_not_already_end_in_whitespace() {
+        assert_eq!(with_separator("First thought."), "First thought. ");
+        assert_eq!(with_separator("ok"), "ok ");
+        assert_eq!(with_separator("- one\n- two\n"), "- one\n- two\n");
+        assert_eq!(with_separator("already "), "already ");
+        assert_eq!(with_separator(""), "");
+    }
 }

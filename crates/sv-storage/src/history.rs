@@ -20,6 +20,7 @@ struct HistoryRow {
     status: String,
     raw_text: String,
     final_text: String,
+    source_text: Option<String>,
     error: Option<String>,
     model: String,
     format_model: Option<String>,
@@ -27,6 +28,8 @@ struct HistoryRow {
     style: String,
     audio_ms: i64,
     latency_ms: i64,
+    transcribe_ms: Option<i64>,
+    format_ms: Option<i64>,
     word_count: i64,
     dictionary_fixes: i64,
     words_corrected: i64,
@@ -50,6 +53,7 @@ impl HistoryRow {
             status,
             raw_text: self.raw_text,
             text: self.final_text,
+            source_text: self.source_text,
             error: self.error,
             model_name: display_name(&self.model),
             format_model_name: self.format_model.as_deref().map(display_name),
@@ -58,6 +62,8 @@ impl HistoryRow {
             style: parse_style(&self.style),
             audio_ms: self.audio_ms,
             latency_ms: self.latency_ms,
+            transcribe_ms: self.transcribe_ms,
+            format_ms: self.format_ms,
             word_count: self.word_count,
             dictionary_fixes: self.dictionary_fixes,
             words_corrected: self.words_corrected,
@@ -80,12 +86,21 @@ struct Derived {
 }
 
 impl Derived {
+    /// A dictation counts the words it pasted. An edit counts the words the user spoke (the
+    /// instruction), so word totals and speaking speed stay about speech; its rewrite is not a
+    /// correction of the transcript, so it corrects no words.
     fn of(entry: &NewHistory) -> Self {
-        let words_corrected = text_stats::words_corrected(&entry.raw_text, &entry.final_text);
+        let (spoken, words_corrected) = match entry.source_text {
+            Some(_) => (&entry.raw_text, 0),
+            None => (
+                &entry.final_text,
+                text_stats::words_corrected(&entry.raw_text, &entry.final_text),
+            ),
+        };
         Self {
             status: entry.status.as_str(),
             style: style_str(entry.style),
-            word_count: saturating_i64(text_stats::word_count(&entry.final_text)),
+            word_count: saturating_i64(text_stats::word_count(spoken)),
             words_corrected: saturating_i64(words_corrected),
             app_category: categorize(entry.bundle_id.as_deref(), entry.app_name.as_deref())
                 .as_str(),
@@ -101,46 +116,10 @@ impl Db {
             "INSERT INTO history (
                 created_at, status, raw_text, final_text, error, model, format_model, language,
                 style, audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,
-                app_name, bundle_id, app_category, audio_path
+                app_name, bundle_id, app_category, audio_path, transcribe_ms, format_ms,
+                source_text
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                ?18)",
-            entry.created_at,
-            derived.status,
-            entry.raw_text,
-            entry.final_text,
-            entry.error,
-            entry.model,
-            entry.format_model,
-            entry.language,
-            derived.style,
-            entry.audio_ms,
-            entry.latency_ms,
-            derived.word_count,
-            entry.dictionary_fixes,
-            derived.words_corrected,
-            entry.app_name,
-            entry.bundle_id,
-            derived.app_category,
-            entry.audio_path
-        )
-        .execute(&inner.pool)
-        .await
-        .map_err(AppError::database)?
-        .last_insert_rowid();
-        stored_entry(&inner.pool, id).await
-    }
-
-    /// Replaces every field of an existing row, e.g. after a successful retry.
-    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
-        let inner = self.read().await;
-        let derived = Derived::of(&entry);
-        let updated = sqlx::query!(
-            "UPDATE history SET
-                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
-                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
-                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
-                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18
-             WHERE id = ?19",
+                ?18, ?19, ?20, ?21)",
             entry.created_at,
             derived.status,
             entry.raw_text,
@@ -159,6 +138,50 @@ impl Db {
             entry.bundle_id,
             derived.app_category,
             entry.audio_path,
+            entry.transcribe_ms,
+            entry.format_ms,
+            entry.source_text
+        )
+        .execute(&inner.pool)
+        .await
+        .map_err(AppError::database)?
+        .last_insert_rowid();
+        stored_entry(&inner.pool, id).await
+    }
+
+    /// Replaces every field of an existing row, e.g. after a successful retry.
+    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
+        let inner = self.read().await;
+        let derived = Derived::of(&entry);
+        let updated = sqlx::query!(
+            "UPDATE history SET
+                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
+                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
+                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
+                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,
+                transcribe_ms = ?19, format_ms = ?20, source_text = ?21
+             WHERE id = ?22",
+            entry.created_at,
+            derived.status,
+            entry.raw_text,
+            entry.final_text,
+            entry.error,
+            entry.model,
+            entry.format_model,
+            entry.language,
+            derived.style,
+            entry.audio_ms,
+            entry.latency_ms,
+            derived.word_count,
+            entry.dictionary_fixes,
+            derived.words_corrected,
+            entry.app_name,
+            entry.bundle_id,
+            derived.app_category,
+            entry.audio_path,
+            entry.transcribe_ms,
+            entry.format_ms,
+            entry.source_text,
             id
         )
         .execute(&inner.pool)
@@ -188,7 +211,8 @@ impl Db {
     }
 
     /// Newest first. `query` is a case-insensitive substring match over the pasted text, the raw
-    /// transcript and the app name; `before_id` continues from the last row of the previous page.
+    /// transcript, the text an edit replaced and the app name; `before_id` continues from the
+    /// last row of the previous page.
     pub async fn list_history(
         &self,
         query: Option<String>,
@@ -207,10 +231,12 @@ impl Db {
             r#"SELECT
                 id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
                 raw_text AS "raw_text!: String", final_text AS "final_text!: String",
+                source_text AS "source_text?: String",
                 error AS "error?: String", model AS "model!: String",
                 format_model AS "format_model?: String",
                 language AS "language?: String", style AS "style!: String",
                 audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
+                transcribe_ms AS "transcribe_ms?: i64", format_ms AS "format_ms?: i64",
                 word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
                 words_corrected AS "words_corrected!: i64", app_name AS "app_name?: String",
                 bundle_id AS "bundle_id?: String", app_category AS "app_category!: String",
@@ -219,6 +245,7 @@ impl Db {
                WHERE (?1 IS NULL
                       OR final_text LIKE ?1 ESCAPE '\'
                       OR raw_text LIKE ?1 ESCAPE '\'
+                      OR source_text LIKE ?1 ESCAPE '\'
                       OR app_name LIKE ?1 ESCAPE '\')
                  AND (?2 IS NULL OR id < ?2)
                ORDER BY id DESC
@@ -278,10 +305,12 @@ async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntr
         r#"SELECT
             id AS "id!: i64", created_at AS "created_at!: i64", status AS "status!: String",
             raw_text AS "raw_text!: String", final_text AS "final_text!: String",
+            source_text AS "source_text?: String",
             error AS "error?: String", model AS "model!: String",
             format_model AS "format_model?: String",
             language AS "language?: String", style AS "style!: String",
             audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
+            transcribe_ms AS "transcribe_ms?: i64", format_ms AS "format_ms?: i64",
             word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
             words_corrected AS "words_corrected!: i64", app_name AS "app_name?: String",
             bundle_id AS "bundle_id?: String", app_category AS "app_category!: String",
@@ -302,7 +331,7 @@ async fn stored_entry(pool: &SqlitePool, id: i64) -> AppResult<HistoryEntry> {
 }
 
 /// Catalog ids get their display name; provider model ids are shown as recorded.
-fn display_name(id: &str) -> String {
+pub(crate) fn display_name(id: &str) -> String {
     model_name(id).unwrap_or(id).to_owned()
 }
 
@@ -346,6 +375,7 @@ mod tests {
             status: HistoryStatus::Pasted,
             raw_text: final_text.to_owned(),
             final_text: final_text.to_owned(),
+            source_text: None,
             error: None,
             model: "groq-whisper".to_owned(),
             format_model: None,
@@ -353,6 +383,8 @@ mod tests {
             style: Style::Formal,
             audio_ms: 4_000,
             latency_ms: 300,
+            transcribe_ms: Some(200),
+            format_ms: None,
             dictionary_fixes: 0,
             app_name: None,
             bundle_id: None,
@@ -387,6 +419,32 @@ mod tests {
         assert_eq!(stored.text, "I am going to go.");
         assert!(!stored.can_retry);
         assert_eq!(db.history_entry(stored.id).await.unwrap(), Some(stored));
+    }
+
+    #[tokio::test]
+    async fn an_edit_counts_the_spoken_instruction_and_is_found_by_its_source() {
+        let (_dir, db) = open().await;
+        let stored = db
+            .insert_history(NewHistory {
+                raw_text: "make it formal".to_owned(),
+                final_text: "Could you please send the quarterly report by Friday?".to_owned(),
+                source_text: Some("send the q3 report fri".to_owned()),
+                ..entry("")
+            })
+            .await
+            .unwrap();
+        assert_eq!(stored.word_count, 3);
+        assert_eq!(stored.words_corrected, 0);
+        assert_eq!(
+            stored.source_text.as_deref(),
+            Some("send the q3 report fri")
+        );
+
+        let found = db
+            .list_history(Some("Q3 REPORT".to_owned()), 10, None)
+            .await
+            .unwrap();
+        assert_eq!(found, vec![stored]);
     }
 
     #[tokio::test]

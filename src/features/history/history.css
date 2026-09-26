@@ -272,11 +272,6 @@
     color: var(--muted);
 }
 
-.history-row--unformatted .history-row__note {
-    padding-left: 10px;
-    border-left: 2px solid var(--warning);
-}
-
 .history-row__actions {
     position: absolute;
     top: 9px;

@@ -1,5 +1,6 @@
 // FilePath: crates/sv-domain/src/history.rs
-//! Dictation history rows.
+//! Dictation history rows. Edits (edit mode) share the table: they carry the selected text they
+//! replaced in `source_text`, the spoken instruction in `raw_text` and the result in `text`.
 
 use serde::{Deserialize, Serialize};
 
@@ -52,8 +53,10 @@ pub struct HistoryEntry {
     pub created_at: i64,
     pub status: HistoryStatus,
     pub raw_text: String,
-    /// What was pasted (or would have been).
+    /// What was pasted (or would have been); for an edit, the edited text.
     pub text: String,
+    /// The selected text an edit replaced; `None` for a dictation.
+    pub source_text: Option<String>,
     pub error: Option<String>,
     /// Transcription model id, e.g. `groq-whisper`.
     pub model: String,
@@ -66,6 +69,10 @@ pub struct HistoryEntry {
     pub style: Style,
     pub audio_ms: i64,
     pub latency_ms: i64,
+    /// How long the transcription model took; `None` when it failed or before this was tracked.
+    pub transcribe_ms: Option<i64>,
+    /// How long the formatting pass took; set exactly when `format_model_name` is.
+    pub format_ms: Option<i64>,
     pub word_count: i64,
     pub dictionary_fixes: i64,
     pub words_corrected: i64,
@@ -84,6 +91,8 @@ pub struct NewHistory {
     pub status: HistoryStatus,
     pub raw_text: String,
     pub final_text: String,
+    /// The selected text an edit replaced; `None` for a dictation.
+    pub source_text: Option<String>,
     pub error: Option<String>,
     pub model: String,
     /// Model id of the formatting pass that produced `final_text`, if one did.
@@ -92,6 +101,10 @@ pub struct NewHistory {
     pub style: Style,
     pub audio_ms: i64,
     pub latency_ms: i64,
+    /// Duration of the transcription call, when it succeeded.
+    pub transcribe_ms: Option<i64>,
+    /// Duration of the formatting pass that produced `final_text`, if one did.
+    pub format_ms: Option<i64>,
     pub dictionary_fixes: i64,
     pub app_name: Option<String>,
     pub bundle_id: Option<String>,

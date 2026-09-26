@@ -1,16 +1,16 @@
 // FilePath: crates/sv-cloud/src/chat.rs
-//! The formatting pass over any OpenAI-compatible `/chat/completions` endpoint: Groq by default,
-//! or a user-configured one (Ollama, LM Studio, a hosted service). Every failure becomes a
-//! `Skipped` outcome so the caller pastes the deterministic text instead.
+//! One chat completion over any OpenAI-compatible `/chat/completions` endpoint: Groq by
+//! default, or a user-configured one (Ollama, LM Studio, a hosted service). The formatting pass
+//! and edit mode share it; each applies its own checks to the reply.
 
 use std::fmt;
+use std::time::Duration;
 
 use serde_json::{json, Value};
-use sv_text::{accept_polish, polish_timeout, should_skip_polish, PolishOutcome, PolishPrompt};
+use sv_text::PolishPrompt;
 
 pub const GROQ_CHAT_URL: &str = "https://api.groq.com/openai/v1/chat/completions";
 
-const MAX_TOKENS: u32 = 2048;
 const COMPLETIONS_PATH: &str = "/chat/completions";
 
 pub struct ChatEndpoint<'a> {
@@ -45,19 +45,29 @@ pub fn chat_url(base_url: &str) -> String {
     }
 }
 
-/// Runs the formatting pass. Never errors: timeouts, transport failures, HTTP errors and
-/// suspicious replies all come back as `Skipped` with a short reason.
-pub async fn polish_chat(
+/// The model's reply. `finished` is false when it stopped for any reason other than
+/// completing its answer (`finish_reason` other than `stop`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChatReply {
+    pub text: String,
+    pub finished: bool,
+}
+
+/// Sends `prompt` and returns the reply, or a short reason when the call timed out, failed in
+/// transport, returned an HTTP error or an unreadable body.
+pub async fn chat_completion(
     client: &reqwest::Client,
-    endpoint: ChatEndpoint<'_>,
+    endpoint: &ChatEndpoint<'_>,
     prompt: &PolishPrompt,
-    input: &str,
-) -> PolishOutcome {
-    if let Some(skipped) = should_skip_polish(input) {
-        return skipped;
-    }
-    let limit = polish_timeout(input);
-    let body = chat_body(endpoint.model, prompt, endpoint.groq_no_reasoning);
+    max_tokens: u32,
+    limit: Duration,
+) -> Result<ChatReply, String> {
+    let body = chat_body(
+        endpoint.model,
+        prompt,
+        max_tokens,
+        endpoint.groq_no_reasoning,
+    );
     let mut request = client.post(&endpoint.url).json(&body);
     if let Some(key) = endpoint.key.map(str::trim).filter(|key| !key.is_empty()) {
         request = request.bearer_auth(key);
@@ -69,23 +79,23 @@ pub async fn polish_chat(
         Ok::<_, reqwest::Error>((status, bytes))
     };
 
-    let outcome = match tokio::time::timeout(limit, call).await {
-        Err(_) => PolishOutcome::Skipped(format!("timed out after {:.1}s", limit.as_secs_f64())),
-        Ok(Err(error)) => PolishOutcome::Skipped(format!("request failed: {error}")),
-        Ok(Ok((status, bytes))) => interpret_response(status, &bytes, input),
+    let reply = match tokio::time::timeout(limit, call).await {
+        Err(_) => Err(format!("timed out after {:.1}s", limit.as_secs_f64())),
+        Ok(Err(error)) => Err(format!("request failed: {error}")),
+        Ok(Ok((status, bytes))) => interpret_response(status, &bytes),
     };
-    if let PolishOutcome::Skipped(reason) = &outcome {
-        tracing::info!(
-            url = %endpoint.url,
-            model = endpoint.model,
-            %reason,
-            "formatting pass skipped"
-        );
+    if let Err(reason) = &reply {
+        tracing::info!(url = %endpoint.url, model = endpoint.model, %reason, "chat call failed");
     }
-    outcome
+    reply
 }
 
-fn chat_body(model: &str, prompt: &PolishPrompt, groq_no_reasoning: bool) -> Value {
+fn chat_body(
+    model: &str,
+    prompt: &PolishPrompt,
+    max_tokens: u32,
+    groq_no_reasoning: bool,
+) -> Value {
     let mut messages = Vec::with_capacity(prompt.shots.len() * 2 + 2);
     messages.push(json!({ "role": "system", "content": prompt.system }));
     for (user, assistant) in &prompt.shots {
@@ -97,7 +107,7 @@ fn chat_body(model: &str, prompt: &PolishPrompt, groq_no_reasoning: bool) -> Val
     let mut body = json!({
         "model": model,
         "temperature": 0,
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": max_tokens,
         "messages": messages,
     });
     if groq_no_reasoning {
@@ -108,24 +118,24 @@ fn chat_body(model: &str, prompt: &PolishPrompt, groq_no_reasoning: bool) -> Val
     body
 }
 
-fn interpret_response(status: u16, body: &[u8], input: &str) -> PolishOutcome {
+fn interpret_response(status: u16, body: &[u8]) -> Result<ChatReply, String> {
     if status != 200 {
-        let reason = crate::api_error_message(body).unwrap_or_else(|| format!("HTTP {status}"));
-        return PolishOutcome::Skipped(reason);
+        return Err(crate::api_error_message(body).unwrap_or_else(|| format!("HTTP {status}")));
     }
     let Ok(value) = serde_json::from_slice::<Value>(body) else {
-        return PolishOutcome::Skipped("unreadable response".to_owned());
+        return Err("unreadable response".to_owned());
     };
     let choice = value.pointer("/choices/0");
-    let content = choice
+    let text = choice
         .and_then(|c| c.pointer("/message/content"))
         .and_then(Value::as_str)
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .to_owned();
     let finished = choice
         .and_then(|c| c.get("finish_reason"))
         .and_then(Value::as_str)
         == Some("stop");
-    accept_polish(input, content, finished)
+    Ok(ChatReply { text, finished })
 }
 
 #[cfg(test)]
@@ -151,8 +161,13 @@ mod tests {
 
     #[test]
     fn body_has_system_then_shot_pairs_then_the_transcript() {
-        let prompt = sv_text::polish_prompt("um so the thing works", &[], Style::Formal);
-        let body = chat_body("qwen/qwen3.8-27b", &prompt, false);
+        let prompt = sv_text::polish_prompt(
+            "um so the thing works",
+            &[],
+            Style::Formal,
+            sv_text::PolishTarget::Chat,
+        );
+        let body = chat_body("qwen/qwen3.8-27b", &prompt, 2048, false);
         assert_eq!(body["model"], "qwen/qwen3.8-27b");
         assert_eq!(body["temperature"], 0);
         assert_eq!(body["max_tokens"], 2048);
@@ -172,8 +187,13 @@ mod tests {
 
     #[test]
     fn body_disables_reasoning_only_for_groq() {
-        let prompt = sv_text::polish_prompt("one two three", &[], Style::Casual);
-        let body = chat_body("m", &prompt, true);
+        let prompt = sv_text::polish_prompt(
+            "one two three",
+            &[],
+            Style::Casual,
+            sv_text::PolishTarget::Chat,
+        );
+        let body = chat_body("m", &prompt, 2048, true);
         assert_eq!(body["reasoning_effort"], "none");
     }
 
@@ -183,15 +203,20 @@ mod tests {
     }
 
     #[test]
-    fn response_is_accepted_only_when_it_finished_with_stop() {
-        let input = "okay so the build is green";
+    fn reply_is_finished_only_when_the_model_stopped_on_its_own() {
         assert_eq!(
-            interpret_response(200, &completion(" The build is green. ", "stop"), input),
-            PolishOutcome::Polished("The build is green.".to_owned())
+            interpret_response(200, &completion(" The build is green. ", "stop")),
+            Ok(ChatReply {
+                text: " The build is green. ".to_owned(),
+                finished: true
+            })
         );
         assert_eq!(
-            interpret_response(200, &completion("The build", "length"), input),
-            PolishOutcome::Skipped("truncated".to_owned())
+            interpret_response(200, &completion("The build", "length")),
+            Ok(ChatReply {
+                text: "The build".to_owned(),
+                finished: false
+            })
         );
     }
 
@@ -199,12 +224,13 @@ mod tests {
     fn http_errors_use_the_provider_message_or_the_status() {
         let limited = br#"{"error":{"message":"Rate limit reached"}}"#;
         assert_eq!(
-            interpret_response(429, limited, "a b c"),
-            PolishOutcome::Skipped("Rate limit reached".to_owned())
+            interpret_response(429, limited),
+            Err("Rate limit reached".to_owned())
         );
+        assert_eq!(interpret_response(502, b""), Err("HTTP 502".to_owned()));
         assert_eq!(
-            interpret_response(502, b"", "a b c"),
-            PolishOutcome::Skipped("HTTP 502".to_owned())
+            interpret_response(200, b"<html>"),
+            Err("unreadable response".to_owned())
         );
     }
 }

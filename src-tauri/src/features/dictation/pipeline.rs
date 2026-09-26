@@ -1,33 +1,36 @@
 // FilePath: src-tauri/src/features/dictation/pipeline.rs
 //! One finished recording → text in the frontmost app and a history row. Transcription runs on
 //! Groq or the engine helper, then deterministic formatting, then the optional post-processing
-//! pass, then ordered delivery. The same steps (minus pasting) retry a failed entry.
+//! pass, then ordered delivery. The same steps (minus pasting) retry a failed entry. A recording
+//! made with the edit shortcut goes to edit mode instead.
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use serde::Serialize;
 use sv_audio::{encode_wav, Cue, Recording};
-use sv_cloud::ChatEndpoint;
-use sv_domain::models::{APPLE_INTELLIGENCE, GROQ_WHISPER};
 use sv_domain::text_stats::word_count;
 use sv_domain::{
     AppError, AppResult, DictationPhase, DictationState, HistoryEntry, HistoryStatus, NewHistory,
     PostProcessing, Settings,
 };
 use sv_engine::FrontmostApp;
-use sv_text::{PolishOutcome, Vocabulary};
+use sv_text::PolishOutcome;
 use tauri::{AppHandle, Manager};
 
 use super::delivery::{self, Delivery};
-use super::{publish, publish_message, publish_phase};
+use super::edit::{self, SelectionTask};
+use super::transcription::{
+    discard_audio, keep_audio, transcribe, transcribe_fresh, vocabulary, Audio,
+};
+use super::{elapsed_ms, llm, publish, publish_message, publish_phase};
 use crate::events;
 use crate::features::history::remove_audio;
-use crate::features::models::engine_language;
-use crate::state::{now_ms, AppState};
+use crate::state::AppState;
 
-const NO_GROQ_KEY: &str = "Add your Groq API key in Settings → Models";
 const UNFORMATTED: &str = "unformatted";
+/// Formatting only shortens a transcript, so its reply fits comfortably.
+const POLISH_MAX_TOKENS: u32 = 2048;
 const TEST_SAMPLE: &str = "um so i think we should uh move the standup to ten tomorrow and \
      the the api review to friday and can you send the notes to priya";
 
@@ -38,6 +41,8 @@ pub(crate) struct SessionInput {
     pub(crate) started_at_ms: i64,
     pub(crate) stopped_at: Instant,
     pub(crate) frontmost: Option<FrontmostApp>,
+    /// Set for an edit: the selection read when the edit shortcut went down.
+    pub(crate) selection: Option<SelectionTask>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,28 +52,20 @@ pub(crate) struct PostProcessingTest {
     latency_ms: i64,
 }
 
-struct Heard {
-    text: String,
-    language: Option<String>,
-}
-
 /// Result of the post-processing pass.
 enum Polish {
-    Polished(String),
+    /// Formatted text and how long the pass took.
+    Polished(String, i64),
     /// The pass failed or was rejected by the guards; the deterministic text is used.
     Unformatted(String),
     /// Off, or too short to be worth it.
     NotRun,
 }
 
-/// The audio a transcription reads: always the WAV bytes, plus a file when one already exists
-/// (local models read files; retries read the kept file).
-struct Audio {
-    wav: Vec<u8>,
-    path: Option<PathBuf>,
-}
-
-pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
+pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
+    if let Some(selection) = input.selection.take() {
+        return edit::run_edit(app, input, selection).await;
+    }
     let SessionInput {
         id,
         recording,
@@ -76,6 +73,7 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
         started_at_ms,
         stopped_at,
         frontmost,
+        selection: _,
     } = input;
     let state = app.state::<AppState>();
     publish_phase(&app, id, DictationPhase::Transcribing);
@@ -95,6 +93,7 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
         status: HistoryStatus::Failed,
         raw_text: String::new(),
         final_text: String::new(),
+        source_text: None,
         error: None,
         model: settings.transcription_model.clone(),
         format_model: None,
@@ -102,6 +101,8 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
         style: settings.style,
         audio_ms: recording.duration_ms,
         latency_ms: 0,
+        transcribe_ms: None,
+        format_ms: None,
         dictionary_fixes: 0,
         app_name,
         bundle_id,
@@ -140,13 +141,16 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
     }
     let polish = post_process(&state, &settings, &vocabulary.terms, &formatted.text).await;
     let (final_text, mut status, note) = match polish {
-        Polish::Polished(text) => {
-            row.format_model = formatting_model(&settings);
+        Polish::Polished(text, ms) => {
+            row.format_model = llm::model_id(&settings);
+            row.format_ms = Some(ms);
             (text, HistoryStatus::Pasted, None)
         }
         Polish::NotRun => (formatted.text, HistoryStatus::Pasted, None),
         Polish::Unformatted(reason) => {
             tracing::info!(reason, "post-processing skipped; pasting formatted text");
+            // The History badge's tooltip shows this; a paste failure below overrides it.
+            row.error = Some(reason);
             (
                 formatted.text,
                 HistoryStatus::Unformatted,
@@ -155,10 +159,11 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
         }
     };
 
-    let delivered =
-        delivery::deliver_in_order(&app, id, &final_text, settings.restore_clipboard).await;
+    let pasted = delivery::with_separator(&final_text);
+    let delivered = delivery::deliver_in_order(&app, id, &pasted, settings.restore_clipboard).await;
     row.latency_ms = elapsed_ms(stopped_at);
     row.raw_text = heard.text;
+    row.transcribe_ms = Some(heard.ms);
     row.language = heard.language;
     row.dictionary_fixes = i64::from(formatted.rule_hits);
     match &delivered {
@@ -223,6 +228,7 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         status: HistoryStatus::Failed,
         raw_text: entry.raw_text,
         final_text: entry.text,
+        source_text: None,
         error: None,
         model: settings.transcription_model.clone(),
         format_model: None,
@@ -230,6 +236,8 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         style: settings.style,
         audio_ms: entry.audio_ms,
         latency_ms: entry.latency_ms,
+        transcribe_ms: None,
+        format_ms: None,
         dictionary_fixes: entry.dictionary_fixes,
         app_name: entry.app_name,
         bundle_id: entry.bundle_id,
@@ -259,8 +267,9 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     let formatted = sv_text::format(&heard.text, &vocabulary, settings.style);
     let polish = post_process(&state, &settings, &vocabulary.terms, &formatted.text).await;
     let final_text = match polish {
-        Polish::Polished(text) => {
-            row.format_model = formatting_model(&settings);
+        Polish::Polished(text, ms) => {
+            row.format_model = llm::model_id(&settings);
+            row.format_ms = Some(ms);
             text
         }
         Polish::NotRun | Polish::Unformatted(_) => formatted.text,
@@ -272,6 +281,7 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     }
     row.status = HistoryStatus::NotPasted;
     row.raw_text = heard.text;
+    row.transcribe_ms = Some(heard.ms);
     row.final_text = final_text;
     row.language = heard.language;
     row.dictionary_fixes = i64::from(formatted.rule_hits);
@@ -291,7 +301,7 @@ pub(crate) async fn test_post_processing(app: &AppHandle) -> AppResult<PostProce
     let formatted = sv_text::format(TEST_SAMPLE, &vocabulary, settings.style);
     let started = Instant::now();
     let output = match post_process(&state, &settings, &vocabulary.terms, &formatted.text).await {
-        Polish::Polished(text) => text,
+        Polish::Polished(text, _) => text,
         Polish::NotRun => formatted.text,
         Polish::Unformatted(reason) => {
             return Err(AppError::other(format!("Post-processing failed: {reason}")));
@@ -303,88 +313,10 @@ pub(crate) async fn test_post_processing(app: &AppHandle) -> AppResult<PostProce
     })
 }
 
-async fn vocabulary(state: &AppState) -> Vocabulary {
-    let entries = match state.db() {
-        Ok(db) => db.dictionary().await.unwrap_or_else(|error| {
-            tracing::warn!(%error, "could not read the dictionary");
-            Vec::new()
-        }),
-        Err(_) => Vec::new(),
-    };
-    Vocabulary::from_entries(&entries)
-}
-
-/// Local models read a file, so a fresh recording is written to its own per-session WAV
-/// (overlapping sessions never share one).
-async fn transcribe_fresh(
-    state: &AppState,
-    settings: &Settings,
-    vocabulary: &Vocabulary,
-    id: u64,
-    audio: &mut Audio,
-) -> AppResult<Heard> {
-    if settings.transcription_model != GROQ_WHISPER {
-        audio.path = Some(write_session_wav(&audio.wav, id).await?);
-    }
-    transcribe(state, settings, vocabulary, audio).await
-}
-
-async fn transcribe(
-    state: &AppState,
-    settings: &Settings,
-    vocabulary: &Vocabulary,
-    audio: &Audio,
-) -> AppResult<Heard> {
-    let model = settings.transcription_model.as_str();
-    if model == GROQ_WHISPER {
-        let key = groq_key(state)
-            .await?
-            .ok_or_else(|| AppError::invalid(NO_GROQ_KEY))?;
-        let transcript = sv_cloud::groq_transcribe(
-            &state.http,
-            &key,
-            audio.wav.clone(),
-            &vocabulary.prompt,
-            &settings.languages,
-            &settings.fallback_language,
-        )
-        .await?;
-        return Ok(Heard {
-            text: transcript.text,
-            language: transcript.language,
-        });
-    }
-    let path = audio
-        .path
-        .as_deref()
-        .ok_or_else(|| AppError::other("Audio file missing"))?;
-    let language = engine_language(settings, model);
-    let transcript = state.engine.transcribe(model, path, language).await?;
-    Ok(Heard {
-        text: transcript.text,
-        language: transcript.language,
-    })
-}
-
-async fn groq_key(state: &AppState) -> AppResult<Option<String>> {
-    let key = state.db()?.groq_api_key().await?;
-    Ok(key.filter(|key| !key.trim().is_empty()))
-}
-
 fn will_post_process(settings: &Settings, text: &str) -> bool {
     settings.post_processing != PostProcessing::Off
         && !text.trim().is_empty()
         && sv_text::should_skip_polish(text).is_none()
-}
-
-/// The model id a successful formatting pass ran on, as recorded in history.
-fn formatting_model(settings: &Settings) -> Option<String> {
-    match settings.post_processing {
-        PostProcessing::Off => None,
-        PostProcessing::Groq => Some(settings.groq_formatting_model.clone()),
-        PostProcessing::Custom => Some(settings.custom_model.trim().to_owned()),
-        PostProcessing::Apple => Some(APPLE_INTELLIGENCE.to_owned()),
-    }
 }
 
 async fn post_process(
@@ -396,82 +328,15 @@ async fn post_process(
     if !will_post_process(settings, text) {
         return Polish::NotRun;
     }
-    let prompt = sv_text::polish_prompt(text, terms, settings.style);
-    let outcome = match settings.post_processing {
-        PostProcessing::Off => return Polish::NotRun,
-        PostProcessing::Groq => match groq_key(state).await {
-            Ok(Some(key)) => {
-                let endpoint = ChatEndpoint {
-                    url: sv_cloud::GROQ_CHAT_URL.to_owned(),
-                    key: Some(&key),
-                    model: &settings.groq_formatting_model,
-                    groq_no_reasoning: true,
-                };
-                sv_cloud::polish_chat(&state.http, endpoint, &prompt, text).await
-            }
-            Ok(None) => PolishOutcome::Skipped("no Groq API key".to_owned()),
-            Err(error) => PolishOutcome::Skipped(error.to_string()),
-        },
-        PostProcessing::Custom => {
-            if settings.custom_model.trim().is_empty() {
-                PolishOutcome::Skipped("no custom model configured".to_owned())
-            } else {
-                let key = match state.db() {
-                    Ok(db) => db.custom_api_key().await.ok().flatten(),
-                    Err(_) => None,
-                };
-                let endpoint = ChatEndpoint {
-                    url: sv_cloud::chat_url(&settings.custom_base_url),
-                    key: key.as_deref().filter(|key| !key.trim().is_empty()),
-                    model: &settings.custom_model,
-                    groq_no_reasoning: false,
-                };
-                sv_cloud::polish_chat(&state.http, endpoint, &prompt, text).await
-            }
-        }
-        PostProcessing::Apple => {
-            let request = state
-                .engine
-                .polish(&prompt.system, &prompt.shots, &prompt.user);
-            match tokio::time::timeout(sv_text::polish_timeout(text), request).await {
-                Ok(Ok(reply)) => sv_text::accept_polish(text, &reply.text, reply.finished),
-                Ok(Err(error)) => PolishOutcome::Skipped(error.to_string()),
-                Err(_) => PolishOutcome::Skipped("timed out".to_owned()),
-            }
-        }
+    let prompt = sv_text::polish_prompt(text, terms, settings.style, llm::target(settings));
+    let started = Instant::now();
+    let limit = sv_text::polish_timeout(text);
+    let outcome = match llm::complete(state, settings, &prompt, POLISH_MAX_TOKENS, limit).await {
+        Ok(reply) => sv_text::accept_polish(text, &reply.text, reply.finished),
+        Err(reason) => PolishOutcome::Skipped(reason),
     };
     match outcome {
-        PolishOutcome::Polished(polished) => Polish::Polished(polished),
+        PolishOutcome::Polished(polished) => Polish::Polished(polished, elapsed_ms(started)),
         PolishOutcome::Skipped(reason) => Polish::Unformatted(reason),
     }
-}
-
-async fn write_session_wav(wav: &[u8], id: u64) -> AppResult<PathBuf> {
-    let path = sv_storage::paths::audio_dir()?.join(format!("session-{id}-{}.wav", now_ms()));
-    tokio::fs::write(&path, wav).await.map_err(AppError::io)?;
-    Ok(path)
-}
-
-/// Makes sure a failed session's audio is on disk for retry and returns its path.
-async fn keep_audio(audio: &Audio, id: u64) -> Option<PathBuf> {
-    if let Some(path) = &audio.path {
-        return Some(path.clone());
-    }
-    match write_session_wav(&audio.wav, id).await {
-        Ok(path) => Some(path),
-        Err(error) => {
-            tracing::error!(%error, "could not keep the audio of a failed dictation");
-            None
-        }
-    }
-}
-
-async fn discard_audio(audio: &Audio) {
-    if let Some(path) = &audio.path {
-        remove_audio(path).await;
-    }
-}
-
-fn elapsed_ms(since: Instant) -> i64 {
-    i64::try_from(since.elapsed().as_millis()).unwrap_or(i64::MAX)
 }

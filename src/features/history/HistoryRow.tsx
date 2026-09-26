@@ -1,9 +1,9 @@
 // FilePath: src/features/history/HistoryRow.tsx
 import { useEffect, useRef, useState } from "react";
-import { AudioLines, Copy, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { AudioLines, Copy, PenLine, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import type { HistoryEntry } from "../../lib/api";
 import { CATEGORY_META } from "../../lib/categories";
-import { formatTime } from "../../lib/format";
+import { formatSeconds, formatTime } from "../../lib/format";
 import { Badge, IconButton, Spinner } from "../../ui";
 
 export interface HistoryRowProps {
@@ -14,12 +14,26 @@ export interface HistoryRowProps {
     onDelete: (entry: HistoryEntry) => void;
 }
 
+/**
+ * The text a row shows and copies: what was pasted; for a dictation that produced none, its raw
+ * transcript; for an edit that produced none, the selection it left unchanged.
+ */
+export function displayText(entry: HistoryEntry): string {
+    if (entry.text.trim().length > 0) return entry.text;
+    return entry.sourceText ?? entry.rawText;
+}
+
 function StatusBadge({ entry }: { entry: HistoryEntry }) {
     switch (entry.status) {
         case "pasted":
             return null;
         case "unformatted":
-            return <Badge tone="warning">Unformatted</Badge>;
+            // The reason lives in the tooltip; a second visible line would repeat the badge.
+            return (
+                <Badge tone="warning" title={entry.error ?? "AI formatting was skipped."}>
+                    Unformatted
+                </Badge>
+            );
         case "failed":
             return <Badge tone="danger">Failed</Badge>;
         case "dropped":
@@ -31,17 +45,34 @@ function StatusBadge({ entry }: { entry: HistoryEntry }) {
 
 function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     const formatter = entry.formatModelName;
+    const verb = entry.sourceText === null ? "Formatted" : "Edited";
+    // Rows recorded before stage timings existed have none; their tooltips omit the duration.
+    const transcribed =
+        entry.transcribeMs === null ? "" : ` in ${formatSeconds(entry.transcribeMs)}`;
+    const formatted = entry.formatMs === null ? "" : ` in ${formatSeconds(entry.formatMs)}`;
     return (
         <span className="history-row__models">
-            <span className="history-row__model" title={`Transcribed with ${entry.modelName}`}>
+            <span
+                className="history-row__model"
+                title={`Transcribed with ${entry.modelName}${transcribed}`}
+            >
                 <AudioLines aria-hidden="true" />
                 {entry.modelName}
+                {entry.transcribeMs !== null && ` (${formatSeconds(entry.transcribeMs)})`}
             </span>
             {formatter && (
-                <span className="history-row__model" title={`Formatted with ${formatter}`}>
-                    <Sparkles aria-hidden="true" />
+                <span
+                    className="history-row__model"
+                    title={`${verb} with ${formatter}${formatted}`}
+                >
+                    {entry.sourceText === null ? (
+                        <Sparkles aria-hidden="true" />
+                    ) : (
+                        <PenLine aria-hidden="true" />
+                    )}
                     {/* Provider ids carry a vendor prefix ("qwen/…"); the tooltip keeps it. */}
                     {formatter.slice(formatter.lastIndexOf("/") + 1)}
+                    {entry.formatMs !== null && ` (${formatSeconds(entry.formatMs)})`}
                 </span>
             )}
         </span>
@@ -53,7 +84,8 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
     const [expanded, setExpanded] = useState(false);
     const [overflowing, setOverflowing] = useState(false);
     const category = CATEGORY_META[entry.appCategory];
-    const text = entry.text.trim().length > 0 ? entry.text : entry.rawText;
+    const text = displayText(entry);
+    const edit = entry.sourceText !== null;
 
     // Only offer "Show more" when the clamped text is actually cut off at the current width.
     useEffect(() => {
@@ -80,6 +112,11 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                         {category.icon}
                         {entry.appName ?? category.label}
                     </span>
+                    {edit && (
+                        <Badge tone="accent" title="Selected text rewritten by voice">
+                            Edit
+                        </Badge>
+                    )}
                     <StatusBadge entry={entry} />
                     <ModelsUsed entry={entry} />
                 </div>
@@ -110,6 +147,19 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                     </button>
                 )}
 
+                {edit && (
+                    <>
+                        {entry.rawText.trim().length > 0 && (
+                            <p className="history-row__note selectable">Said: {entry.rawText}</p>
+                        )}
+                        {entry.text.trim().length > 0 && (
+                            <p className="history-row__note selectable">
+                                Replaced: {entry.sourceText}
+                            </p>
+                        )}
+                    </>
+                )}
+
                 {entry.status === "failed" && entry.error && (
                     <p className="history-row__error selectable">{entry.error}</p>
                 )}
@@ -121,11 +171,6 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                 {entry.status === "not_pasted" && (
                     <p className="history-row__note">
                         {entry.error ?? "Copied to the clipboard instead of pasted."}
-                    </p>
-                )}
-                {entry.status === "unformatted" && (
-                    <p className="history-row__note">
-                        AI formatting was skipped{entry.error ? `: ${entry.error}` : "."}
                     </p>
                 )}
             </div>

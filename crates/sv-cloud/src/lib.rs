@@ -1,14 +1,14 @@
 // FilePath: crates/sv-cloud/src/lib.rs
 //! Remote services: Groq Whisper for transcription, OpenAI-compatible chat completions
-//! (Groq, Ollama, LM Studio, any hosted service) for the formatting pass, and GitHub for the
-//! latest-release check.
+//! (Groq, Ollama, LM Studio, any hosted service) for the formatting pass and edit mode, and
+//! GitHub for the latest-release check.
 #![forbid(unsafe_code)]
 
 pub mod chat;
 pub mod groq_whisper;
 pub mod releases;
 
-pub use chat::{chat_url, polish_chat, ChatEndpoint, GROQ_CHAT_URL};
+pub use chat::{chat_completion, chat_url, ChatEndpoint, ChatReply, GROQ_CHAT_URL};
 pub use groq_whisper::{groq_transcribe, groq_verify_key, Transcript};
 pub use releases::{install_script_url, latest_release, latest_release_url, LatestRelease};
 
