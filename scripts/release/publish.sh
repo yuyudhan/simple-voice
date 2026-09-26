@@ -2,22 +2,21 @@
 # FilePath: scripts/release/publish.sh
 # Publishes a release built by scripts/release/build.sh: uploads the zip, its checksum and
 # scripts/install.sh (served as releases/latest/download/install.sh) to the GitHub release of the
-# pushed tag vVERSION (creating the release if needed), then pushes the rendered cask to the tap.
+# pushed tag vVERSION, creating the release if needed.
 #
-# Usage: scripts/release/publish.sh VERSION SIGNED
-#   SIGNED is the value build.sh printed. The zip is read from
-#   $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir: <repo>/target). `gh` must be
-#   logged in with push access to both repositories; GH_REPO overrides yuyudhan/simple-voice.
+# Usage: scripts/release/publish.sh VERSION
+#   The zip is read from $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir:
+#   <repo>/target). `gh` must be logged in with push access; GH_REPO overrides
+#   yuyudhan/simple-voice.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
-if [ "$#" -ne 2 ] || ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! [[ "$2" =~ ^(true|false)$ ]]; then
-    echo "usage: $0 MAJOR.MINOR.PATCH true|false" >&2
+if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "usage: $0 MAJOR.MINOR.PATCH" >&2
     exit 1
 fi
 version="$1"
-signed="$2"
 tag="v${version}"
 export GH_REPO="${GH_REPO:-yuyudhan/simple-voice}"
 
@@ -38,5 +37,3 @@ else
         --title "Simple Voice ${tag}" --generate-notes --verify-tag
 fi
 echo "publish: uploaded ${asset} (sha256 ${sha256}) and install.sh to ${GH_REPO} ${tag}"
-
-"${root}/scripts/release/update-cask.sh" publish "$version" "$sha256" "$signed"

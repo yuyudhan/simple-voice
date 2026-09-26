@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/build.sh
-# Builds the release app in the current directory and packs it as the zip the cask downloads.
-# The zip is made with `ditto`, which keeps the bundle's code signature and extended attributes
-# intact, unlike plain `zip`; Homebrew unpacks it natively.
+# Builds the release app in the current directory and packs it as the zip that scripts/install.sh
+# downloads. The zip is made with `ditto`, which keeps the bundle's code signature and extended
+# attributes intact, unlike plain `zip`.
 #
 # Usage: scripts/release/build.sh VERSION
-#   Prints `true` (Developer ID signed and notarized) or `false` as the last line of stdout; the
-#   build log goes to stderr. The zip lands in $CARGO_TARGET_DIR/release-assets/VERSION/
-#   (default target dir: ./target).
-#   Signing: ad hoc unless APPLE_SIGNING_IDENTITY names a Developer ID in the keychain; the
-#   build counts as notarized only when APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are set too.
+#   The build log goes to stderr.
+#   The zip lands in $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir: ./target).
+#   Signing: never ad hoc, because an ad-hoc signature changes with every build and macOS then
+#   forgets the user's permission grants on upgrade. APPLE_SIGNING_IDENTITY names the certificate
+#   (default: the self-signed "Simple Voice Release" from scripts/release/signing-identity.sh);
+#   the build is notarized only when APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are set too.
 set -euo pipefail
 
 version="${1:-}"
@@ -24,14 +25,22 @@ if [ "$declared" != "$version" ]; then
     exit 1
 fi
 
-if [ "${APPLE_SIGNING_IDENTITY:--}" = "-" ]; then
-    export APPLE_SIGNING_IDENTITY="-"
-    unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
-    signed=false
-elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
-    signed=true
-else
-    echo "build: APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are needed to notarize" >&2
+identity="${APPLE_SIGNING_IDENTITY:-Simple Voice Release}"
+if [ "$identity" = "-" ]; then
+    echo "build: releases are never ad-hoc signed; unset APPLE_SIGNING_IDENTITY" >&2
+    exit 1
+fi
+# Without -v: the self-signed certificate is untrusted, which codesign accepts.
+if ! security find-identity -p codesigning | grep -Fq "\"${identity}\""; then
+    echo "build: no \"${identity}\" signing identity in the keychain;" \
+        "run scripts/release/signing-identity.sh create or restore" >&2
+    exit 1
+fi
+export APPLE_SIGNING_IDENTITY="$identity"
+# Tauri notarizes when all three are set; a partial set is a mistake, not a choice.
+if [ -n "${APPLE_ID:-}${APPLE_PASSWORD:-}${APPLE_TEAM_ID:-}" ] &&
+    { [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; }; then
+    echo "build: APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID are all needed to notarize" >&2
     exit 1
 fi
 
@@ -44,9 +53,17 @@ target_dir="${CARGO_TARGET_DIR:-$(pwd)/target}"
 
 app="${target_dir}/aarch64-apple-darwin/release/bundle/macos/Simple Voice.app"
 codesign --verify --deep --strict "$app" >&2
+# A designated requirement naming a hash would tie grants to this one build.
+requirement=$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')
+case "$requirement" in
+*certificate*) ;;
+*)
+    echo "build: the bundle's designated requirement names no certificate: ${requirement}" >&2
+    exit 1
+    ;;
+esac
 assets="${target_dir}/release-assets/${version}"
 rm -rf "$assets"
 mkdir -p "$assets"
 ditto -c -k --keepParent "$app" "${assets}/Simple-Voice_${version}_aarch64.zip"
 echo "build: packed ${assets}/Simple-Voice_${version}_aarch64.zip" >&2
-echo "$signed"

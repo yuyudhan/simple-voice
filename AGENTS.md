@@ -2,7 +2,7 @@
 
 # Simple Voice - Contributor Guide
 
-Tauri 2 dictation app for macOS on Apple Silicon, published through Homebrew. Rust workspace
+Tauri 2 dictation app for macOS on Apple Silicon, installed with a curl install script from GitHub releases. Rust workspace
 (`src-tauri/`, `crates/*`), React/TypeScript UI (`src/`), Swift engine helper (`engine/`) for
 everything that needs Apple frameworks.
 
@@ -17,7 +17,7 @@ everything that needs Apple frameworks.
 - `docs/internal/design.md`: the Signal design language. Colours come only from
   `src/styles/tokens.css`.
 - `docs/internal/development.md`: gates, sqlx offline workflow, engine build.
-- `docs/internal/releasing.md`: versioning, signing, the Homebrew cask and tap.
+- `docs/internal/releasing.md`: versioning, signing, the install script and GitHub release publishing.
 - `docs/internal/engine.md`: the Swift helper's protocol, models and permissions.
 
 ## Inviolable

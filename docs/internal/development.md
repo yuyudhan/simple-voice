@@ -14,7 +14,6 @@ contract between the pieces is [architecture.md](architecture.md); releases are 
 | `crates/`             | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
 | `engine/`             | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
 | `src/`                | The React and TypeScript interface.                                                                                                     |
-| `packaging/homebrew/` | The Homebrew cask template.                                                                                                             |
 | `docs/`               | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
 
 ## Setup
@@ -48,8 +47,7 @@ cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
 
 ## Quality gates
 
-`just check` is the full gate. Pre-push and CI run exactly this, serially; CI also runs
-`just cask-check` ([releasing.md](releasing.md#checking-the-cask)):
+`just check` is the full gate. Pre-push and CI run exactly this, serially:
 
 | Gate       | Recipe            | What it runs                                                                                       |
 | ---------- | ----------------- | -------------------------------------------------------------------------------------------------- |
@@ -148,5 +146,6 @@ may forget a grant or show a stale entry that no longer matches:
 print(AXIsProcessTrusted())'` run from the same terminal prints `true` once paste will work.
 - Only the built bundle, opened from Finder or `open`, is attributed to Simple Voice itself.
 
-Release builds signed with a Developer ID keep a stable identity, so grants survive upgrades.
-Ad-hoc signed releases behave like development builds; the cask's caveat explains this to users.
+Releases are signed with the project's own certificate (see
+[releasing.md](releasing.md#signing-and-notarization)), so grants survive upgrades; only local
+ad-hoc builds behave as described above.

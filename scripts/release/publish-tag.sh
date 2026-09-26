@@ -2,11 +2,11 @@
 # FilePath: scripts/release/publish-tag.sh
 # Builds an already pushed tag vVERSION on this Mac and publishes it: for a release whose publish
 # step failed after the push, or a tag that was never published. The app is built from a clean,
-# detached worktree of the tag, so uncommitted or later work never ships; the release scripts and
-# cask template come from this checkout. Cargo reuses this checkout's target/ directory.
+# detached worktree of the tag, so uncommitted or later work never ships; the release scripts
+# come from this checkout. Cargo reuses this checkout's target/ directory.
 #
 # Usage: scripts/release/publish-tag.sh VERSION
-#   Needs `gh` logged in with push access to both repositories. Signing: see build.sh.
+#   Needs `gh` logged in with push access to yuyudhan/simple-voice. Signing: see build.sh.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -38,8 +38,7 @@ trap 'git -C "$root" worktree remove --force "${build_dir}/src" >/dev/null 2>&1 
 rm -rf "$build_dir"' EXIT
 git worktree add --detach "${build_dir}/src" "$tag"
 
-scripts/release/check-cask.sh "$version"
 export CARGO_TARGET_DIR="${root}/target"
-signed=$(cd "${build_dir}/src" && "${root}/scripts/release/build.sh" "$version")
-scripts/release/publish.sh "$version" "$signed"
-echo "publish-tag: ${tag} is live: brew install --cask yuyudhan/tap/simple-voice"
+(cd "${build_dir}/src" && "${root}/scripts/release/build.sh" "$version")
+scripts/release/publish.sh "$version"
+echo "publish-tag: ${tag} is live: curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash"

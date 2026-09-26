@@ -31,6 +31,7 @@ flowchart LR
 ## 1. Storage
 
 - Data directory: `~/.simplevoice/` (created on launch, mode 0700).
+    - `update.log` — output of the last in-app update install (file mode 0600), replaced by each.
     - `simple-voice.db` — default database location (file mode 0600).
     - `location` — optional one-line file holding the absolute path of the directory that
       contains the database when the user moved it (Settings → Data). Absent = default. If that
@@ -327,6 +328,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `app_info`                                                                     | —                                                   | `AppInfo`                                                                                                        |
 | `get_update_status`                                                            | —                                                   | `UpdateStatus` (cached; no network)                                                                              |
 | `check_for_updates`                                                            | —                                                   | `UpdateStatus` (checks now; a failure is reported in `error`, not as a command error)                            |
+| `install_update`                                                               | —                                                   | `UpdateStatus` with `installing: true` (starts the install script; fails when no update is available)           |
 
 ## 4. Events (Rust → UI)
 
@@ -339,9 +341,9 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
 | `permissions-changed` | `Permissions`                                                                                                                                     |
 | `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → General, or Settings → System for `"updates"` |
-| `update-status`       | `UpdateStatus` — when a check starts and when it ends                                                                                             |
+| `update-status`       | `UpdateStatus` — when a check starts and ends, and when an install starts and ends without quitting the app                                      |
 
-`UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null }`.
+`UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
 
 `DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, words?: number, note?: string }`.
 
@@ -410,16 +412,23 @@ post-processing provider; one key serves both.
 
 ## 8. Update notices
 
-Homebrew or the install script (`scripts/install.sh`, P-5) installs every version; the app never
-downloads or replaces itself. The `updates` slice asks GitHub's `releases/latest` endpoint
-(drafts and pre-releases excluded, the same source as the cask's `livecheck` and the install
-script) for the repository in the workspace `repository` field, 30 s
+The install script (`scripts/install.sh`, P-5) installs every version. The `updates` slice asks
+GitHub's `releases/latest` endpoint (drafts and pre-releases excluded, the same source the
+install script follows) for the repository in the workspace `repository` field, 30 s
 after launch and then whenever 24 hours of wall-clock time have passed since the last successful
 check (it wakes hourly, since monotonic sleeps stop while the Mac sleeps). A failed check is
 retried on the next wake. `Settings.checkForUpdates = false` stops the automatic checks; "Check
 now", the tray item and the app-menu item still check on demand. When the release is newer than
-the running version (semver), the tray item reads "Update Available: X…", the UI shows a banner
-above every page (hidden for `Settings.skippedUpdate`), and both offer the install-script
-command to copy; the script upgrades through Homebrew when Homebrew manages the app. The app
-does not run it: the installer quits the running app, which would kill an update the app
-started.
+the running version (semver), the tray item reads "Update Available: X…", and the UI shows a
+banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → System,
+both with an Install update button.
+
+`install_update` runs `curl -fsSL <repo>/releases/latest/download/install.sh | bash` in its own
+process group with stdin closed and stdout and stderr in `~/.simplevoice/update.log`, so the
+script survives the app quitting under it. The script downloads the release zip, verifies its
+checksum and code signature, quits the app, replaces it and reopens it. Without a terminal the
+script sets `SUDO_ASKPASS` to an `osascript` password dialog, asks for the password before
+quitting the app, and reopens the old app when it fails after
+quitting it. If the script exits while the app still runs, the slice clears `installing` and, on
+failure, sets `installError` to the script's last `simple-voice:` line (else the last output
+line) plus the log path.

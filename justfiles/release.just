@@ -1,7 +1,7 @@
 # FilePath: justfiles/release.just
-# Releasing, entirely from this Mac: build, tag, push, GitHub release and Homebrew cask.
+# Releasing, entirely from this Mac: build, tag, push and GitHub release.
 
-# Bump every version field, build, commit, tag vVERSION, push, and publish the cask.
+# Bump every version field, build, commit, tag vVERSION, push, and publish the GitHub release.
 [group('release')]
 release VERSION:
     scripts/release/release.sh {{VERSION}}
@@ -11,7 +11,8 @@ release VERSION:
 publish VERSION:
     scripts/release/publish-tag.sh {{VERSION}}
 
-# Render the Homebrew cask (ad-hoc and notarized variants) and run brew style and brew audit.
+# Manage the release signing certificate: create BACKUP.p12 | restore BACKUP.p12 | show.
 [group('release')]
-cask-check:
-    scripts/release/check-cask.sh
+[positional-arguments]
+signing-identity *ARGS:
+    scripts/release/signing-identity.sh "$@"

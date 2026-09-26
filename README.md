@@ -18,44 +18,29 @@ Intelligence.
 
 Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later.
 
-With [Homebrew](https://brew.sh):
-
-```sh
-brew install --cask yuyudhan/tap/simple-voice
-```
-
-Or with the install script, which uses Homebrew when it is installed and works, and otherwise
-installs straight from the latest GitHub release:
-
 ```sh
 curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
 ```
 
 The script checks the download against the release's SHA-256 checksum and the app's code
-signature before it replaces `/Applications/Simple Voice.app`. Options go after `bash -s --`:
-`... | bash -s -- --no-brew` skips Homebrew, and `... | bash -s -- --version X.Y.Z` installs a
-specific release. It is the way in when Homebrew is not
-available or cannot unpack the app, for example when an endpoint-security agent kills
-Homebrew's sandboxed extraction.
+signature before it replaces `/Applications/Simple Voice.app`. To install a specific release,
+use `... | bash -s -- --version X.Y.Z`.
+
+If you installed Simple Voice with Homebrew before, run `brew uninstall --cask simple-voice`
+(app data in `~/.simplevoice` is kept), then the command above.
 
 Then open **Simple Voice** from Applications and grant the permissions it asks for
 (Microphone and Accessibility). See [Getting started](docs/getting-started.md).
 
-| Task                          | Homebrew                                   | Install script                               |
-| ----------------------------- | ------------------------------------------ | -------------------------------------------- |
-| Upgrade                       | `brew upgrade --cask simple-voice`         | Run the install command again                |
-| Uninstall                     | `brew uninstall --cask simple-voice`       | `rm -rf "/Applications/Simple Voice.app"`    |
-| Uninstall and delete all data | `brew uninstall --zap --cask simple-voice` | The line above, then `rm -rf ~/.simplevoice` |
+| Task                          | How                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| Upgrade                       | Click **Install update** in the app, or run the install command again      |
+| Uninstall                     | `rm -rf "/Applications/Simple Voice.app"`                                  |
+| Uninstall and delete all data | The line above, then `rm -rf ~/.simplevoice`                               |
 
-Until releases are notarized by Apple, the app is ad-hoc signed; the cask and the install script
-both clear its download quarantine so macOS opens it.
-
-### If `brew install` fails
-
-| Error                                                                                                              | Cause and fix                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Cask 'simple-voice' definition is invalid: undefined method 'run' for an instance of Homebrew::InstallSteps::DSL` | Homebrew is older than 6.0.13. Run `brew update`, then install again, or use the install script.                                                 |
-| `sandbox_operation.rb extract` ... `terminated by uncaught signal KILL`                                            | Security software on the Mac (seen with SentinelOne) kills Homebrew while it unpacks the download; every zip cask fails. Use the install script. |
+Releases are signed with the project's own certificate, so macOS keeps Simple Voice's
+permissions across upgrades. Until Apple notarizes them, the install script clears the download
+quarantine so macOS opens the app.
 
 ## Documentation
 

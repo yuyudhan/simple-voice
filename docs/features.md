@@ -40,6 +40,5 @@ small floating bar while it listens.
   which kinds of apps you dictate into.
 - **Floating bar and sounds.** A small pill with live level bars while recording, optional start
   and stop sounds in a few styles, and an option to mute other audio while you speak.
-- **Update notices.** A daily check tells you when a new version is out and gives you the one
-  command that installs it, through Homebrew or straight from GitHub; the app never replaces
-  itself.
+- **Update notices.** A daily check tells you when a new version is out and Install update runs
+  the install script, which installs it straight from the GitHub release.

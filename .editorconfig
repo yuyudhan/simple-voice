@@ -14,10 +14,6 @@ trim_trailing_whitespace = true
 [{Makefile,makefile,GNUmakefile,*.mk}]
 indent_style = tab
 
-# Homebrew's `brew style` rejects anything but two-space indentation in a cask.
-[packaging/homebrew/Casks/*.rb]
-indent_size = 2
-
 [*.md]
 trim_trailing_whitespace = false
 
