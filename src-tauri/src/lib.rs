@@ -117,6 +117,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(shortcuts::ShortcutRegistry::default());
     app.manage(overlay::OverlayState::default());
     app.manage(engine_process::EngineProcess::default());
+    app.manage(dock::DockSetting::default());
     let events_app = app.clone();
     app.state::<AppState>()
         .engine

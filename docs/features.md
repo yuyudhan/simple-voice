@@ -5,7 +5,8 @@
 Simple Voice is a small, quiet dictation app for macOS on Apple Silicon. Hold a shortcut, talk,
 let go: your words are transcribed, tidied up, and pasted into the focused text field of any
 app: mail, chat, your editor, a terminal. It stays out of the way in the menu bar and shows a
-small floating bar while it listens.
+small floating bar while it listens. Closing the window or pressing Cmd+Q keeps it running in
+the menu bar, with no Dock icon, so the shortcuts keep working; quit from the menu bar icon.
 
 - **Dictation anywhere.** Works in any app that accepts text. The result is pasted where your
   cursor is and stays on the clipboard; Settings can restore the previous clipboard instead.

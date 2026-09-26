@@ -350,7 +350,12 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 ## 5. Windows
 
 - `main` — 1080×720 (min 860×600), `titleBarStyle: "Overlay"`, hidden title, traffic lights
-  inset. Closing hides it; the tray and Dock icon reopen it.
+  inset. Closing hides it; the tray reopens it. The Dock icon shows only while `main` is visible
+  (and `Settings.showInDock` is on): hiding `main` switches the app to the Accessory activation
+  policy, so with the window closed there is no Dock "Quit" to stop the shortcuts. The app menu
+  binds Cmd+Q to "Close to Menu Bar" (hides `main`, like closing) and offers "Quit Simple Voice"
+  without a shortcut; the tray's Quit, the Dock's Quit, logout and the update installer still quit
+  the app.
 - `overlay` — 200×56, transparent, no decorations, no shadow, always on top, skip taskbar,
   visible on all workspaces, never focused (`focused: false`, `focusable: false`), cursor events
   ignored. Shown bottom-centre of the screen under the cursor while a session is active (or
