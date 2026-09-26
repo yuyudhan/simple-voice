@@ -216,7 +216,8 @@ export interface DictationState {
     sessionId: number;
     startedAt?: number;
     message?: string;
-    words?: number;
+    /** Start of the pasted text, one line, at most 80 characters then "..." (done only). */
+    text?: string;
     note?: string;
 }
 
@@ -281,10 +282,6 @@ export const events = {
     dictationState: (cb: (state: DictationState) => void): Promise<UnlistenFn> =>
         listen<DictationState>("dictation-state", (e) => {
             cb(e.payload);
-        }),
-    dictationLevel: (cb: (level: number) => void): Promise<UnlistenFn> =>
-        listen<{ level: number }>("dictation-level", (e) => {
-            cb(e.payload.level);
         }),
     historyChanged: (cb: () => void): Promise<UnlistenFn> =>
         listen<null>("history-changed", () => {

@@ -10,7 +10,7 @@ use std::time::Duration;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use sv_domain::{AppError, AppResult, ModelStatus, PermissionKind, Permissions};
+use sv_domain::{AppError, AppResult, DictationState, ModelStatus, PermissionKind, Permissions};
 
 use crate::client::{EngineClient, ProgressCallback};
 
@@ -242,6 +242,28 @@ impl EngineClient {
             ("user", text(user)),
         ]);
         self.request("polish", params, POLISH).await
+    }
+
+    /// Tells the overlay pill what to show; see [`EngineClient::notify`].
+    pub fn overlay_state(&self, state: &DictationState) -> AppResult<()> {
+        let state = serde_json::to_value(state).map_err(AppError::engine)?;
+        self.notify("overlay_state", params([("state", Some(state))]))
+    }
+
+    /// Shows the pill under the cursor, or hides it.
+    pub fn overlay_visible(&self, visible: bool) -> AppResult<()> {
+        self.notify(
+            "overlay_visible",
+            params([("visible", Some(Value::from(visible)))]),
+        )
+    }
+
+    /// Feeds the pill's level meter (RMS, 0..=1).
+    pub fn overlay_level(&self, level: f32) -> AppResult<()> {
+        self.notify(
+            "overlay_level",
+            params([("level", Some(Value::from(f64::from(level))))]),
+        )
     }
 
     /// A command whose result carries nothing (`{}`).

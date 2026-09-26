@@ -140,7 +140,7 @@ export function SystemSection() {
                 </SettingRow>
                 <SettingRow
                     title="Show app in Dock"
-                    description="When off, Simple Voice lives only in the menu bar."
+                    description="Shows the Dock icon while the window is open. When off, Simple Voice lives only in the menu bar."
                 >
                     <Toggle
                         label="Show app in Dock"

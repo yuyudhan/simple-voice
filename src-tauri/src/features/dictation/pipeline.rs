@@ -10,7 +10,6 @@ use serde::Serialize;
 use sv_audio::{encode_wav, Cue, Recording};
 use sv_cloud::ChatEndpoint;
 use sv_domain::models::{APPLE_INTELLIGENCE, GROQ_WHISPER};
-use sv_domain::text_stats::word_count;
 use sv_domain::{
     AppError, AppResult, DictationPhase, DictationState, HistoryEntry, HistoryStatus, NewHistory,
     PostProcessing, Settings,
@@ -171,7 +170,7 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
     }
     row.status = status;
     row.final_text = final_text;
-    let words = i64::try_from(word_count(&row.final_text)).unwrap_or(i64::MAX);
+    let shown = sv_text::preview(&row.final_text);
     if let Err(error) = db.insert_history(row).await {
         tracing::error!(%error, "could not save the dictation to history");
     }
@@ -181,7 +180,7 @@ pub(crate) async fn run_session(app: AppHandle, input: SessionInput) {
     match delivered {
         Delivery::Pasted => {
             let mut done = DictationState::new(DictationPhase::Done, id);
-            done.words = Some(words);
+            done.text = Some(shown);
             done.note = note;
             publish(&app, done);
         }

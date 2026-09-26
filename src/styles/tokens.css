@@ -1,7 +1,8 @@
 /* FilePath: src/styles/tokens.css */
 /* Design tokens for the "Signal" design language (docs/internal/design.md). Every component reads
    colours, type, radii and motion from here so both themes stay consistent. Components never
-   hard-code a colour; the overlay pill is the one surface with its own fixed palette.
+   hard-code a colour; the overlay pill, drawn natively by the Swift helper, is the one surface
+   with its own fixed palette.
 
    The theme is chosen by `data-theme` on <html> (src/app/theme.ts resolves "system" to light
    or dark), so a user's explicit choice wins over the OS appearance. */

@@ -29,12 +29,6 @@ body {
     overflow: hidden;
 }
 
-/* The overlay window is a transparent pill; the page behind it must not paint. */
-html.overlay-window,
-html.overlay-window body {
-    background: transparent;
-}
-
 h1,
 h2,
 h3,
