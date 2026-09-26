@@ -44,6 +44,12 @@ the menu bar, with no Dock icon, so the shortcuts keep working; quit from the me
   Hindi comes out in Devanagari. The allowed languages are configurable.
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
   your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file.
+- **Learns from your corrections.** Turn on _Learn from your corrections_ in Settings →
+  General and fix a misspelled name or term right in the text field after it is pasted: the
+  corrected word joins your dictionary, marked _Learned_. Only the changed words, never the rest
+  of the field, go to your AI post-processing provider, which decides what is worth learning.
+  Works in native apps, Electron apps and Chromium browsers, not in terminals. Delete a learned
+  word and it is never learned again. Off by default, and it needs AI post-processing.
 - **History.** Every dictation with the time, the app it went to, and the text. Copy, search,
   delete, and retry a failed dictation from its saved audio.
 - **Insights.** Words per minute, total words, fixes made, your streak and daily activity, and

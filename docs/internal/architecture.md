@@ -39,6 +39,16 @@ the instruction, sends `sv_text::edit_prompt` to the post-processing provider th
 `sv_text::accept_edit`, and pastes it without a trailing separator only while the app the edit
 started in is still frontmost.
 
+Learning from corrections (requirements LC-1..LC-6) follows a pasted dictation into its field:
+when `Settings.learnFromEdits` is on and post-processing is not off, the coordinator sends the
+helper `prepare_edit_watch` at every recording start (ending the previous watch before a new
+paste can change the field), and `pipeline::run_session` hands each pasted dictation to
+`features/dictation/learning.rs`. That task awaits `watch_edits`, stores a changed text as
+`history.edited_text`, reduces it to word substitutions with `sv_text::corrections`, re-reads the
+setting, asks the post-processing provider through `llm.rs` with `sv_text::learning_prompt`,
+keeps only the offered corrections via `sv_text::accept_learning`, and adds them with
+`Db::learn_words`, emitting `dictionary-changed`.
+
 ## 1. Storage
 
 - Data directory: `~/.simplevoice/` (created on launch, mode 0700).
@@ -75,7 +85,12 @@ CREATE TABLE dictionary (
     id          INTEGER PRIMARY KEY NOT NULL,
     phrase      TEXT NOT NULL COLLATE NOCASE UNIQUE,  -- word to recognise / text heard
     replacement TEXT,                                 -- NULL = plain word; else written form
-    created_at  INTEGER NOT NULL                      -- unix ms
+    created_at  INTEGER NOT NULL,                     -- unix ms
+    source      TEXT NOT NULL DEFAULT 'manual'        -- 'manual' | 'learned' (0006)
+);
+CREATE TABLE dictionary_rejected (                   -- learned words the user deleted (0006)
+    phrase      TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+    rejected_at INTEGER NOT NULL                      -- unix ms
 );
 CREATE TABLE history (
     id               INTEGER PRIMARY KEY NOT NULL,
@@ -100,7 +115,8 @@ CREATE TABLE history (
     app_name         TEXT,
     bundle_id        TEXT,
     app_category     TEXT NOT NULL,      -- see AppCategory
-    audio_path       TEXT                -- set only while a failed entry can be retried
+    audio_path       TEXT,               -- set only while a failed entry can be retried
+    edited_text      TEXT                -- the pasted text after the user corrected it in place (0006)
 );
 CREATE INDEX history_created_at ON history(created_at);
 ```
@@ -144,6 +160,9 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // DictionarySort = NameAsc (default) | NameDesc | Newest | Oldest, wire "name_asc" | "name_desc"
 // | "newest" | "oldest"; Settings.dictionarySort remembers the Dictionary page order. Newest and
 // Oldest order by created_at, then id (an import shares one timestamp).
+// DictionarySource = Manual | Learned, wire "manual" | "learned"; DictionaryEntry.source.
+// HistoryEntry.editedText: the pasted text as the user corrected it, None when never corrected.
+// Settings.learnFromEdits (default false) turns on learning from corrections.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -178,8 +197,12 @@ impl Db {
         -> AppResult<DictionaryEntry>;                               // duplicate → InvalidInput
     pub async fn update_dictionary_entry(&self, id: i64, phrase: String, replacement: Option<String>)
         -> AppResult<DictionaryEntry>;
-    pub async fn delete_dictionary_entry(&self, id: i64) -> AppResult<()>;
+    pub async fn delete_dictionary_entry(&self, id: i64) -> AppResult<()>;  // learned → rejected
     pub async fn import_vocabulary(&self, text: &str) -> AppResult<ImportSummary>; // bare lines, `a -> b`, `#`
+    // Manual adds and imports lift a rejection; updating an entry makes it manual.
+    pub async fn learn_words(&self, phrases: &[String]) -> AppResult<Vec<DictionaryEntry>>;
+        // inserted rows only: skips existing (case-insensitive), rejected and invalid phrases
+    pub async fn set_history_edited_text(&self, id: i64, text: &str) -> AppResult<()>;
     pub async fn insights(&self, now_ms: i64, utc_offset_minutes: i32) -> AppResult<Insights>;
     pub async fn model_insights(&self) -> AppResult<ModelInsights>; // per-model stage timings
 }
@@ -213,6 +236,18 @@ pub fn accept_edit(selection: &str, output: &str, finished: bool) -> Result<Stri
     // Err(reason) when truncated or empty; strips echoed <text> tags / code fences; keeps the
     // selection's leading and trailing whitespace
 pub fn preview(text: &str) -> String; // one line, list markers dropped, ≤ 80 chars at a word boundary, then "..."
+// Learning from corrections (learning.rs): word substitutions between the pasted and the
+// corrected text, and the prompt that lets the post-processing model pick the ones to learn.
+pub struct Correction { pub before: String, pub after: String, pub context: String }
+pub const MAX_CORRECTIONS: usize = 8;
+pub const LEARNING_MAX_TOKENS: u32 = 64;
+pub const LEARNING_TIMEOUT: Duration = Duration::from_secs(10);
+pub fn corrections(pasted: &str, edited: &str) -> Vec<Correction>;
+    // substitutions of ≤ 3 words per side; none for punctuation-only changes, pure inserts or
+    // deletes, or a rewrite (more than max(4, half the pasted words) changed)
+pub fn learning_prompt(corrections: &[Correction]) -> PolishPrompt; // reply: numbers or "none"
+pub fn accept_learning(corrections: &[Correction], output: &str, finished: bool) -> Vec<String>;
+    // the `after` of each offered number; nothing when unfinished
 
 // ── sv-cloud ────────────────────────────────────────────────────────────────────────────
 pub struct Transcript { pub text: String, pub language: Option<String> }
@@ -285,6 +320,9 @@ impl EngineClient {
 //   frontmost_app() -> FrontmostApp { name: Option<String>, bundle_id: Option<String> }
 //   paste() -> ()   // "accessibility permission missing" maps to AppError::Permission
 //   selected_text() -> Option<String>   // None = nothing selected; same permission mapping
+//   prepare_edit_watch() -> ()   // ends the running watch; enables the frontmost app's AX tree
+//   watch_edits(text: &str, window: Duration) -> EditWatch { text: Option<String>, reason: Option<String> }
+//       // resolves when the watch ends; request timeout = window + 10 s
 //   set_output_muted(muted: bool) -> bool   // previous muted state
 //   watch_fn_key(enabled: bool) -> bool   // whether the Fn key tap is installed now
 //   login_item() -> LoginItemStatus   // Enabled | Disabled | RequiresApproval
@@ -355,7 +393,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `list_dictionary`                                                              | —                                                   | `DictionaryEntry[]`                                                                                              |
 | `add_dictionary_entry`                                                         | `phrase, replacement?`                              | `DictionaryEntry`                                                                                                |
 | `update_dictionary_entry`                                                      | `id, phrase, replacement?`                          | `DictionaryEntry`                                                                                                |
-| `delete_dictionary_entry`                                                      | `id`                                                | `null`                                                                                                           |
+| `delete_dictionary_entry`                                                      | `id`                                                | `null` (a learned word is recorded as rejected)                                                                  |
 | `import_vocabulary`                                                            | `path: string`                                      | `ImportSummary`                                                                                                  |
 | `get_insights`                                                                 | —                                                   | `Insights`                                                                                                       |
 | `get_model_insights`                                                           | —                                                   | `ModelInsights` (per-model transcription and formatting timings)                                                 |
@@ -378,6 +416,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dictation-state`     | `DictationState`                                                                                                                                  |
 | `history-changed`     | `null`                                                                                                                                            |
+| `dictionary-changed`  | `null` — words were learned from corrections                                                                                                      |
 | `settings-changed`    | `Settings`                                                                                                                                        |
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
 | `permissions-changed` | `Permissions`                                                                                                                                     |
@@ -442,6 +481,8 @@ produces nothing.
 | `frontmost_app`      | —                                                        | `{"name": s?, "bundleId": s?}`                                                                                                                               |
 | `paste`              | —                                                        | `{}` (posts Cmd+V; error `"accessibility permission missing"` when not trusted)                                                                              |
 | `selected_text`      | —                                                        | `{"text": s?}`, absent when nothing is selected. Accessibility (`kAXSelectedTextAttribute`; a zero-length `kAXSelectedTextRangeAttribute` means nothing selected), else a synthetic Cmd+C whose pasteboard change is read and the previous pasteboard items restored. Error `"accessibility permission missing"` when not trusted |
+| `prepare_edit_watch` | —                                                        | `{}`: ends the running correction watch, then enables the frontmost app's accessibility tree once per process: `AXManualAccessibility` (Electron), else `AXEnhancedUserInterface` only when the bundle has a Chromium `* Helper (Renderer).app`. Error `"accessibility permission missing"` when not trusted |
+| `watch_edits`        | `text`, `timeoutMs`                                      | `{"text"?: s, "reason"?: s}` when the watch ends: `text` is the pasted span as it reads then (see [engine.md](engine.md#correction-watch)); `reason` says why nothing was read (secure field, text not exposed, pasted text not found). Same trust error |
 | `set_output_muted`   | `muted: bool`                                            | `{"previous": bool}`                                                                                                                                         |
 | `polish`             | `system`, `shots: [{user, assistant}]`, `user`           | `{"text": s, "finished": bool}` via Apple Foundation Models (`LanguageModelSession`, temperature 0)                                                          |
 | `watch_fn_key`       | `enabled: bool`                                          | `{"active": bool}`: whether the listen-only event tap is installed; without Accessibility access it retries every 2 s while enabled                          |

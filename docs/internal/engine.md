@@ -45,6 +45,31 @@ printf '{"id":1,"cmd":"ping"}\n{"id":2,"cmd":"permissions"}\n' \
     | engine/.build/debug/simple-voice-engine --models-dir /tmp/sv-models
 ```
 
+## Correction watch
+
+`EditWatch.swift` implements `prepare_edit_watch` and `watch_edits` (the span arithmetic lives
+in `FieldSpan.swift`), which follow a pasted dictation in its field so the app can learn from
+the user's corrections (requirements LC-2 and LC-3). One watch runs at a time; a new
+`watch_edits` or `prepare_edit_watch` ends the running one, which then answers with its latest
+snapshot.
+
+- **Accessibility tree.** Chromium only builds its tree for assistive clients. Once per
+  process the helper sets `AXManualAccessibility` on the frontmost app (Electron's own switch,
+  without side effects). When that is unsupported and the bundle contains a Chromium
+  `* Helper (Renderer).app`, it sets `AXEnhancedUserInterface` instead, the screen-reader
+  signal Chrome, Edge, Brave and Arc react to. That attribute can slow window animations and
+  confuse window managers, so it is never set on other apps and only while learning is on.
+- **Locating.** For up to 1.5 s the helper reads the focused element's `AXValue` and looks for
+  the pasted text (surrounding whitespace trimmed), preferring the occurrence that ends at the
+  caret. Secure text fields are never read. Offsets are UTF-16, as Accessibility reports them.
+- **Following.** Every 150 ms it re-reads the value and moves the span by the region that
+  changed since the last read (common prefix and suffix): edits before the span shift it, edits
+  after it leave it, and edits that touch it, including typing right at either end, grow or
+  shrink it.
+- **Ending.** When the timeout passes, focus moves to another element, or the value or span
+  becomes empty. An emptied field is a sent message, so the answer is the last snapshot before
+  it cleared. Logs name the app and why the watch ended, never the text.
+
 ## Build
 
 ```sh
@@ -117,6 +142,8 @@ prompts to the app (the responsible process), not to the helper binary:
   text first; apps whose content Accessibility cannot see (web pages before Chrome builds its
   accessibility tree, Electron apps) are read with a synthetic Cmd+C instead, and the previous
   pasteboard items are written back right after.
+- `prepare_edit_watch` and `watch_edits` need the same trust; they read the focused element's
+  value and never post events.
 
 When the helper is run directly from a terminal, TCC attributes it to the terminal app instead,
 so results differ from what the app sees.
