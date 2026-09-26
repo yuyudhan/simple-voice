@@ -15,6 +15,7 @@ const nameOf = (code: string) => LANGUAGE_NAMES[code] ?? code.toUpperCase();
 export function LanguagePicker() {
     const { settings, update } = useSettings();
     const [query, setQuery] = useState("");
+    const [open, setOpen] = useState(false);
     const selected = settings.languages;
 
     const setLanguages = (languages: string[]) => {
@@ -33,15 +34,15 @@ export function LanguagePicker() {
         }
     };
 
+    // An empty query lists every unselected language so a click alone opens the choices.
     const matches = useMemo(() => {
         const needle = query.trim().toLowerCase();
-        if (needle === "") return [];
-        return Object.entries(LANGUAGE_NAMES)
-            .filter(
-                ([code, name]) =>
-                    !selected.includes(code) &&
-                    (name.toLowerCase().includes(needle) || code === needle),
-            )
+        const unselected = Object.entries(LANGUAGE_NAMES).filter(
+            ([code]) => !selected.includes(code),
+        );
+        if (needle === "") return unselected;
+        return unselected
+            .filter(([code, name]) => name.toLowerCase().includes(needle) || code === needle)
             .slice(0, 8);
     }, [query, selected]);
 
@@ -86,7 +87,12 @@ export function LanguagePicker() {
                 ))}
             </div>
 
-            <div className="sv-langs__search">
+            <div
+                className="sv-langs__search"
+                onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+                }}
+            >
                 <Search size={14} className="sv-langs__search-icon" />
                 <input
                     type="search"
@@ -94,20 +100,38 @@ export function LanguagePicker() {
                     placeholder="Add another language…"
                     value={query}
                     aria-label="Search languages"
+                    onFocus={() => {
+                        setOpen(true);
+                    }}
+                    onClick={() => {
+                        setOpen(true);
+                    }}
                     onChange={(event) => {
                         setQuery(event.target.value);
+                        setOpen(true);
                     }}
                     onKeyDown={(event) => {
                         const first = matches[0];
-                        if (event.key === "Enter" && first) toggle(first[0]);
-                        if (event.key === "Escape" && query !== "") {
+                        if (event.key === "Enter" && query.trim() !== "" && first) {
+                            toggle(first[0]);
+                        }
+                        if (event.key === "Escape" && (open || query !== "")) {
                             event.stopPropagation();
                             setQuery("");
+                            setOpen(false);
                         }
                     }}
                 />
-                {matches.length > 0 && (
-                    <ul className="sv-langs__results" role="listbox">
+                {open && matches.length > 0 && (
+                    <ul
+                        className="sv-langs__results"
+                        role="listbox"
+                        onMouseDown={(event) => {
+                            // WebKit does not focus buttons on click; keeping focus on the
+                            // input stops the blur from closing the list before the click lands.
+                            event.preventDefault();
+                        }}
+                    >
                         {matches.map(([code, name]) => (
                             <li key={code}>
                                 <button
@@ -124,7 +148,7 @@ export function LanguagePicker() {
                         ))}
                     </ul>
                 )}
-                {query.trim() !== "" && matches.length === 0 && (
+                {open && query.trim() !== "" && matches.length === 0 && (
                     <p className="sv-langs__empty">No other language matches “{query.trim()}”.</p>
                 )}
             </div>
