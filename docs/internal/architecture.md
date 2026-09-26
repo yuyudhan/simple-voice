@@ -53,7 +53,7 @@ flowchart LR
   `just sqlx-prepare` regenerates it against `target/sqlx-dev.db`
   (`DATABASE_URL=sqlite:target/sqlx-dev.db`, created by `just sqlx-db`).
 
-### Schema (migration `0001_init.sql`)
+### Schema (migrations `0001_init.sql` onward; the current shape)
 
 ```sql
 CREATE TABLE settings (
@@ -73,7 +73,8 @@ CREATE TABLE history (
     raw_text         TEXT NOT NULL,      -- transcript as returned by the model
     final_text       TEXT NOT NULL,      -- what was pasted (or would have been)
     error            TEXT,
-    model            TEXT NOT NULL,      -- model id, e.g. 'groq-whisper'
+    model            TEXT NOT NULL,      -- transcription model id, e.g. 'groq-whisper'
+    format_model     TEXT,               -- model id whose formatting pass produced final_text; NULL if none (0003)
     language         TEXT,
     style            TEXT NOT NULL,      -- 'formal' | 'casual'
     audio_ms         INTEGER NOT NULL,
@@ -112,7 +113,8 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 ```rust
 // ── sv-domain (exists) ─────────────────────────────────────────────────────────────────
 // Settings, SettingsPatch, Style, SoundTheme, Theme, PostProcessing, HistoryEntry, NewHistory,
-// HistoryStatus, DictionaryEntry, ImportSummary, Insights, DayActivity, CategoryUsage, AppUsage,
+// HistoryStatus, DictionaryEntry, ImportSummary, Insights, DayActivity, HourActivity,
+// PersonalBests, CategoryUsage, AppUsage,
 // AppCategory + categorize(), ModelInfo/Kind/Provider/Status + model id consts, Permissions,
 // PermissionKind/Status, DictationState/Phase, ModelProgress, AppError/AppResult,
 // text_stats::{word_count, words_corrected}, UpdateStatus + Release (update notices).
