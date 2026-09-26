@@ -1,0 +1,75 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT format_model AS \"model!: String\",\n                      COUNT(*) AS \"runs!: i64\",\n                      AVG(format_ms) AS \"average_ms!: f64\",\n                      MIN(format_ms) AS \"fastest_ms!: i64\",\n                      MAX(format_ms) AS \"slowest_ms!: i64\",\n                      SUM(format_ms) AS \"total_ms!: i64\",\n                      SUM(audio_ms) AS \"audio_ms!: i64\",\n                      SUM(word_count) AS \"words!: i64\"\n               FROM history\n               WHERE format_ms IS NOT NULL AND format_model IS NOT NULL\n                 AND source_text IS NULL\n               GROUP BY format_model ORDER BY 2 DESC, 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "model!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "format_model"
+          }
+        }
+      },
+      {
+        "name": "runs!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "average_ms!: f64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "fastest_ms!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "slowest_ms!: i64",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "total_ms!: i64",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "audio_ms!: i64",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "words!: i64",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "60fcdd4b312061d0ff18b8040776bfd7138a7c5531326e60a04a8fdf995eeb5c"
+}

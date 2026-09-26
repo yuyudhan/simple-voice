@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE history SET\n                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,\n                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,\n                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,\n                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,\n                transcribe_ms = ?19, format_ms = ?20, source_text = ?21\n             WHERE id = ?22",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 22
+    },
+    "nullable": []
+  },
+  "hash": "99c3e9a95d785e64319531aecbe4a360ee3d756a2b6226a81e38d8d14b6572e2"
+}

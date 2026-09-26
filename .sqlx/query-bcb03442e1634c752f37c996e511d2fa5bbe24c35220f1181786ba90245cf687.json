@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM settings WHERE key = 'editShortcut'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "bcb03442e1634c752f37c996e511d2fa5bbe24c35220f1181786ba90245cf687"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n                raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n                error AS \"error?: String\", model AS \"model!: String\",\n                format_model AS \"format_model?: String\",\n                language AS \"language?: String\", style AS \"style!: String\",\n                audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n                word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n                words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n                bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n                audio_path AS \"audio_path?: String\"\n               FROM history\n               WHERE (?1 IS NULL\n                      OR final_text LIKE ?1 ESCAPE '\\'\n                      OR raw_text LIKE ?1 ESCAPE '\\'\n                      OR app_name LIKE ?1 ESCAPE '\\')\n                 AND (?2 IS NULL OR id < ?2)\n               ORDER BY id DESC\n               LIMIT ?3",
+  "query": "SELECT\n                id AS \"id!: i64\", created_at AS \"created_at!: i64\", status AS \"status!: String\",\n                raw_text AS \"raw_text!: String\", final_text AS \"final_text!: String\",\n                source_text AS \"source_text?: String\",\n                error AS \"error?: String\", model AS \"model!: String\",\n                format_model AS \"format_model?: String\",\n                language AS \"language?: String\", style AS \"style!: String\",\n                audio_ms AS \"audio_ms!: i64\", latency_ms AS \"latency_ms!: i64\",\n                transcribe_ms AS \"transcribe_ms?: i64\", format_ms AS \"format_ms?: i64\",\n                word_count AS \"word_count!: i64\", dictionary_fixes AS \"dictionary_fixes!: i64\",\n                words_corrected AS \"words_corrected!: i64\", app_name AS \"app_name?: String\",\n                bundle_id AS \"bundle_id?: String\", app_category AS \"app_category!: String\",\n                audio_path AS \"audio_path?: String\"\n               FROM history\n               WHERE (?1 IS NULL\n                      OR final_text LIKE ?1 ESCAPE '\\'\n                      OR raw_text LIKE ?1 ESCAPE '\\'\n                      OR source_text LIKE ?1 ESCAPE '\\'\n                      OR app_name LIKE ?1 ESCAPE '\\')\n                 AND (?2 IS NULL OR id < ?2)\n               ORDER BY id DESC\n               LIMIT ?3",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,19 @@
         }
       },
       {
-        "name": "error?: String",
+        "name": "source_text?: String",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "source_text"
+          }
+        }
+      },
+      {
+        "name": "error?: String",
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "model!: String",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "format_model?: String",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "language?: String",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "style!: String",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "audio_ms!: i64",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "latency_ms!: i64",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -136,8 +147,30 @@
         }
       },
       {
+        "name": "transcribe_ms?: i64",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "transcribe_ms"
+          }
+        }
+      },
+      {
+        "name": "format_ms?: i64",
+        "ordinal": 14,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "format_ms"
+          }
+        }
+      },
+      {
         "name": "word_count!: i64",
-        "ordinal": 12,
+        "ordinal": 15,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -148,7 +181,7 @@
       },
       {
         "name": "dictionary_fixes!: i64",
-        "ordinal": 13,
+        "ordinal": 16,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -159,7 +192,7 @@
       },
       {
         "name": "words_corrected!: i64",
-        "ordinal": 14,
+        "ordinal": 17,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -170,7 +203,7 @@
       },
       {
         "name": "app_name?: String",
-        "ordinal": 15,
+        "ordinal": 18,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -181,7 +214,7 @@
       },
       {
         "name": "bundle_id?: String",
-        "ordinal": 16,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -192,7 +225,7 @@
       },
       {
         "name": "app_category!: String",
-        "ordinal": 17,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -203,7 +236,7 @@
       },
       {
         "name": "audio_path?: String",
-        "ordinal": 18,
+        "ordinal": 21,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -223,12 +256,15 @@
       false,
       false,
       true,
+      true,
       false,
       true,
       true,
       false,
       false,
       false,
+      true,
+      true,
       false,
       false,
       false,
@@ -238,5 +274,5 @@
       true
     ]
   },
-  "hash": "51732b1fc0da804bc1f92e5945a6e723c42a7846c7819e35713a819c1236cadf"
+  "hash": "cd81132e252da1331e6719b96d651fab29e25bd6f7442267d33556856c8dd62f"
 }
