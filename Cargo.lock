@@ -4239,7 +4239,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simple-voice"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "arboard",
  "chrono",
@@ -4578,7 +4578,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sv-audio"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "cpal 0.18.2",
  "parking_lot",
@@ -4590,7 +4590,7 @@ dependencies = [
 
 [[package]]
 name = "sv-cloud"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "bytes",
  "reqwest",
@@ -4605,7 +4605,7 @@ dependencies = [
 
 [[package]]
 name = "sv-domain"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "serde",
  "serde_json",
@@ -4614,7 +4614,7 @@ dependencies = [
 
 [[package]]
 name = "sv-engine"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "parking_lot",
  "serde",
@@ -4626,7 +4626,7 @@ dependencies = [
 
 [[package]]
 name = "sv-storage"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "sv-text"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "sv-domain",
 ]
