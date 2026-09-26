@@ -100,6 +100,11 @@ struct MuteParams: Decodable {
     let muted: Bool
 }
 
+struct WatchEditsParams: Decodable, Sendable {
+    let text: String
+    let timeoutMs: Int
+}
+
 struct PolishShot: Decodable, Sendable {
     let user: String
     let assistant: String
@@ -214,6 +219,13 @@ struct FrontmostAppResult: Encodable, Sendable {
 /// `text` is absent when nothing is selected.
 struct SelectedTextResult: Encodable, Sendable {
     let text: String?
+}
+
+/// `text` is the pasted span as it read when the watch ended; when it could not be read at all,
+/// `text` is absent and `reason` says why.
+struct EditWatchResult: Encodable, Sendable {
+    let text: String?
+    let reason: String?
 }
 
 struct MutedResult: Encodable, Sendable {
