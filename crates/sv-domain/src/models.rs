@@ -102,16 +102,10 @@ pub struct ModelInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SmartSelectPlan {
-    /// A Groq key is saved, so Groq Whisper runs first and the local rows are the retry.
+    /// A Groq key is saved, so Groq Whisper runs first and the local model is the retry.
     pub groq: bool,
-    /// The local models of the route, in order.
-    pub rows: Vec<SmartSelectRow>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SmartSelectRow {
-    /// What the model is for, e.g. "Hindi, Hinglish and English" or "English backup".
-    pub purpose: String,
-    pub model: String,
+    /// Model id of the one local model of the route.
+    pub local: String,
+    /// Set only when the local model can't write a selected language the way it was chosen.
+    pub notice: Option<String>,
 }

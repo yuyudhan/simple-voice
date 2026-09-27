@@ -69,7 +69,7 @@ pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 /// Hold-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::SMART_SELECT;
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::GROQ_WHISPER;
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 
@@ -85,9 +85,10 @@ pub struct Settings {
     pub escape_cancels: bool,
     /// Input device name; `None` = automatic (built-in microphone preferred).
     pub microphone: Option<String>,
-    /// Allowed dictation languages, ISO 639-1.
+    /// Allowed dictation languages: tags of [`crate::languages::LANGUAGES`].
     pub languages: Vec<String>,
-    /// Language a transcription is re-run in when detection lands outside `languages`.
+    /// Language a transcription is re-run in when detection lands outside `languages`. Always
+    /// a registry tag models know as is, never a script variant such as `hi-Latn`.
     pub fallback_language: String,
     pub transcription_model: String,
     /// Smart Select double-checks a low-confidence result with a second model; when off, only
@@ -134,7 +135,7 @@ impl Default for Settings {
             // Off by default: Esc belongs to the focused app (Vim, dialogs) unless the user opts in.
             escape_cancels: false,
             microphone: None,
-            languages: vec!["en".to_owned(), "hi".to_owned()],
+            languages: vec!["en".to_owned(), "hi".to_owned(), "hi-Latn".to_owned()],
             fallback_language: "hi".to_owned(),
             transcription_model: DEFAULT_TRANSCRIPTION_MODEL.to_owned(),
             smart_retry: true,

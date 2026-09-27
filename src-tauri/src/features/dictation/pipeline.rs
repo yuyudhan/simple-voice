@@ -350,7 +350,13 @@ async fn post_process(
     if !will_post_process(settings, text) {
         return Polish::NotRun;
     }
-    let prompt = sv_text::polish_prompt(text, terms, settings.style, llm::target(settings));
+    let prompt = sv_text::polish_prompt(
+        text,
+        terms,
+        settings.style,
+        llm::target(settings),
+        &settings.languages,
+    );
     let started = Instant::now();
     let limit = sv_text::polish_timeout(text);
     let outcome = match llm::complete(state, settings, &prompt, POLISH_MAX_TOKENS, limit).await {

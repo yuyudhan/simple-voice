@@ -40,8 +40,8 @@ should spell that way from now on.\n\
 - Choose: names of people, places, companies, products and brands; technical terms, jargon, \
 acronyms, unusual spellings or capitalisation.\n\
 - Never choose: synonyms or rewording, grammar, tense or plural changes, ordinary dictionary \
-words, numbers and dates, Hinglish romanisation variants (kya/kyaa), or anything where \"after\" \
-is not clearly a better spelling of what was said.\n\
+words, numbers and dates, alternative romanisations of one word (kya/kyaa), or anything \
+where \"after\" is not clearly a better spelling of what was said.\n\
 - Output only the numbers of the corrections to learn, separated by commas, or none. No other \
 words.";
 

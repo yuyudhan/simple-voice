@@ -11,6 +11,7 @@ pub mod dictionary;
 pub mod error;
 pub mod history;
 pub mod insights;
+pub mod languages;
 pub mod models;
 pub mod permissions;
 pub mod quality;
@@ -27,9 +28,8 @@ pub use insights::{
     AppUsage, CategoryUsage, DayActivity, HourActivity, Insights, ModelInsights, ModelTiming,
     PersonalBests,
 };
-pub use models::{
-    ModelInfo, ModelKind, ModelProvider, ModelStatus, SmartSelectPlan, SmartSelectRow,
-};
+pub use languages::{Language, LanguageInfo, Script};
+pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus, SmartSelectPlan};
 pub use permissions::{PermissionKind, PermissionStatus, Permissions};
 pub use quality::TranscriptQuality;
 pub use settings::{

@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
+use sv_domain::languages::language;
 use sv_domain::settings::FN_KEY_ACCELERATOR;
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch};
 
@@ -199,13 +200,13 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
             .map(|name| name.trim().to_owned())
             .filter(|name| !name.is_empty());
     }
+    // Stored as the registry's canonical tag so every reader can compare tags exactly.
     if let Some(languages) = languages {
-        settings.languages = languages
-            .iter()
-            .map(|code| code.trim().to_owned())
-            .collect();
+        settings.languages = languages.iter().map(|tag| canonical_tag(tag)).collect();
     }
-    set_trimmed(&mut settings.fallback_language, fallback_language);
+    if let Some(fallback) = fallback_language {
+        settings.fallback_language = canonical_tag(&fallback);
+    }
     set_trimmed(&mut settings.transcription_model, transcription_model);
     set(&mut settings.smart_retry, smart_retry);
     set(&mut settings.style, style);
@@ -266,15 +267,17 @@ fn validate(settings: &Settings) -> AppResult<()> {
     if let Some(bad) = settings
         .languages
         .iter()
-        .find(|code| !is_language_code(code))
+        .find(|tag| language(tag).is_none())
     {
         return Err(AppError::invalid(format!(
-            "“{bad}” is not a two-letter language code"
+            "“{bad}” is not a supported language"
         )));
     }
-    if !is_language_code(&settings.fallback_language) {
+    // Recognition is pinned to the fallback, and models only know base languages.
+    let fallback_ok = language(&settings.fallback_language).is_some_and(|lang| !lang.is_variant());
+    if !fallback_ok {
         return Err(AppError::invalid(format!(
-            "“{}” is not a two-letter language code",
+            "“{}” can't be the fallback language",
             settings.fallback_language
         )));
     }
@@ -310,8 +313,9 @@ fn validate_edit_shortcut(settings: &Settings) -> AppResult<()> {
     Ok(())
 }
 
-fn is_language_code(code: &str) -> bool {
-    code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_lowercase())
+/// The registry's spelling of `tag`; unknown tags are kept (trimmed) for validation to reject.
+fn canonical_tag(tag: &str) -> String {
+    language(tag).map_or_else(|| tag.trim().to_owned(), |known| known.tag.to_owned())
 }
 
 fn env_groq_key() -> Option<String> {
@@ -401,7 +405,8 @@ mod tests {
             theme: Some(Theme::Dark),
             sound_volume: Some(0.55),
             microphone: Some(Some("MacBook Pro Microphone".to_owned())),
-            languages: Some(vec!["en".to_owned()]),
+            languages: Some(vec!["en".to_owned(), " HI-latn".to_owned()]),
+            fallback_language: Some("EN".to_owned()),
             max_recording_seconds: Some(600),
             learn_from_edits: Some(true),
             escape_cancels: Some(true),
@@ -420,7 +425,8 @@ mod tests {
         assert_eq!(stored.theme, Theme::Dark);
         assert!((stored.sound_volume - 0.55).abs() < f32::EPSILON);
         assert_eq!(stored.microphone.as_deref(), Some("MacBook Pro Microphone"));
-        assert_eq!(stored.languages, vec!["en"]);
+        assert_eq!(stored.languages, vec!["en", "hi-Latn"]);
+        assert_eq!(stored.fallback_language, "en");
         assert_eq!(stored.max_recording_seconds, 600);
         assert!(stored.learn_from_edits);
         assert!(stored.escape_cancels);
@@ -456,11 +462,19 @@ mod tests {
                 ..SettingsPatch::default()
             },
             SettingsPatch {
-                languages: Some(vec!["EN".to_owned()]),
+                languages: Some(vec!["english".to_owned()]),
                 ..SettingsPatch::default()
             },
             SettingsPatch {
                 fallback_language: Some("hin".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                fallback_language: Some("hi-Latn".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                languages: Some(vec!["en".to_owned(), "hinglish".to_owned()]),
                 ..SettingsPatch::default()
             },
             SettingsPatch {

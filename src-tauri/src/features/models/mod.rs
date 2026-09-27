@@ -7,6 +7,7 @@ pub(crate) mod smart_select;
 
 use std::time::Duration;
 
+use sv_domain::languages::model_language;
 use sv_domain::models::{model_name, APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT};
 use sv_domain::{
     AppError, AppResult, ModelInfo, ModelProgress, ModelProgressStatus, ModelStatus, Settings,
@@ -84,7 +85,8 @@ async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry)
 /// Apple Speech assets are per locale; every other model ignores the language.
 pub(crate) fn engine_language<'a>(settings: &'a Settings, model: &str) -> Option<&'a str> {
     if model == APPLE_SPEECH {
-        settings.languages.first().map(String::as_str)
+        // Apple locales exist per spoken language; a script variant is heard as its base.
+        settings.languages.first().map(|code| model_language(code))
     } else {
         None
     }
@@ -276,12 +278,22 @@ mod tests {
         );
         assert_eq!(preload_target(&settings(GROQ_WHISPER, &["en"])), None);
         assert_eq!(
-            preload_target(&settings(SMART_SELECT, &["en", "hi"])),
+            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"])),
             Some(WHISPER_HINGLISH)
         );
         assert_eq!(
             preload_target(&settings(SMART_SELECT, &["en"])),
             Some(PARAKEET_TDT_V2)
         );
+    }
+
+    #[test]
+    fn apple_speech_hears_a_script_variant_as_its_base() {
+        use sv_domain::models::PARAKEET_TDT_V3;
+        let variant_first = settings(APPLE_SPEECH, &["hi-Latn", "en"]);
+        assert_eq!(engine_language(&variant_first, APPLE_SPEECH), Some("hi"));
+        assert_eq!(engine_language(&variant_first, PARAKEET_TDT_V3), None);
+        let english_first = settings(APPLE_SPEECH, &["en", "hi-Latn"]);
+        assert_eq!(engine_language(&english_first, APPLE_SPEECH), Some("en"));
     }
 }

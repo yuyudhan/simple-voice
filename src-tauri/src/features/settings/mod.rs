@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sv_audio::{Cue, Microphone};
+use sv_domain::languages::{language_infos, LanguageInfo};
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch, SoundTheme};
 use sv_engine::LoginItemStatus;
 use tauri::{AppHandle, Manager, State};
@@ -229,6 +230,12 @@ pub(crate) async fn set_database_dir(
 #[tauri::command]
 pub(crate) async fn suspend_shortcuts(app: AppHandle, suspended: bool) -> AppResult<()> {
     shortcuts::suspend(&app, suspended)
+}
+
+/// The dictation languages the picker offers, from the registry settings validation checks.
+#[tauri::command]
+pub(crate) fn list_languages() -> Vec<LanguageInfo> {
+    language_infos()
 }
 
 #[tauri::command]

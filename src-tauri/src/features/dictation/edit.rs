@@ -138,7 +138,12 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     row.dictionary_fixes = i64::from(instruction.rule_hits);
 
     publish(&app, edit_state(DictationPhase::Formatting, id));
-    let prompt = sv_text::edit_prompt(&selection, &instruction.text, &vocabulary.terms);
+    let prompt = sv_text::edit_prompt(
+        &selection,
+        &instruction.text,
+        &vocabulary.terms,
+        &settings.languages,
+    );
     let started = Instant::now();
     let limit = sv_text::edit_timeout(&selection);
     let max_tokens = sv_text::edit_max_tokens(&selection);

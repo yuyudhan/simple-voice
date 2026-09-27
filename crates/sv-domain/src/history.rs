@@ -53,7 +53,7 @@ pub enum RetryReason {
     Failed,
     /// The first model's result was below its confidence floor.
     LowConfidence,
-    /// Hinglish came back written half in Devanagari; the app writes Hinglish romanised.
+    /// A selected script variant (e.g. romanised Hindi) came back half in its native script.
     MixedScript,
 }
 

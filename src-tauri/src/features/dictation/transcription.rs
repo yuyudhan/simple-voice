@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use sv_domain::languages::model_languages;
 use sv_domain::models::{GROQ_WHISPER, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
 use sv_domain::{AppError, AppResult, RetryReason, Settings, TranscriptQuality};
 use sv_engine::TranscribeOptions;
@@ -257,6 +258,8 @@ async fn run(
     model: &str,
 ) -> AppResult<Run> {
     let started = Instant::now();
+    // Models know only spoken languages: script variants go as their base.
+    let languages = model_languages(&settings.languages);
     if model == GROQ_WHISPER {
         let key = groq_key(state)
             .await?
@@ -265,8 +268,8 @@ async fn run(
             &state.http,
             &key,
             audio.wav.clone(),
-            &vocabulary.prompt,
-            &settings.languages,
+            &sv_text::whisper_prompt(&settings.languages, vocabulary),
+            &languages,
             &settings.fallback_language,
         )
         .await?;
@@ -284,10 +287,15 @@ async fn run(
     // Whisper detects among the allowed languages and is primed with the dictionary, like
     // Groq's; the other local models take neither.
     let whisper = model == WHISPER_TURBO || model == WHISPER_HINGLISH;
+    let prompt = if whisper {
+        sv_text::whisper_prompt(&settings.languages, vocabulary)
+    } else {
+        String::new()
+    };
     let options = TranscribeOptions {
         language: engine_language(settings, model),
-        languages: if whisper { &settings.languages } else { &[] },
-        prompt: if whisper { &vocabulary.prompt } else { "" },
+        languages: if whisper { &languages } else { &[] },
+        prompt: &prompt,
     };
     let transcript = state.engine.transcribe(model, path, options).await?;
     Ok(Run {

@@ -2,20 +2,17 @@
 //! Smart Select: which voice model runs a dictation, and when a second model double-checks it.
 //! The user's languages pick one local model; a saved Groq key puts Groq Whisper in front of
 //! it. Only ready models run, at most one retry follows, and it runs when the first model
-//! errored or its result falls below that model's confidence floor. Nothing here does I/O, so
-//! the whole policy is unit-tested.
+//! errored or its result falls below that model's confidence floor. Routing reads the language
+//! registry and each catalog model's coverage, so nothing here names a language. Nothing here
+//! does I/O, so the whole policy is unit-tested.
 
-use sv_domain::models::{
-    GROQ_WHISPER, PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH, WHISPER_TURBO,
-};
+use sv_domain::languages::{language, Language, Script};
+use sv_domain::models::{model_name, GROQ_WHISPER, WHISPER_TURBO};
 use sv_domain::text_stats::word_count;
-use sv_domain::{
-    AppError, AppResult, RetryReason, SmartSelectPlan, SmartSelectRow, TranscriptQuality,
-};
+use sv_domain::{AppError, AppResult, RetryReason, SmartSelectPlan, TranscriptQuality};
 
-/// The local model Hindi and Hinglish dictations go to; the evaluation of the two Whisper
-/// candidates decides which one this is.
-pub(crate) const LOCAL_HINGLISH: &str = WHISPER_HINGLISH;
+use super::catalog::{CatalogEntry, Coverage, CATALOG};
+
 /// A Whisper result whose token-weighted log probability is below this is unsure.
 pub(crate) const WHISPER_LOGPROB_FLOOR: f32 = -1.0;
 /// A Whisper result compressing better than this repeats itself (a typical hallucination).
@@ -29,104 +26,41 @@ const MIN_CHECKED_WORDS: usize = 3;
 pub(crate) const NO_READY_MODEL: &str =
     "No voice model is ready. Download one in Settings → Transcription";
 
-/// Languages Parakeet TDT v3 transcribes.
-const PARAKEET_V3_LANGUAGES: &[&str] = &[
-    "bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt",
-    "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk",
-];
-
-/// English names for the plan: the list the language picker offers
-/// (`src/features/settings/transcription/languages.ts`) plus the rest of Parakeet v3's.
-const LANGUAGE_NAMES: &[(&str, &str)] = &[
-    ("en", "English"),
-    ("hi", "Hindi"),
-    ("af", "Afrikaans"),
-    ("ar", "Arabic"),
-    ("bg", "Bulgarian"),
-    ("bn", "Bengali"),
-    ("ca", "Catalan"),
-    ("cs", "Czech"),
-    ("da", "Danish"),
-    ("de", "German"),
-    ("el", "Greek"),
-    ("es", "Spanish"),
-    ("et", "Estonian"),
-    ("fa", "Persian"),
-    ("fi", "Finnish"),
-    ("fr", "French"),
-    ("gu", "Gujarati"),
-    ("he", "Hebrew"),
-    ("hr", "Croatian"),
-    ("hu", "Hungarian"),
-    ("id", "Indonesian"),
-    ("it", "Italian"),
-    ("ja", "Japanese"),
-    ("kn", "Kannada"),
-    ("ko", "Korean"),
-    ("lt", "Lithuanian"),
-    ("lv", "Latvian"),
-    ("ml", "Malayalam"),
-    ("mr", "Marathi"),
-    ("ms", "Malay"),
-    ("mt", "Maltese"),
-    ("ne", "Nepali"),
-    ("nl", "Dutch"),
-    ("no", "Norwegian"),
-    ("pa", "Punjabi"),
-    ("pl", "Polish"),
-    ("pt", "Portuguese"),
-    ("ro", "Romanian"),
-    ("ru", "Russian"),
-    ("sk", "Slovak"),
-    ("sl", "Slovenian"),
-    ("sr", "Serbian"),
-    ("sv", "Swedish"),
-    ("sw", "Swahili"),
-    ("ta", "Tamil"),
-    ("te", "Telugu"),
-    ("th", "Thai"),
-    ("tl", "Tagalog"),
-    ("tr", "Turkish"),
-    ("uk", "Ukrainian"),
-    ("ur", "Urdu"),
-    ("vi", "Vietnamese"),
-    ("zh", "Chinese"),
-];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LanguageClass {
-    /// Hindi is among the languages (Hinglish is Hindi and English mixed).
-    Hindi,
-    /// Only English.
-    English,
-    /// Every language is one Parakeet v3 knows.
-    European,
-    Other,
+/// The registry entries of the selected tags; tags outside the registry (which settings
+/// validation rejects) are skipped.
+fn selected(languages: &[String]) -> Vec<&'static Language> {
+    languages.iter().filter_map(|tag| language(tag)).collect()
 }
 
-pub(crate) fn language_class(languages: &[String]) -> LanguageClass {
-    if languages.iter().any(|code| is(code, "hi")) {
-        LanguageClass::Hindi
-    } else if languages.iter().all(|code| is(code, "en")) {
-        LanguageClass::English
-    } else if languages
+/// The candidate covering the most selected languages; ties go to the more accurate model,
+/// then the smaller download.
+fn local_entry(selected: &[&Language]) -> Option<(&'static CatalogEntry, Coverage)> {
+    let covered = |coverage: Coverage| {
+        selected
+            .iter()
+            .filter(|language| coverage.covers(language))
+            .count()
+    };
+    CATALOG
         .iter()
-        .all(|code| PARAKEET_V3_LANGUAGES.iter().any(|known| is(code, known)))
-    {
-        LanguageClass::European
-    } else {
-        LanguageClass::Other
-    }
+        .filter_map(|entry| entry.covers.map(|coverage| (entry, coverage)))
+        .max_by(|(a, a_covers), (b, b_covers)| {
+            covered(*a_covers)
+                .cmp(&covered(*b_covers))
+                .then(a.accuracy.cmp(&b.accuracy))
+                .then(size(b).cmp(&size(a)))
+        })
+}
+
+fn size(entry: &CatalogEntry) -> u32 {
+    entry.size_mb.unwrap_or(u32::MAX)
 }
 
 /// The one local model for the languages; also the model worth keeping in memory.
 pub(crate) fn local_model(languages: &[String]) -> &'static str {
-    match language_class(languages) {
-        LanguageClass::Hindi => LOCAL_HINGLISH,
-        LanguageClass::English => PARAKEET_TDT_V2,
-        LanguageClass::European => PARAKEET_TDT_V3,
-        LanguageClass::Other => WHISPER_TURBO,
-    }
+    // The catalog always has candidates; Whisper Turbo, the widest of them, stands in so an
+    // empty candidate list still names a model.
+    local_entry(&selected(languages)).map_or(WHISPER_TURBO, |(entry, _)| entry.id)
 }
 
 /// The models in the order they are tried: Groq Whisper first when a key is saved, then the
@@ -186,63 +120,81 @@ pub(crate) fn gate(
             return Some(RetryReason::LowConfidence);
         }
     }
-    // Groq often writes Hinglish half in Devanagari with full confidence ("कल का stand up");
-    // Hinglish is written romanised, which the local Hinglish model does. Pure Devanagari is
-    // Hindi and pure Latin is English or romanised Hinglish; both pass.
-    let hindi = languages.iter().any(|code| is(code, "hi"));
-    (hindi && is_mixed_script(text)).then_some(RetryReason::MixedScript)
+    // Groq writes a romanised variant half in the base language's own script with full
+    // confidence ("कल का stand up"); the local model writes it the chosen way. Text in one
+    // script passes: it is either the base language or the variant.
+    let mixed = selected(languages).iter().any(|variant| {
+        variant.is_variant()
+            && has_letters(text, variant.native)
+            && has_letters(text, variant.script)
+    });
+    mixed.then_some(RetryReason::MixedScript)
 }
 
-/// Devanagari letters and ASCII Latin letters in the same text.
-fn is_mixed_script(text: &str) -> bool {
-    let devanagari = text.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c));
-    devanagari && text.chars().any(|c| c.is_ascii_alphabetic())
+fn has_letters(text: &str, script: Script) -> bool {
+    text.chars().any(|c| script.contains(c))
 }
 
 /// What Smart Select runs for `languages`, for its card in Settings → Transcription.
 pub(crate) fn plan(languages: &[String], groq: bool) -> SmartSelectPlan {
-    let mut names = Vec::with_capacity(languages.len() + 1);
-    for code in languages {
-        names.push(language_name(code));
-        // Hindi speech is written as Hindi or romanised Hinglish; the local model does both.
-        if is(code, "hi") {
-            names.push("Hinglish".to_owned());
-        }
-    }
+    let selected = selected(languages);
+    let local = local_entry(&selected);
     SmartSelectPlan {
         groq,
-        rows: vec![SmartSelectRow {
-            purpose: format!("For {}", join_names(&names)),
-            model: local_model(languages).to_owned(),
-        }],
+        local: local
+            .map_or(WHISPER_TURBO, |(entry, _)| entry.id)
+            .to_owned(),
+        notice: local.and_then(|(entry, coverage)| notice(&selected, entry, coverage)),
     }
 }
 
-fn language_name(code: &str) -> String {
-    LANGUAGE_NAMES
+/// Why some selected languages won't come out as chosen offline, or `None` when all will. A
+/// language whose sibling (same spoken language, other script) is covered is written like the
+/// sibling, which the user can change by removing the sibling.
+fn notice(selected: &[&Language], entry: &CatalogEntry, coverage: Coverage) -> Option<String> {
+    let mut sentences = Vec::new();
+    let mut unwritten = Vec::new();
+    for missing in selected
         .iter()
-        .find(|(known, _)| is(code, known))
-        .map_or_else(
-            || code.trim().to_uppercase(),
-            |(_, name)| (*name).to_owned(),
-        )
+        .filter(|language| !coverage.covers(language))
+    {
+        let sibling = selected.iter().find(|other| {
+            other.tag != missing.tag && other.base == missing.base && coverage.covers(other)
+        });
+        match sibling {
+            Some(sibling) => sentences.push(format!(
+                "Offline, {} is written in {}. Remove {} to get {} offline.",
+                missing.name,
+                sibling.script.user_name(),
+                sibling.name,
+                missing.script.user_name()
+            )),
+            None => unwritten.push(missing.name),
+        }
+    }
+    if !unwritten.is_empty() {
+        sentences.push(format!(
+            "{} can't transcribe {} offline.",
+            model_name(entry.id).unwrap_or(entry.id),
+            join_names(&unwritten)
+        ));
+    }
+    (!sentences.is_empty()).then(|| sentences.join(" "))
 }
 
 /// "German", "German and French", "English, German and French".
-fn join_names(names: &[String]) -> String {
+fn join_names(names: &[&str]) -> String {
     match names {
         [] => String::new(),
-        [only] => only.clone(),
+        [only] => (*only).to_owned(),
         [init @ .., last] => format!("{} and {last}", init.join(", ")),
     }
 }
 
-fn is(code: &str, expected: &str) -> bool {
-    code.trim().eq_ignore_ascii_case(expected)
-}
-
 #[cfg(test)]
 mod tests {
+    use sv_domain::models::{PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+
     use super::*;
 
     fn langs(codes: &[&str]) -> Vec<String> {
@@ -258,54 +210,59 @@ mod tests {
         }
     }
 
-    const HINDI: &[&str] = &["en", "hi"];
+    /// The default languages.
+    const DEFAULT_SET: &[&str] = &["en", "hi", "hi-Latn"];
 
     const SENTENCE: &str = "move the standup to ten";
 
     #[test]
-    fn languages_fall_into_classes() {
-        assert_eq!(language_class(&langs(&["en", "hi"])), LanguageClass::Hindi);
-        assert_eq!(language_class(&langs(&["hi"])), LanguageClass::Hindi);
-        assert_eq!(language_class(&langs(&["en"])), LanguageClass::English);
-        assert_eq!(
-            language_class(&langs(&["en", "de"])),
-            LanguageClass::European
-        );
-        assert_eq!(
-            language_class(&langs(&["uk", "ru"])),
-            LanguageClass::European
-        );
-        assert_eq!(language_class(&langs(&["en", "ja"])), LanguageClass::Other);
-        // Hindi wins over everything else in the list.
-        assert_eq!(language_class(&langs(&["ja", "hi"])), LanguageClass::Hindi);
+    fn languages_route_to_the_model_covering_most_of_them() {
+        let cases: &[(&[&str], &str)] = &[
+            (&["en"], PARAKEET_TDT_V2),
+            (&["de", "fr"], PARAKEET_TDT_V3),
+            (&["en", "de"], PARAKEET_TDT_V3),
+            (&["uk", "ru"], PARAKEET_TDT_V3),
+            (&["et", "sl"], PARAKEET_TDT_V3),
+            (&["en", "hi"], WHISPER_TURBO),
+            (&["hi"], WHISPER_TURBO),
+            (&["en", "hi-Latn"], WHISPER_HINGLISH),
+            (&["hi-Latn"], WHISPER_HINGLISH),
+            (DEFAULT_SET, WHISPER_HINGLISH),
+            (&["ja"], WHISPER_TURBO),
+            (&["en", "ja"], WHISPER_TURBO),
+            (&["en", "hi", "hi-Latn", "ja"], WHISPER_TURBO),
+        ];
+        for (languages, expected) in cases {
+            assert_eq!(local_model(&langs(languages)), *expected, "{languages:?}");
+        }
     }
 
     #[test]
-    fn every_class_has_one_local_model_behind_an_optional_groq() {
-        let hindi = langs(&["en", "hi"]);
-        assert_eq!(route(&hindi, false), [LOCAL_HINGLISH]);
-        assert_eq!(route(&hindi, true), [GROQ_WHISPER, LOCAL_HINGLISH]);
-        assert_eq!(route(&langs(&["en"]), false), [PARAKEET_TDT_V2]);
+    fn groq_runs_in_front_of_the_local_model() {
+        assert_eq!(route(&langs(DEFAULT_SET), false), [WHISPER_HINGLISH]);
+        assert_eq!(
+            route(&langs(DEFAULT_SET), true),
+            [GROQ_WHISPER, WHISPER_HINGLISH]
+        );
         assert_eq!(
             route(&langs(&["fr", "de"]), true),
             [GROQ_WHISPER, PARAKEET_TDT_V3]
         );
-        assert_eq!(route(&langs(&["ja"]), false), [WHISPER_TURBO]);
     }
 
     #[test]
     fn only_ready_models_run() {
-        let with_groq = route(&langs(&["en", "hi"]), true);
+        let with_groq = route(&langs(DEFAULT_SET), true);
         assert_eq!(
             ready_route(&with_groq, |_| true).unwrap(),
             ReadyRoute {
                 first: GROQ_WHISPER,
-                retry: Some(LOCAL_HINGLISH)
+                retry: Some(WHISPER_HINGLISH)
             }
         );
-        // Hinglish Whisper not downloaded: Groq runs alone.
+        // The local model not downloaded: Groq runs alone.
         assert_eq!(
-            ready_route(&with_groq, |model| model != LOCAL_HINGLISH).unwrap(),
+            ready_route(&with_groq, |model| model != WHISPER_HINGLISH).unwrap(),
             ReadyRoute {
                 first: GROQ_WHISPER,
                 retry: None
@@ -329,15 +286,70 @@ mod tests {
         assert!(error.to_string().contains("Settings → Transcription"));
     }
 
+    #[test]
+    fn plan_names_the_local_model_and_what_it_cannot_write() {
+        let cases: &[(&[&str], &str, Option<&str>)] = &[
+            (&["en"], PARAKEET_TDT_V2, None),
+            (&["en", "hi"], WHISPER_TURBO, None),
+            (&["en", "hi-Latn"], WHISPER_HINGLISH, None),
+            (
+                DEFAULT_SET,
+                WHISPER_HINGLISH,
+                Some(
+                    "Offline, Hindi is written in Roman script. \
+                     Remove Hinglish to get Devanagari offline.",
+                ),
+            ),
+            (
+                &["en", "hi", "hi-Latn", "ja"],
+                WHISPER_TURBO,
+                Some(
+                    "Offline, Hinglish is written in Devanagari. \
+                     Remove Hindi to get Roman script offline.",
+                ),
+            ),
+            (
+                &["en", "hi-Latn", "ja"],
+                WHISPER_HINGLISH,
+                Some("Hinglish Whisper can't transcribe Japanese offline."),
+            ),
+            (
+                &["en", "hi-Latn", "ja", "ko"],
+                WHISPER_TURBO,
+                Some("Whisper Turbo can't transcribe Hinglish offline."),
+            ),
+        ];
+        for (languages, local, notice) in cases {
+            let plan = plan(&langs(languages), true);
+            assert!(plan.groq);
+            assert_eq!(plan.local, *local, "{languages:?}");
+            assert_eq!(plan.notice.as_deref(), *notice, "{languages:?}");
+        }
+        assert!(!plan(&langs(&["en"]), false).groq);
+    }
+
+    #[test]
+    fn names_join_like_a_sentence() {
+        assert_eq!(join_names(&["German"]), "German");
+        assert_eq!(join_names(&["German", "French"]), "German and French");
+        assert_eq!(
+            join_names(&["English", "German", "French"]),
+            "English, German and French"
+        );
+    }
+
     fn gated(text: &str, quality: &TranscriptQuality, languages: &[&str]) -> Option<RetryReason> {
         gate(text, quality, &langs(languages), true)
     }
 
     #[test]
     fn whisper_gate_flags_low_logprob_and_repetition() {
-        assert_eq!(gated(SENTENCE, &whisper(-0.3, 1.2, 0.01), HINDI), None);
         assert_eq!(
-            gated(SENTENCE, &whisper(-1.2, 1.2, 0.01), HINDI),
+            gated(SENTENCE, &whisper(-0.3, 1.2, 0.01), DEFAULT_SET),
+            None
+        );
+        assert_eq!(
+            gated(SENTENCE, &whisper(-1.2, 1.2, 0.01), DEFAULT_SET),
             Some(RetryReason::LowConfidence)
         );
         assert_eq!(
@@ -346,101 +358,74 @@ mod tests {
         );
         // Exactly at the floors is still fine.
         let edge = whisper(WHISPER_LOGPROB_FLOOR, WHISPER_COMPRESSION_CEILING, 0.0);
-        assert_eq!(gated(SENTENCE, &edge, HINDI), None);
+        assert_eq!(gated(SENTENCE, &edge, DEFAULT_SET), None);
     }
 
     #[test]
     fn whisper_gate_exempts_silence() {
         // Likely silence: another model would not hear more.
-        assert_eq!(gated(SENTENCE, &whisper(-1.4, 1.0, 0.8), HINDI), None);
+        assert_eq!(gated(SENTENCE, &whisper(-1.4, 1.0, 0.8), DEFAULT_SET), None);
         // A high no-speech probability alone does not hide repetition.
         assert_eq!(
-            gated(SENTENCE, &whisper(-0.5, 2.8, 0.8), HINDI),
+            gated(SENTENCE, &whisper(-0.5, 2.8, 0.8), DEFAULT_SET),
             Some(RetryReason::LowConfidence)
         );
     }
 
     #[test]
-    fn confident_hinglish_half_in_devanagari_is_mixed_script() {
+    fn mixed_script_needs_a_selected_variant_and_both_its_scripts() {
         let confident = whisper(-0.1, 1.1, 0.01);
         let mixed = "कल का stand up 11 बजे shift कर दो.";
-        assert_eq!(
-            gated(mixed, &confident, HINDI),
-            Some(RetryReason::MixedScript)
-        );
-        assert_eq!(
-            gated(mixed, &confident, &["hi"]),
-            Some(RetryReason::MixedScript)
-        );
-        // Without quality numbers the script check still runs.
-        assert_eq!(
-            gated(mixed, &TranscriptQuality::default(), HINDI),
-            Some(RetryReason::MixedScript)
-        );
-    }
-
-    #[test]
-    fn one_script_or_no_hindi_is_not_mixed_script() {
-        let confident = whisper(-0.1, 1.1, 0.01);
         let hindi = "कल की मीटिंग ग्यारह बजे है";
         let romanised = "kal ka stand up 11 baje shift kar do";
-        assert_eq!(gated(hindi, &confident, HINDI), None);
-        assert_eq!(gated(romanised, &confident, HINDI), None);
-        assert_eq!(gated(SENTENCE, &confident, HINDI), None);
-        // Hindi not allowed: mixed script is not Smart Select's concern.
-        let mixed = "कल का stand up 11 बजे shift कर दो.";
-        assert_eq!(gated(mixed, &confident, &["en", "mr"]), None);
+        let cases: &[(&str, &[&str], Option<RetryReason>)] = &[
+            (mixed, DEFAULT_SET, Some(RetryReason::MixedScript)),
+            (mixed, &["hi-Latn"], Some(RetryReason::MixedScript)),
+            (hindi, DEFAULT_SET, None),
+            (romanised, DEFAULT_SET, None),
+            (SENTENCE, DEFAULT_SET, None),
+            // Without a variant, Devanagari with English words in it is fine Hindi or Marathi.
+            (mixed, &["en", "hi"], None),
+            (mixed, &["en", "mr"], None),
+            (mixed, &["en"], None),
+        ];
+        for (text, languages, expected) in cases {
+            assert_eq!(
+                gated(text, &confident, languages),
+                *expected,
+                "{text} {languages:?}"
+            );
+        }
+        // Without quality numbers the script check still runs.
+        assert_eq!(
+            gated(mixed, &TranscriptQuality::default(), DEFAULT_SET),
+            Some(RetryReason::MixedScript)
+        );
     }
 
     #[test]
     fn short_clips_unreported_quality_and_retry_off_are_never_gated() {
         let unsure = whisper(-3.0, 4.0, 0.0);
-        assert_eq!(gated("ship it", &unsure, HINDI), None);
-        assert_eq!(gated("कल stand", &unsure, HINDI), None);
+        assert_eq!(gated("ship it", &unsure, DEFAULT_SET), None);
+        assert_eq!(gated("कल stand", &unsure, DEFAULT_SET), None);
         assert_eq!(
-            gated("one two three", &unsure, HINDI),
+            gated("one two three", &unsure, DEFAULT_SET),
             Some(RetryReason::LowConfidence)
         );
-        assert_eq!(gated(SENTENCE, &TranscriptQuality::default(), HINDI), None);
-        let hindi = langs(HINDI);
-        assert_eq!(gate(SENTENCE, &unsure, &hindi, false), None);
+        assert_eq!(
+            gated(SENTENCE, &TranscriptQuality::default(), DEFAULT_SET),
+            None
+        );
+        let defaults = langs(DEFAULT_SET);
+        assert_eq!(gate(SENTENCE, &unsure, &defaults, false), None);
         assert_eq!(
             gate(
                 "कल का stand up",
                 &TranscriptQuality::default(),
-                &hindi,
+                &defaults,
                 false
             ),
             None
-        );
-    }
-
-    #[test]
-    fn plan_is_one_row_naming_the_languages() {
-        let row = |purpose: &str, model: &str| SmartSelectRow {
-            purpose: purpose.to_owned(),
-            model: model.to_owned(),
-        };
-        let hindi = plan(&langs(&["en", "hi"]), true);
-        assert!(hindi.groq);
-        assert_eq!(
-            hindi.rows,
-            [row("For English, Hindi and Hinglish", LOCAL_HINGLISH)]
-        );
-        let english = plan(&langs(&["en"]), false);
-        assert!(!english.groq);
-        assert_eq!(english.rows, [row("For English", PARAKEET_TDT_V2)]);
-        assert_eq!(
-            plan(&langs(&["de", "fr"]), false).rows,
-            [row("For German and French", PARAKEET_TDT_V3)]
-        );
-        assert_eq!(
-            plan(&langs(&["et", "sl"]), false).rows,
-            [row("For Estonian and Slovenian", PARAKEET_TDT_V3)]
-        );
-        assert_eq!(
-            plan(&langs(&["ja", "xx", "ko"]), false).rows,
-            [row("For Japanese, XX and Korean", WHISPER_TURBO)]
         );
     }
 }

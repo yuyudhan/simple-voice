@@ -44,6 +44,7 @@ pub fn run() -> tauri::Result<()> {
             features::settings::set_database_dir,
             features::settings::suspend_shortcuts,
             features::settings::list_microphones,
+            features::settings::list_languages,
             features::settings::preview_sound,
             features::settings::app_info,
             features::history::list_history,
