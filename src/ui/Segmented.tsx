@@ -6,6 +6,8 @@ export interface SegmentedOption<T extends string> {
     value: T;
     label: string;
     icon?: ReactNode;
+    /** A small tag after the label, e.g. a "Beta" badge. */
+    badge?: ReactNode;
 }
 
 export interface SegmentedProps<T extends string> {
@@ -75,6 +77,7 @@ export function Segmented<T extends string>({
                             </span>
                         )}
                         {option.label}
+                        {option.badge}
                     </button>
                 );
             })}
