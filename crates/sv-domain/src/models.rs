@@ -1,5 +1,6 @@
 // FilePath: crates/sv-domain/src/models.rs
-//! Transcription and post-processing models shown in Settings → Models.
+//! Transcription models shown in Settings → Transcription and post-processing models shown in
+//! Settings → Formatting.
 
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +9,11 @@ pub const PARAKEET_TDT_V3: &str = "parakeet-tdt-v3";
 pub const PARAKEET_TDT_V2: &str = "parakeet-tdt-v2";
 pub const PARAKEET_FLASH: &str = "parakeet-flash";
 pub const APPLE_SPEECH: &str = "apple-speech";
+/// Picks the voice model per dictation from the languages, readiness and a Groq key.
+pub const SMART_SELECT: &str = "smart-select";
+pub const WHISPER_TURBO: &str = "whisper-large-v3-turbo";
+/// Whisper fine-tuned to write Hindi and Hinglish speech in romanised Hinglish.
+pub const WHISPER_HINGLISH: &str = "whisper-hinglish";
 pub const APPLE_INTELLIGENCE: &str = "apple-intelligence";
 /// The Groq post-processing entry (the transcription model is `groq-whisper`).
 pub const GROQ_LLM: &str = "groq";
@@ -20,6 +26,8 @@ pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
     PARAKEET_TDT_V2,
     PARAKEET_FLASH,
     APPLE_SPEECH,
+    WHISPER_TURBO,
+    WHISPER_HINGLISH,
 ];
 
 /// Display name of a catalog model id. History records a Groq or custom formatting pass by the
@@ -27,6 +35,9 @@ pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
 pub fn model_name(id: &str) -> Option<&'static str> {
     match id {
         GROQ_WHISPER => Some("Groq Whisper"),
+        SMART_SELECT => Some("Smart Select"),
+        WHISPER_TURBO => Some("Whisper Turbo"),
+        WHISPER_HINGLISH => Some("Hinglish Whisper"),
         PARAKEET_TDT_V3 => Some("Parakeet TDT v3"),
         PARAKEET_TDT_V2 => Some("Parakeet TDT v2"),
         PARAKEET_FLASH => Some("Flash Dictation (Beta)"),
@@ -51,6 +62,7 @@ pub enum ModelProvider {
     Groq,
     Parakeet,
     Apple,
+    Whisper,
     Custom,
 }
 
@@ -84,4 +96,22 @@ pub struct ModelInfo {
     pub reason: Option<String>,
     /// 0.0..=1.0 while downloading.
     pub progress: Option<f32>,
+}
+
+/// What Smart Select would run for the current languages, shown under its settings card.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartSelectPlan {
+    /// A Groq key is saved, so Groq Whisper runs first and the local rows are the retry.
+    pub groq: bool,
+    /// The local models of the route, in order.
+    pub rows: Vec<SmartSelectRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SmartSelectRow {
+    /// What the model is for, e.g. "Hindi, Hinglish and English" or "English backup".
+    pub purpose: String,
+    pub model: String,
 }

@@ -61,6 +61,7 @@ pub fn run() -> tauri::Result<()> {
             features::models::list_models,
             features::models::download_model,
             features::models::delete_model,
+            features::models::smart_select_plan,
             features::permissions::get_permissions,
             features::permissions::request_permission,
             features::permissions::open_permission_settings,

@@ -242,7 +242,9 @@ impl Coordinator {
         };
         recording.started_at = Some(started_at_ms);
         publish(&app, recording);
-        shortcuts::set_escape(&app, true);
+        if settings.escape_cancels {
+            shortcuts::set_escape(&app, true);
+        }
 
         let watchdog = {
             let app = app.clone();

@@ -1,10 +1,11 @@
 // FilePath: src-tauri/src/features/models/catalog.rs
-//! The fixed list of models Settings → Models offers. Live status comes from the engine helper;
-//! display names come from `sv_domain::models::model_name`, which history shares.
+//! The fixed list of models Settings → Transcription (voice models) and Settings → Formatting
+//! (post-processing models) offer. Live status comes from the engine helper; display names come
+//! from `sv_domain::models::model_name`, which history shares.
 
 use sv_domain::models::{
     APPLE_INTELLIGENCE, APPLE_SPEECH, CUSTOM_LLM, GROQ_LLM, GROQ_WHISPER, PARAKEET_FLASH,
-    PARAKEET_TDT_V2, PARAKEET_TDT_V3,
+    PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH, WHISPER_TURBO,
 };
 use sv_domain::{ModelKind, ModelProvider};
 
@@ -65,6 +66,28 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 75,
         languages: "English",
         size_mb: Some(250),
+        cloud: false,
+    },
+    CatalogEntry {
+        id: WHISPER_TURBO,
+        kind: ModelKind::Transcription,
+        provider: ModelProvider::Whisper,
+        subtitle: "Whisper Large v3 Turbo on this Mac — Multilingual",
+        speed: 70,
+        accuracy: 90,
+        languages: "99 languages incl. Hindi",
+        size_mb: Some(1640),
+        cloud: false,
+    },
+    CatalogEntry {
+        id: WHISPER_HINGLISH,
+        kind: ModelKind::Transcription,
+        provider: ModelProvider::Whisper,
+        subtitle: "Whisper tuned for Hinglish — writes Hindi in Latin script",
+        speed: 55,
+        accuracy: 92,
+        languages: "Hindi, Hinglish (romanised) and English",
+        size_mb: Some(3100),
         cloud: false,
     },
     CatalogEntry {

@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sv_audio::{Cue, Microphone};
-use sv_domain::models::LOCAL_TRANSCRIPTION_MODELS;
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch, SoundTheme};
 use sv_engine::LoginItemStatus;
 use tauri::{AppHandle, Manager, State};
@@ -30,6 +29,8 @@ pub(crate) struct AppInfo {
     database_path: String,
     models_dir: String,
     engine_version: Option<String>,
+    /// True for debug builds (`just dev`), so the UI can mark them apart from the installed app.
+    dev: bool,
 }
 
 #[tauri::command]
@@ -108,10 +109,11 @@ fn apply_changes(app: &AppHandle, old: &Settings, new: &Settings) {
     if old.show_bar_always != new.show_bar_always {
         overlay::set_always(app, new.show_bar_always);
     }
-    let model = &new.transcription_model;
-    if old.transcription_model != *model && LOCAL_TRANSCRIPTION_MODELS.contains(&model.as_str()) {
+    // Covers a new model choice and, with Smart Select, languages that change its route.
+    let target = models::preload_target(new);
+    if let Some(model) = target.filter(|&model| models::preload_target(old) != Some(model)) {
         let app = app.clone();
-        let model = model.clone();
+        let model = model.to_owned();
         tauri::async_runtime::spawn(async move { models::preload(&app, &model).await });
     }
 }
@@ -268,6 +270,7 @@ pub(crate) async fn app_info(app: AppHandle, state: State<'_, AppState>) -> AppR
             .to_string_lossy()
             .into_owned(),
         engine_version,
+        dev: cfg!(debug_assertions),
     })
 }
 

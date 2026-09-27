@@ -15,8 +15,6 @@ use crate::platform::dock;
 pub(crate) const MAIN: &str = "main";
 const APP_MENU_SETTINGS: &str = "app-settings";
 const APP_MENU_UPDATES: &str = "app-updates";
-const APP_MENU_CLOSE: &str = "app-close";
-const APP_MENU_QUIT: &str = "app-quit";
 
 /// Matches the UI background so the window never flashes white while the webview loads.
 const BACKGROUND: Color = Color(0xFB, 0xF9, 0xF6, 0xFF);
@@ -77,14 +75,14 @@ pub(crate) fn show_main(app: &AppHandle) {
     }
 }
 
-/// Opens the main window on the Settings dialog.
+/// Opens the main window on Settings → Dictation.
 pub(crate) fn open_settings(app: &AppHandle) {
     show_main(app);
     events::emit_to(app, MAIN, events::NAVIGATE, "settings");
 }
 
-/// The default macOS menu plus "Check for Updates…" and "Settings…" (Cmd+,) in the app menu, and
-/// Cmd+Q bound to "Close to Menu Bar" rather than quitting.
+/// The default macOS menu (Cmd+W closes the window, Cmd+Q quits) plus "Check for Updates…" and
+/// "Settings…" (Cmd+,) in the app menu.
 pub(crate) fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::default(app)?;
     let settings = MenuItem::with_id(
@@ -101,38 +99,17 @@ pub(crate) fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
-    let close = MenuItem::with_id(
-        app,
-        APP_MENU_CLOSE,
-        "Close to Menu Bar",
-        true,
-        Some("CmdOrCtrl+Q"),
-    )?;
-    let quit = MenuItem::with_id(app, APP_MENU_QUIT, "Quit Simple Voice", true, None::<&str>)?;
     if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
         // After "About Simple Voice" and its separator, where macOS apps put Settings.
         let position = app_menu.items()?.len().min(2);
         app_menu.insert(&settings, position)?;
         // Directly under "About Simple Voice", where macOS apps put it.
         app_menu.insert(&updates, position.min(1))?;
-        // A reflexive Cmd+Q would stop the dictation shortcuts, so it closes the window like the
-        // red button; quitting stays one click away here and in the tray. Only the menu's Quit is
-        // replaced: the Dock's Quit, logout and the update installer still terminate the app.
-        if let Some(MenuItemKind::Predefined(default_quit)) = app_menu.items()?.last() {
-            app_menu.remove(default_quit)?;
-        }
-        app_menu.append_items(&[&close, &quit])?;
     }
     app.set_menu(menu)?;
     app.on_menu_event(|app, event| match event.id().as_ref() {
         APP_MENU_SETTINGS => open_settings(app),
         APP_MENU_UPDATES => updates::open(app),
-        APP_MENU_CLOSE => {
-            if let Some(window) = app.get_webview_window(MAIN) {
-                hide_main(&window);
-            }
-        }
-        APP_MENU_QUIT => app.exit(0),
         _ => {}
     });
     Ok(())

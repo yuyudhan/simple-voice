@@ -162,10 +162,12 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         hold_shortcut,
         toggle_shortcut,
         edit_shortcut,
+        escape_cancels,
         microphone,
         languages,
         fallback_language,
         transcription_model,
+        smart_retry,
         style,
         sounds,
         sound_theme,
@@ -191,6 +193,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
     set_trimmed(&mut settings.toggle_shortcut, toggle_shortcut);
     set_trimmed(&mut settings.edit_shortcut, edit_shortcut);
+    set(&mut settings.escape_cancels, escape_cancels);
     if let Some(microphone) = microphone {
         settings.microphone = microphone
             .map(|name| name.trim().to_owned())
@@ -204,6 +207,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     }
     set_trimmed(&mut settings.fallback_language, fallback_language);
     set_trimmed(&mut settings.transcription_model, transcription_model);
+    set(&mut settings.smart_retry, smart_retry);
     set(&mut settings.style, style);
     set(&mut settings.sounds, sounds);
     set(&mut settings.sound_theme, sound_theme);
@@ -400,6 +404,9 @@ mod tests {
             languages: Some(vec!["en".to_owned()]),
             max_recording_seconds: Some(600),
             learn_from_edits: Some(true),
+            escape_cancels: Some(true),
+            smart_retry: Some(false),
+            transcription_model: Some(sv_domain::models::WHISPER_HINGLISH.to_owned()),
             ..SettingsPatch::default()
         };
         let returned = db.update_settings(patch).await.unwrap();
@@ -416,6 +423,9 @@ mod tests {
         assert_eq!(stored.languages, vec!["en"]);
         assert_eq!(stored.max_recording_seconds, 600);
         assert!(stored.learn_from_edits);
+        assert!(stored.escape_cancels);
+        assert!(!stored.smart_retry);
+        assert_eq!(stored.transcription_model, "whisper-hinglish");
 
         let reset = SettingsPatch {
             microphone: Some(None),

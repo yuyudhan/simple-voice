@@ -10,7 +10,10 @@ use std::time::Duration;
 use serde::de::IgnoredAny;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use sv_domain::{AppError, AppResult, DictationState, ModelStatus, PermissionKind, Permissions};
+use sv_domain::{
+    AppError, AppResult, DictationState, ModelStatus, PermissionKind, Permissions,
+    TranscriptQuality,
+};
 
 use crate::client::{EngineClient, ProgressCallback};
 
@@ -41,11 +44,25 @@ pub struct ModelStatusResult {
     pub reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineTranscript {
     pub text: String,
     pub language: Option<String>,
+    /// Absent for models that report nothing (Parakeet Flash, Apple Speech).
+    #[serde(default)]
+    pub quality: TranscriptQuality,
+}
+
+/// How a `transcribe` call should recognise the recording.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TranscribeOptions<'a> {
+    /// Pins recognition to this ISO 639-1 language.
+    pub language: Option<&'a str>,
+    /// Allowed ISO 639-1 languages; Whisper models detect among these. Empty = any.
+    pub languages: &'a [String],
+    /// Whisper conditioning prompt (the personal-dictionary prompt); empty = none.
+    pub prompt: &'a str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -191,12 +208,13 @@ impl EngineClient {
             .await
     }
 
-    /// `wav_path` must be 16 kHz mono PCM16; `language` pins recognition when set.
+    /// `wav_path` must be 16 kHz mono PCM16. Empty `languages` and `prompt` are left out of the
+    /// request; models other than Whisper ignore both.
     pub async fn transcribe(
         &self,
         model: &str,
         wav_path: &Path,
-        language: Option<&str>,
+        options: TranscribeOptions<'_>,
     ) -> AppResult<EngineTranscript> {
         let path = wav_path.to_str().ok_or_else(|| {
             AppError::invalid(format!(
@@ -204,10 +222,22 @@ impl EngineClient {
                 wav_path.display()
             ))
         })?;
+        let languages = (!options.languages.is_empty()).then(|| {
+            Value::Array(
+                options
+                    .languages
+                    .iter()
+                    .map(|code| Value::from(code.as_str()))
+                    .collect(),
+            )
+        });
+        let prompt = (!options.prompt.is_empty()).then(|| Value::from(options.prompt));
         let params = params([
             ("model", text(model)),
             ("wavPath", text(path)),
-            ("language", optional_text(language)),
+            ("language", optional_text(options.language)),
+            ("languages", languages),
+            ("prompt", prompt),
         ]);
         self.request("transcribe", params, TRANSCRIBE).await
     }
@@ -402,19 +432,57 @@ mod tests {
         let (client, transport) =
             scripted(r#"{"id":$ID,"ok":true,"result":{"text":"hello","language":"en"}}"#);
         let reply = client
-            .transcribe("parakeet-tdt-v3", Path::new("/tmp/a.wav"), None)
+            .transcribe(
+                "parakeet-tdt-v3",
+                Path::new("/tmp/a.wav"),
+                TranscribeOptions::default(),
+            )
             .await
             .unwrap();
         assert_eq!(
             reply,
             EngineTranscript {
                 text: "hello".to_owned(),
-                language: Some("en".to_owned())
+                language: Some("en".to_owned()),
+                quality: TranscriptQuality::default(),
             }
         );
         let request = transport.seen.lock()[0].clone();
         assert_eq!(request["cmd"], "transcribe");
         assert_eq!(request["wavPath"], "/tmp/a.wav");
+        for omitted in ["language", "languages", "prompt"] {
+            assert!(request.get(omitted).is_none(), "{omitted}");
+        }
+    }
+
+    #[tokio::test]
+    async fn transcribe_sends_whisper_options_and_reads_quality() {
+        let (client, transport) = scripted(
+            r#"{"id":$ID,"ok":true,"result":{"text":"kal milte hain","language":"hi",
+                "quality":{"avgLogprob":-0.42,"compressionRatio":1.3,"noSpeechProb":0.05}}}"#,
+        );
+        let languages = vec!["en".to_owned(), "hi".to_owned()];
+        let options = TranscribeOptions {
+            language: None,
+            languages: &languages,
+            prompt: "Kubernetes, Anjali",
+        };
+        let reply = client
+            .transcribe("whisper-hinglish", Path::new("/tmp/a.wav"), options)
+            .await
+            .unwrap();
+        assert_eq!(
+            reply.quality,
+            TranscriptQuality {
+                avg_logprob: Some(-0.42),
+                compression_ratio: Some(1.3),
+                no_speech_prob: Some(0.05),
+                confidence: None,
+            }
+        );
+        let request = transport.seen.lock()[0].clone();
+        assert_eq!(request["languages"], serde_json::json!(["en", "hi"]));
+        assert_eq!(request["prompt"], "Kubernetes, Anjali");
         assert!(request.get("language").is_none());
     }
 
