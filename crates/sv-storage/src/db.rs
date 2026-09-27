@@ -463,4 +463,49 @@ mod tests {
             data.path().join(paths::DATABASE_FILE)
         );
     }
+
+    #[tokio::test]
+    async fn language_tags_migration_renames_hinglish() {
+        let dir = tempfile::tempdir().unwrap();
+        let before_tags = Migrator::with_migrations(
+            MIGRATOR
+                .iter()
+                .filter(|migration| migration.version < 8)
+                .cloned()
+                .collect(),
+        );
+        let old = Db::open_with(
+            dir.path().to_path_buf(),
+            dir.path().to_path_buf(),
+            &before_tags,
+        )
+        .await
+        .unwrap();
+        {
+            let inner = old.read().await;
+            for (key, value) in [
+                ("languages", r#"["en","hinglish"]"#),
+                ("fallbackLanguage", r#""hi""#),
+            ] {
+                sqlx::query!(
+                    "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                    key,
+                    value
+                )
+                .execute(&inner.pool)
+                .await
+                .unwrap();
+            }
+        }
+        drop(old);
+
+        let migrated = Db::open_at(dir.path())
+            .await
+            .unwrap()
+            .settings()
+            .await
+            .unwrap();
+        assert_eq!(migrated.languages, vec!["en", "hi-Latn"]);
+        assert_eq!(migrated.fallback_language, "hi");
+    }
 }

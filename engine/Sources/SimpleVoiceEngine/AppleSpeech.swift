@@ -171,7 +171,7 @@ enum AppleSpeech {
     }
 
     private static func notDownloadedMessage(_ locale: Locale) -> String {
-        "Apple Speech for \(label(locale)) is not downloaded; download it in Settings → Models"
+        "Apple Speech for \(label(locale)) is not downloaded; download it in Settings → Transcription"
     }
 
     private static func label(_ locale: Locale) -> String {

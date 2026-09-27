@@ -36,7 +36,7 @@ const FRONTMOST_TIMEOUT: Duration = Duration::from_millis(300);
 
 const NO_SELECTION: &str = "Select the text to edit first";
 const NO_PROVIDER: &str = "Edit mode needs AI post-processing — choose a provider in Settings → \
-                           Models";
+                           Formatting";
 const APP_CHANGED: &str = "Edited text copied — the app changed before the edit finished";
 
 /// Starts reading the selection in the focused app. Called when the edit shortcut goes down,
@@ -97,6 +97,8 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
         source_text: Some(selection.clone()),
         error: None,
         model: settings.transcription_model.clone(),
+        first_model: None,
+        retry_reason: None,
         format_model: None,
         language: None,
         style: settings.style,
@@ -116,21 +118,32 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
             return publish(&app, cancelled);
         }
         Ok(heard) => heard,
-        Err(error) => {
-            row.error = Some(error.to_string());
+        Err(unheard) => {
+            row.model = unheard.model;
+            row.first_model = unheard.first_model;
+            row.retry_reason = unheard.retry_reason;
+            row.error = Some(unheard.error.to_string());
             row.latency_ms = elapsed_ms(stopped_at);
             save(&app, &db, row).await;
-            return fail(&app, &settings, id, error.to_string());
+            return fail(&app, &settings, id, unheard.error.to_string());
         }
     };
     let instruction = sv_text::format(&heard.text, &vocabulary, settings.style);
     row.raw_text = heard.text;
+    row.model = heard.model;
+    row.first_model = heard.first_model;
+    row.retry_reason = heard.retry_reason;
     row.transcribe_ms = Some(heard.ms);
     row.language = heard.language;
     row.dictionary_fixes = i64::from(instruction.rule_hits);
 
     publish(&app, edit_state(DictationPhase::Formatting, id));
-    let prompt = sv_text::edit_prompt(&selection, &instruction.text, &vocabulary.terms);
+    let prompt = sv_text::edit_prompt(
+        &selection,
+        &instruction.text,
+        &vocabulary.terms,
+        &settings.languages,
+    );
     let started = Instant::now();
     let limit = sv_text::edit_timeout(&selection);
     let max_tokens = sv_text::edit_max_tokens(&selection);

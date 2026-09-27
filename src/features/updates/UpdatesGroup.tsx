@@ -1,5 +1,5 @@
 // FilePath: src/features/updates/UpdatesGroup.tsx
-// Settings → System → Updates: the running version, the last check, and how to update.
+// Settings → App → Updates: the running version, the last check, and how to update.
 import { RefreshCw } from "lucide-react";
 import type { UpdateStatus } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";

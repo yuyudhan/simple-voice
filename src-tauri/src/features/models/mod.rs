@@ -1,13 +1,17 @@
 // FilePath: src-tauri/src/features/models/mod.rs
-//! Settings → Models: the catalog with live status, downloads and deletion of local models.
+//! Settings → Transcription and Settings → Formatting: the model catalog with live status,
+//! downloads and deletion of local models, and Smart Select's plan and preloading.
 
 mod catalog;
+pub(crate) mod smart_select;
 
 use std::time::Duration;
 
-use sv_domain::models::{model_name, APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS};
+use sv_domain::languages::model_language;
+use sv_domain::models::{model_name, APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT};
 use sv_domain::{
     AppError, AppResult, ModelInfo, ModelProgress, ModelProgressStatus, ModelStatus, Settings,
+    SmartSelectPlan,
 };
 use tauri::{AppHandle, Manager, State};
 
@@ -15,6 +19,7 @@ use self::catalog::{CatalogEntry, CATALOG};
 use crate::events;
 use crate::state::{lock, AppState};
 
+/// Longest a status check may take; a helper that cannot answer that fast counts as not ready.
 const STATUS_TIMEOUT: Duration = Duration::from_secs(3);
 
 #[tauri::command]
@@ -80,10 +85,31 @@ async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry)
 /// Apple Speech assets are per locale; every other model ignores the language.
 pub(crate) fn engine_language<'a>(settings: &'a Settings, model: &str) -> Option<&'a str> {
     if model == APPLE_SPEECH {
-        settings.languages.first().map(String::as_str)
+        // Apple locales exist per spoken language; a script variant is heard as its base.
+        settings.languages.first().map(|code| model_language(code))
     } else {
         None
     }
+}
+
+/// Whether a local model can transcribe right now (downloaded and supported on this Mac).
+pub(crate) async fn is_ready(state: &AppState, settings: &Settings, model: &str) -> bool {
+    if lock(&state.downloads).contains_key(model) {
+        return false;
+    }
+    let language = engine_language(settings, model);
+    let status = tokio::time::timeout(STATUS_TIMEOUT, state.engine.model_status(model, language));
+    matches!(status.await, Ok(Ok(status)) if status.status == ModelStatus::Ready)
+}
+
+/// What Smart Select runs for the current languages, for its card in Settings → Transcription.
+#[tauri::command]
+pub(crate) async fn smart_select_plan(state: State<'_, AppState>) -> AppResult<SmartSelectPlan> {
+    let settings = state.db()?.settings().await?;
+    Ok(smart_select::plan(
+        &settings.languages,
+        settings.groq_api_key_present,
+    ))
 }
 
 #[tauri::command]
@@ -133,12 +159,12 @@ pub(crate) async fn download_model(
         match result {
             Ok(()) => {
                 progress(&app, &id, 1.0, ModelProgressStatus::Ready, None);
-                // A freshly downloaded selected model should be warm for the next dictation.
+                // A freshly downloaded model the next dictation will use should be warm for it.
                 if let Ok(db) = state.db() {
                     if db
                         .settings()
                         .await
-                        .is_ok_and(|s| s.transcription_model == id)
+                        .is_ok_and(|s| preload_target(&s) == Some(id.as_str()))
                     {
                         preload(&app, &id).await;
                     }
@@ -166,6 +192,7 @@ pub(crate) async fn delete_model(state: State<'_, AppState>, id: String) -> AppR
             "{id} has no local files to delete"
         )));
     }
+    // Smart Select is never a model id, so its models stay deletable; it skips missing ones.
     if state.db()?.settings().await?.transcription_model == id {
         return Err(AppError::invalid(
             "This model is in use. Choose another transcription model before deleting it.",
@@ -177,11 +204,27 @@ pub(crate) async fn delete_model(state: State<'_, AppState>, id: String) -> AppR
     state.engine.delete_model(&id).await
 }
 
+/// The local model the next dictation will use: the chosen model, or Smart Select's local
+/// model for the languages. `None` for Groq Whisper.
+pub(crate) fn preload_target(settings: &Settings) -> Option<&str> {
+    let model = settings.transcription_model.as_str();
+    if model == SMART_SELECT {
+        Some(smart_select::local_model(&settings.languages))
+    } else {
+        LOCAL_TRANSCRIPTION_MODELS.contains(&model).then_some(model)
+    }
+}
+
+/// Loads the local model the settings will start with, so the first dictation does not pay
+/// the load time.
+pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
+    if let Some(model) = preload_target(settings) {
+        preload(app, model).await;
+    }
+}
+
 /// Loads a local model into memory so the first dictation does not pay the load time.
 pub(crate) async fn preload(app: &AppHandle, model: &str) {
-    if !LOCAL_TRANSCRIPTION_MODELS.contains(&model) {
-        return;
-    }
     if let Err(error) = app.state::<AppState>().engine.preload(model).await {
         tracing::info!(%error, model, "model preload skipped");
     }
@@ -216,5 +259,41 @@ mod tests {
                 entry.id
             );
         }
+    }
+
+    fn settings(model: &str, languages: &[&str]) -> Settings {
+        Settings {
+            transcription_model: model.to_owned(),
+            languages: languages.iter().map(|code| (*code).to_owned()).collect(),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn preload_follows_the_chosen_model_or_the_smart_select_route() {
+        use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+        assert_eq!(
+            preload_target(&settings(PARAKEET_TDT_V3, &["en"])),
+            Some(PARAKEET_TDT_V3)
+        );
+        assert_eq!(preload_target(&settings(GROQ_WHISPER, &["en"])), None);
+        assert_eq!(
+            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"])),
+            Some(WHISPER_HINGLISH)
+        );
+        assert_eq!(
+            preload_target(&settings(SMART_SELECT, &["en"])),
+            Some(PARAKEET_TDT_V2)
+        );
+    }
+
+    #[test]
+    fn apple_speech_hears_a_script_variant_as_its_base() {
+        use sv_domain::models::PARAKEET_TDT_V3;
+        let variant_first = settings(APPLE_SPEECH, &["hi-Latn", "en"]);
+        assert_eq!(engine_language(&variant_first, APPLE_SPEECH), Some("hi"));
+        assert_eq!(engine_language(&variant_first, PARAKEET_TDT_V3), None);
+        let english_first = settings(APPLE_SPEECH, &["en", "hi-Latn"]);
+        assert_eq!(engine_language(&english_first, APPLE_SPEECH), Some("en"));
     }
 }

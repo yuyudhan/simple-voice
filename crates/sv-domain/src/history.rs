@@ -45,6 +45,37 @@ impl HistoryStatus {
     }
 }
 
+/// Why Smart Select ran a second model after the first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryReason {
+    /// The first model errored (including offline or a network failure).
+    Failed,
+    /// The first model's result was below its confidence floor.
+    LowConfidence,
+    /// A selected script variant (e.g. romanised Hindi) came back half in its native script.
+    MixedScript,
+}
+
+impl RetryReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::LowConfidence => "low_confidence",
+            Self::MixedScript => "mixed_script",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "failed" => Some(Self::Failed),
+            "low_confidence" => Some(Self::LowConfidence),
+            "mixed_script" => Some(Self::MixedScript),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {
@@ -61,10 +92,14 @@ pub struct HistoryEntry {
     /// was never corrected.
     pub edited_text: Option<String>,
     pub error: Option<String>,
-    /// Transcription model id, e.g. `groq-whisper`.
+    /// Transcription model id that produced `raw_text`, e.g. `groq-whisper`.
     pub model: String,
     /// Display name of `model`.
     pub model_name: String,
+    /// Display name of the model Smart Select tried first when it retried; `None` otherwise.
+    pub first_model_name: Option<String>,
+    /// Why Smart Select retried; set exactly when `first_model_name` is.
+    pub retry_reason: Option<RetryReason>,
     /// Display name of the model that formatted the text; `None` when no formatting pass
     /// produced the pasted text (off, skipped, failed, or recorded before this was tracked).
     pub format_model_name: Option<String>,
@@ -97,7 +132,11 @@ pub struct NewHistory {
     /// The selected text an edit replaced; `None` for a dictation.
     pub source_text: Option<String>,
     pub error: Option<String>,
+    /// The model that produced `raw_text`; the last one tried when every model failed.
     pub model: String,
+    /// The model Smart Select tried first when a retry happened; `None` otherwise.
+    pub first_model: Option<String>,
+    pub retry_reason: Option<RetryReason>,
     /// Model id of the formatting pass that produced `final_text`, if one did.
     pub format_model: Option<String>,
     pub language: Option<String>,

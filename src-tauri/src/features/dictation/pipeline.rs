@@ -20,7 +20,7 @@ use tauri::{AppHandle, Manager};
 use super::delivery::{self, Delivery};
 use super::edit::{self, SelectionTask};
 use super::transcription::{
-    discard_audio, keep_audio, transcribe, transcribe_fresh, vocabulary, Audio,
+    discard_audio, keep_audio, transcribe, transcribe_fresh, vocabulary, Audio, Unheard,
 };
 use super::{elapsed_ms, learning, llm, publish, publish_message, publish_phase};
 use crate::events;
@@ -95,6 +95,8 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
         source_text: None,
         error: None,
         model: settings.transcription_model.clone(),
+        first_model: None,
+        retry_reason: None,
         format_model: None,
         language: None,
         style: settings.style,
@@ -119,9 +121,13 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
             return publish_message(&app, id, DictationPhase::Cancelled, "No speech detected");
         }
         Ok(heard) => heard,
-        Err(error) => {
+        Err(unheard) => {
             // Never lose a dictation: keep the audio and a retryable history row.
+            let error = unheard.error;
             let kept = keep_audio(&audio, id).await;
+            row.model = unheard.model;
+            row.first_model = unheard.first_model;
+            row.retry_reason = unheard.retry_reason;
             row.error = Some(error.to_string());
             row.audio_path = kept.map(|path| path.to_string_lossy().into_owned());
             row.latency_ms = elapsed_ms(stopped_at);
@@ -162,6 +168,9 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     let delivered = delivery::deliver_in_order(&app, id, &pasted, settings.restore_clipboard).await;
     row.latency_ms = elapsed_ms(stopped_at);
     row.raw_text = heard.text;
+    row.model = heard.model;
+    row.first_model = heard.first_model;
+    row.retry_reason = heard.retry_reason;
     row.transcribe_ms = Some(heard.ms);
     row.language = heard.language;
     row.dictionary_fixes = i64::from(formatted.rule_hits);
@@ -233,6 +242,8 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         source_text: None,
         error: None,
         model: settings.transcription_model.clone(),
+        first_model: None,
+        retry_reason: None,
         format_model: None,
         language: entry.language,
         style: settings.style,
@@ -251,18 +262,24 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         path: Some(PathBuf::from(&path)),
     };
     let heard = match transcribe(&state, &settings, &vocabulary, &audio).await {
-        Ok(heard) if heard.text.trim().is_empty() => {
-            Err(AppError::other("No speech was detected in the saved audio"))
-        }
+        Ok(heard) if heard.text.trim().is_empty() => Err(Unheard {
+            error: AppError::other("No speech was detected in the saved audio"),
+            model: heard.model,
+            first_model: heard.first_model,
+            retry_reason: heard.retry_reason,
+        }),
         other => other,
     };
     let heard = match heard {
         Ok(heard) => heard,
-        Err(error) => {
-            row.error = Some(error.to_string());
+        Err(unheard) => {
+            row.model = unheard.model;
+            row.first_model = unheard.first_model;
+            row.retry_reason = unheard.retry_reason;
+            row.error = Some(unheard.error.to_string());
             db.update_history(id, row).await?;
             events::history_changed(app);
-            return Err(error);
+            return Err(unheard.error);
         }
     };
 
@@ -283,6 +300,9 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     }
     row.status = HistoryStatus::NotPasted;
     row.raw_text = heard.text;
+    row.model = heard.model;
+    row.first_model = heard.first_model;
+    row.retry_reason = heard.retry_reason;
     row.transcribe_ms = Some(heard.ms);
     row.final_text = final_text;
     row.language = heard.language;
@@ -330,7 +350,13 @@ async fn post_process(
     if !will_post_process(settings, text) {
         return Polish::NotRun;
     }
-    let prompt = sv_text::polish_prompt(text, terms, settings.style, llm::target(settings));
+    let prompt = sv_text::polish_prompt(
+        text,
+        terms,
+        settings.style,
+        llm::target(settings),
+        &settings.languages,
+    );
     let started = Instant::now();
     let limit = sv_text::polish_timeout(text);
     let outcome = match llm::complete(state, settings, &prompt, POLISH_MAX_TOKENS, limit).await {

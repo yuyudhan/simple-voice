@@ -18,9 +18,10 @@ once at app launch, kept resident (so Core ML models stay loaded), and restarted
 flowchart LR
     K[Global shortcut] --> C[dictation coordinator]
     C --> A[cpal capture 16 kHz mono]
-    A --> T{model}
+    A --> T{model / Smart Select route}
     T -->|groq| G[Groq Whisper]
-    T -->|parakeet / apple| E[Swift engine helper]
+    T -->|parakeet / whisper / apple| E[Swift engine helper]
+    G -.->|failed or unclear: one retry| E
     G --> F[deterministic format]
     E --> F
     F --> P[Groq LLM polish]
@@ -55,10 +56,10 @@ keeps only the offered corrections via `sv_text::accept_learning`, and adds them
     - `update.log` — output of the last in-app update install (file mode 0600), replaced by each.
     - `simple-voice.db` — default database location (file mode 0600).
     - `location` — optional one-line file holding the absolute path of the directory that
-      contains the database when the user moved it (Settings → Data). Absent = default. If that
-      directory is missing at launch (e.g. an unmounted drive), `Db::open` fails with a message
-      instead of creating an empty database there. `Db::open_at(dir)` treats `dir` as both the
-      data directory and the database directory.
+      contains the database when the user moved it (Settings → Privacy & data). Absent =
+      default. If that directory is missing at launch (e.g. an unmounted drive), `Db::open` fails
+      with a message instead of creating an empty database there. `Db::open_at(dir)` treats `dir`
+      as both the data directory and the database directory.
     - `models/` — downloaded local models (owned by the engine helper, passed as `--models-dir`).
     - `audio/` — WAVs of failed dictations, kept for retry; deleted when the entry is retried
       successfully or deleted.
@@ -116,10 +117,15 @@ CREATE TABLE history (
     bundle_id        TEXT,
     app_category     TEXT NOT NULL,      -- see AppCategory
     audio_path       TEXT,               -- set only while a failed entry can be retried
-    edited_text      TEXT                -- the pasted text after the user corrected it in place (0006)
+    edited_text      TEXT,               -- the pasted text after the user corrected it in place (0006)
+    first_model      TEXT,               -- Smart Select: model tried first when a retry happened (0007)
+    retry_reason     TEXT                -- 'failed' | 'low_confidence' | 'mixed_script' (0007)
 );
 CREATE INDEX history_created_at ON history(created_at);
 ```
+
+Data-only migrations: `0008_language_tags.sql` rewrites the stored `languages` setting from the
+old `"hinglish"` code to the BCP 47 tag `"hi-Latn"`.
 
 ## 2. Code organization
 
@@ -133,11 +139,11 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 | -------------------- | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `simple-voice` (app) | `src-tauri/`         | all below              | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
 | `sv-storage`         | `crates/sv-storage/` | `sv-domain`            | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `model_insights.rs`, `migrations/`                                                                                                                                                                                                                                                  |
-| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout), `preview.rs` (the pill's one-line text preview) — pure, no I/O |
+| `sv-text`            | `crates/sv-text/`    | `sv-domain`            | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout), `language_prompts.rs` (Whisper leads and few-shot shots per language tag), `preview.rs` (the pill's one-line text preview) — pure, no I/O |
 | `sv-cloud`           | `crates/sv-cloud/`   | `sv-domain`, `sv-text` | `groq_whisper.rs`, `chat.rs` (one OpenAI-compatible chat completion for Groq and custom endpoints, shared by the formatting pass and edit mode), `releases.rs` (latest GitHub release) |
 | `sv-audio`           | `crates/sv-audio/`   | `sv-domain`            | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
 | `sv-engine`          | `crates/sv-engine/`  | `sv-domain`            | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
-| `sv-domain`          | `crates/sv-domain/`  | —                      | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                                    |
+| `sv-domain`          | `crates/sv-domain/`  | —                      | Shared serde types, `AppError`, `categorize`, `text_stats`, `languages` (the language registry) (exists; read the source)                                                                                                                                                                                                                                                                                |
 
 ### Crate APIs (the contract between slices)
 
@@ -163,6 +169,28 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // DictionarySource = Manual | Learned, wire "manual" | "learned"; DictionaryEntry.source.
 // HistoryEntry.editedText: the pasted text as the user corrected it, None when never corrected.
 // Settings.learnFromEdits (default false) turns on learning from corrections.
+// Settings.escapeCancels (default false) registers Esc for the length of each recording so it
+// cancels it; off, Esc is never taken from the focused app.
+// Smart Select (beta, opt-in): models::SMART_SELECT ("smart-select"); the default stays GROQ_WHISPER;
+// WHISPER_TURBO ("whisper-large-v3-turbo"), WHISPER_HINGLISH ("whisper-hinglish") are local
+// WhisperKit models (ModelProvider::Whisper). SmartSelectPlan { groq, local, notice } (camelCase):
+// whether Groq runs first, the model id of the one local model the languages need, and a notice
+// (Option<String>) set only when that model can't write a selected language as chosen.
+// Settings.smartRetry (default true). TranscriptQuality { avg_logprob, compression_ratio, no_speech_prob,
+// confidence } (all Option<f32>). RetryReason = Failed | LowConfidence | MixedScript, wire "failed" |
+// "low_confidence" | "mixed_script"; NewHistory.first_model / retry_reason, HistoryEntry.firstModelName /
+// retryReason: model is the one that produced raw_text; first_model == model means the retry
+// did not help and the first result was kept. ModelTiming.retries: rows with first_model = model.
+// languages (languages.rs): the language registry. Script (Latin, Devanagari, ...) with name(),
+// user_name() (Latin → "Roman script") and contains(char). Language { tag (BCP 47: "en", "hi",
+// "hi-Latn"), name, base (the ISO 639-1 code models receive: "hi" for "hi-Latn"), script (how the
+// app writes it), native (the base language's own script), primary (a one-click chip) };
+// is_variant() = script != native. LANGUAGES (the only variant is hi-Latn), language(tag) (exact,
+// trimmed, case-insensitive), model_language(tag) / model_languages(tags) (bases, deduped, order
+// kept; unknown tags pass through), LanguageInfo { tag, name, script (Some(user_name) only when
+// another entry shares the base), primary, fallback (!is_variant) } + language_infos() for the
+// UI. Settings.languages defaults to ["en", "hi", "hi-Latn"]; validation accepts registry tags
+// only, and the fallback must be a registry tag that may be a fallback.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -209,10 +237,17 @@ impl Db {
 
 // ── sv-text ─────────────────────────────────────────────────────────────────────────────
 pub struct Rule { pub from: String, pub to: String }
-pub struct Vocabulary { pub prompt: String, pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize }
-impl Vocabulary { pub fn from_entries(entries: &[DictionaryEntry]) -> Vocabulary; }  // prompt ≤ 850 chars
+pub struct Vocabulary { pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize }
+impl Vocabulary { pub fn from_entries(entries: &[DictionaryEntry]) -> Vocabulary; }
 impl Default for Vocabulary { .. }                                // empty dictionary
 pub const PROMPT_MAX_CHARS: usize = 850;
+pub fn whisper_prompt(languages: &[String], vocabulary: &Vocabulary) -> String;
+    // the Whisper prompt Groq and local Whisper get: the lead of each selected tag, then the
+    // dictionary terms, ≤ PROMPT_MAX_CHARS chars
+// Language prompt table (language_prompts.rs), keyed by registry tag: an optional Whisper lead
+// (hi-Latn: the romanised-Hinglish lead) and few-shot shots per style (hi-Latn: the Hinglish
+// formal and casual shots). A tag's content reaches a prompt only when that tag is selected, so
+// an English-only user gets neither. Adding a language's prompt content is one table entry.
 pub struct Formatted { pub text: String, pub rule_hits: u32 }
 pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
 // Post-processing ("polish"). One prompt, three backends:
@@ -220,8 +255,12 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
 //   custom → any OpenAI-compatible /chat/completions (Ollama, LM Studio, ...) — sv-cloud
 //   apple  → on-device Apple Intelligence via the engine helper `polish` command — app
 pub struct PolishPrompt { pub system: String, pub shots: Vec<(String, String)>, pub user: String }
-pub enum PolishTarget { Chat, OnDevice }                          // apple: OnDevice (no Hindi shots, a self-correction shot, framed user turns)
-pub fn polish_prompt(text: &str, terms: &[String], style: Style, target: PolishTarget) -> PolishPrompt;
+pub enum PolishTarget { Chat, OnDevice }                          // apple: OnDevice (no language shots, a self-correction shot, framed user turns)
+pub fn polish_prompt(text: &str, terms: &[String], style: Style, target: PolishTarget,
+    languages: &[String]) -> PolishPrompt;
+    // system prompt: keep every word in the language and script it was spoken, never translate,
+    // plus one generated line from the selected tags ("Writing: Hinglish in Roman script; Hindi
+    // in Devanagari; English in Roman script.")
 pub fn polish_timeout(text: &str) -> Duration;                    // 2.5 s + 5 ms/word
 pub enum PolishOutcome { Polished(String), Skipped(String) }       // reason
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome>;    // Some(Skipped("too short")) < 3 words
@@ -229,7 +268,8 @@ pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome
 // Edit mode (edit.rs): the same PolishPrompt shape for every backend; the selection sits between
 // <text> tags and is data, the instruction is carried out.
 pub const EDIT_MAX_CHARS: usize = 4_000;
-pub fn edit_prompt(selection: &str, instruction: &str, terms: &[String]) -> PolishPrompt;
+pub fn edit_prompt(selection: &str, instruction: &str, terms: &[String], languages: &[String])
+    -> PolishPrompt;
 pub fn edit_timeout(selection: &str) -> Duration;                 // 6 s + 20 ms/word, ≤ 30 s
 pub fn edit_max_tokens(selection: &str) -> u32;                   // chars + 256, ≤ 4096 (per-minute quotas)
 pub fn accept_edit(selection: &str, output: &str, finished: bool) -> Result<String, String>;
@@ -251,7 +291,8 @@ pub fn accept_learning(corrections: &[Correction], output: &str, finished: bool)
     // the `after` of each offered number; nothing when unfinished
 
 // ── sv-cloud ────────────────────────────────────────────────────────────────────────────
-pub struct Transcript { pub text: String, pub language: Option<String> }
+pub struct Transcript { pub text: String, pub language: Option<String>, pub quality: TranscriptQuality }
+// quality from verbose_json segments: token-weighted avg_logprob / no_speech_prob, max compression_ratio
 pub async fn groq_transcribe(client: &reqwest::Client, key: &str, wav: Vec<u8>, prompt: &str,
     languages: &[String], fallback_language: &str) -> AppResult<Transcript>;
 pub async fn groq_verify_key(client: &reqwest::Client, key: &str) -> AppResult<()>;
@@ -314,8 +355,9 @@ impl EngineClient {
 //       -> ModelStatusResult { status: ModelStatus, size_bytes: Option<u64>, reason: Option<String> }
 //   download_model(model: &str, language: Option<&str>, on_progress: ProgressCallback) -> ()
 //   delete_model(model: &str) -> ();  preload(model: &str) -> ()
-//   transcribe(model: &str, wav_path: &Path, language: Option<&str>)
-//       -> EngineTranscript { text, language: Option<String> }
+//   transcribe(model: &str, wav_path: &Path, options: TranscribeOptions { language: Option<&str>,
+//       languages: &[String], prompt: &str })   // empty languages / prompt are not sent
+//       -> EngineTranscript { text, language: Option<String>, quality: TranscriptQuality }
 //   permissions() -> Permissions;  request_permission(kind: PermissionKind) -> Permissions
 //   open_settings(kind: PermissionKind) -> ()
 //   frontmost_app() -> FrontmostApp { name: Option<String>, bundle_id: Option<String> }
@@ -345,16 +387,16 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 `settings-changed`; `update` shows its own error toast and resolves `false`) and
 `ShellContext.tsx` (`useShell()` → `{ navigate(page) }`, with
 `Page = "home" | "insights" | "dictionary" | "style" | SettingsSection` and
-`SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Each settings
-section is a first-class page: the sidebar lists it under a Settings group at the bottom and
-`settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri events are
-consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
-`useToast()` from `src/ui`.
+`SettingsSection = "dictation" | "transcription" | "formatting" | "app" | "privacy"`). Each
+settings section is a first-class page: the sidebar lists it under a Settings group at the
+bottom and `settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri
+events are consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`;
+toasts with `useToast()` from `src/ui`.
 
 Accessibility access: `settings/permissions/AccessibilityWarning.tsx` has no dismiss control. The
 shell pins it (sticky) above every page whenever `permissions.accessibility !== "granted"`, saying
 that text is only copied, and that Fn does nothing when `holdShortcut` or `toggleShortcut` is
-`"Fn"`. The General settings and the onboarding shortcut step show it inline only while Fn is a
+`"Fn"`. The Dictation settings and the onboarding shortcut step show it inline only while Fn is a
 shortcut. The helper gates paste and its Fn event tap on the same grant, so the warning, paste and
 the tap agree. `AXIsProcessTrusted()` can stay false inside a running process after the user
 grants access, so while it does the helper re-checks in a short-lived copy of itself
@@ -399,6 +441,8 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `get_insights`                                                                 | —                                                   | `Insights`                                                                                                       |
 | `get_model_insights`                                                           | —                                                   | `ModelInsights` (per-model transcription and formatting timings)                                                 |
 | `list_models`                                                                  | —                                                   | `ModelInfo[]` (transcription models + `apple-intelligence` post-processing availability)                         |
+| `smart_select_plan`                                                            | —                                                   | `SmartSelectPlan` `{ groq, local, notice }`: whether Groq runs first, the one local model id, a notice or `null` |
+| `list_languages`                                                               | —                                                   | `LanguageInfo[]` `{ tag, name, script, primary, fallback }`: the language registry for the picker               |
 | `download_model`                                                               | `id`                                                | `null` (progress via events)                                                                                     |
 | `delete_model`                                                                 | `id`                                                | `null`                                                                                                           |
 | `get_permissions`                                                              | —                                                   | `Permissions`                                                                                                    |
@@ -421,7 +465,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `settings-changed`    | `Settings`                                                                                                                                        |
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
 | `permissions-changed` | `Permissions`                                                                                                                                     |
-| `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → General, or Settings → System for `"updates"` |
+| `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → Dictation, or Settings → App for `"updates"`  |
 | `update-status`       | `UpdateStatus` — when a check starts and ends, and when an install starts and ends without quitting the app                                      |
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
@@ -431,14 +475,14 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 ## 5. Windows
 
 - `main` — 1080×720 (min 860×600), `titleBarStyle: "Overlay"`, hidden title, traffic lights
-  inset. Closing hides it; the tray reopens it. The Dock icon shows only while `main` is visible
-  (and `Settings.showInDock` is on): hiding `main` switches the app to the Accessory activation
-  policy, so with the window closed there is no Dock "Quit" to stop the shortcuts. The app menu
-  binds Cmd+Q to "Close to Menu Bar" (hides `main`, like closing) and offers "Quit Simple Voice"
-  without a shortcut; the tray's Quit, the Dock's Quit, logout and the update installer still quit
-  the app. Starts hidden when `launchAtLogin` is on and the Dock started at most 120 s earlier (a
-  login launch: `SMAppService` passes no arguments, so this is the only signal an `unsafe`-free
-  core can read). Gaining focus re-reads the login item (see `login_item` below).
+  inset. Closing it (red button or Cmd+W) hides it; the tray reopens it. The Dock icon shows only
+  while `main` is visible (and `Settings.showInDock` is on): hiding `main` switches the app to the
+  Accessory activation policy, so with the window closed there is no Dock "Quit" to stop the
+  shortcuts. The app menu keeps the standard macOS Quit (Cmd+Q); it, the tray's Quit, the Dock's
+  Quit, logout and the update installer quit the app. Starts hidden when `launchAtLogin` is on and
+  the Dock started at most 120 s earlier (a login launch: `SMAppService` passes no arguments, so
+  this is the only signal an `unsafe`-free core can read). Gaining focus re-reads the login item
+  (see `login_item` below).
 - The overlay pill is not a Tauri window: the Swift helper draws it (`engine/.../Overlay.swift`,
   `PillView.swift`) because floating over full-screen apps needs the AppKit
   `fullScreenAuxiliary` collection behaviour, which Tauri does not expose and Rust cannot set
@@ -475,7 +519,7 @@ produces nothing.
 | `download_model`     | `model`, `language`?                                     | `{"status": "ready"}` after progress events                                                                                                                  |
 | `delete_model`       | `model`                                                  | `{}`                                                                                                                                                         |
 | `preload`            | `model`                                                  | `{}` (loads into memory so the first dictation is fast)                                                                                                      |
-| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`? | `{"text": s, "language"?: s}`                                                                                                                                |
+| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`?, `languages`?, `prompt`? | `{"text": s, "language"?: s, "quality"?: {"avgLogprob"?, "compressionRatio"?, "noSpeechProb"?, "confidence"?}}`                                                                                                                                |
 | `permissions`        | —                                                        | `{"microphone": P, "accessibility": P, "speech": P}`; P = `"granted" \| "denied" \| "not_determined" \| "restricted"` (accessibility is only granted/denied) |
 | `request_permission` | `kind`                                                   | same as `permissions`                                                                                                                                        |
 | `open_settings`      | `kind`                                                   | `{}` (opens the matching Privacy & Security pane)                                                                                                            |
@@ -499,13 +543,48 @@ Notification (app → helper, no id, never answered, applied on the main thread 
 | `overlay_visible` | `visible: bool`; `true` (re)places the pill under the cursor and orders it in             |
 | `overlay_level`   | `level: number` 0..1 (RMS), ~30 Hz while recording                                        |
 
-Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech` (transcription);
+Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `whisper-large-v3-turbo`,
+`whisper-hinglish`, `apple-speech` (transcription);
 `apple-intelligence` (post-processing; `model_status` reports availability, never downloads).
 `groq-whisper` is cloud-only and never reaches the helper.
 `language` (optional everywhere) is a language code such as `en` or `hi`, or a full locale such as
 `en-GB`; only `apple-speech` uses it for `model_status` / `download_model` (its assets are per
-locale; default `en-US`). Parakeet files live in `<models-dir>/<model-id>/`, downloaded into
-`<model-id>.partial/` and renamed into place when complete.
+locale; default `en-US`). Parakeet and Whisper files live in `<models-dir>/<model-id>/`,
+downloaded into `<model-id>.partial/` and renamed into place when complete. `languages` (allowed
+ISO 639-1 codes: the registry bases of the selected tags, so `hi-Latn` arrives as `hi`) and
+`prompt` (the dictionary prompt, as Groq gets it) only reach `whisper-*`
+models: they pick the most likely allowed language and condition on the prompt. `quality` is
+Whisper's token-weighted `avgLogprob` / `noSpeechProb` and maximum `compressionRatio`, or
+Parakeet TDT's `confidence`; absent for Parakeet Flash and Apple Speech.
+
+### Smart Select (`src-tauri/src/features/models/smart_select.rs`)
+
+Each local transcription model in the catalog declares what it covers (`CatalogEntry.covers`):
+a list of registry tags (Parakeet TDT v2: `en`; Parakeet TDT v3: its 25 languages; Hinglish
+Whisper: `en`, `hi-Latn`) or every language in its own script (Whisper Turbo: every registry tag
+that is not a romanised variant). Models without coverage (Groq, Parakeet Flash, Apple Speech,
+LLMs) are never Smart Select candidates. The dictation languages pick the one local model that
+covers the most selected tags; ties go to the higher accuracy, then the smaller download. So `en`
+→ `parakeet-tdt-v2`, `de, fr` → `parakeet-tdt-v3`, `en, hi` → `whisper-large-v3-turbo`,
+`en, hi-Latn` → `whisper-hinglish`, `ja` → `whisper-large-v3-turbo`. Adding a local model is one
+catalog entry; nothing here names a language.
+
+When the chosen model leaves a selected tag uncovered, the plan carries a notice built from
+registry names: if another selected tag with the same base is covered, "Offline, {uncovered} is
+written in {covered's script}. Remove {covered} to get {uncovered's script} offline." (`en, hi,
+hi-Latn` → `whisper-hinglish` with "Offline, Hindi is written in Roman script. Remove Hinglish to
+get Devanagari offline."); otherwise "{model} can't transcribe {A, B and C} offline."
+
+Tags reach Groq and the helper as their base (`hi-Latn` → `hi`). With a Groq key the route is
+`[groq-whisper, local]`, else `[local]`;
+models that are not ready are skipped, and nothing ready is an error naming Settings →
+Transcription. The second model of the route runs once, sequentially, when the first fails or
+(`smartRetry` on, 3+ words) its Whisper quality is below the floor: `avgLogprob < -1.0` or
+`compressionRatio > 2.4`, except silence (`noSpeechProb > 0.6` with `avgLogprob < -1.0`), or,
+for any selected romanised variant, its text mixes letters of the variant's native script with
+letters of its romanised script (`mixed_script`: e.g. Groq writing Hinglish half in Devanagari;
+scripts come from `Script::contains`). A retry with text replaces the first result. The route's
+local model is preloaded at launch, after its download, and when the model or languages change.
 
 Launch at login: `settings.launchAtLogin` mirrors `login_item`. `update_settings` changes the
 login item before saving and stores nothing when macOS refuses; the core re-reads the status
@@ -521,10 +600,11 @@ Any transcription model combines with any post-processing provider:
 |                                 | Groq LLM | Apple Intelligence (on-device) | Custom OpenAI-compatible (Ollama local or any remote) | Off             |
 | ------------------------------- | -------- | ------------------------------ | ----------------------------------------------------- | --------------- |
 | Groq Whisper (cloud)            | default  | ✓                              | ✓                                                     | ✓               |
-| Parakeet / Apple Speech (local) | ✓        | ✓ fully offline                | ✓                                                     | ✓ fully offline |
+| Parakeet / Whisper / Apple Speech (local) | ✓ | ✓ fully offline            | ✓                                                     | ✓ fully offline |
 
-The Groq API key is entered in Settings → Models, next to the Groq Whisper model and the Groq
-post-processing provider; one key serves both.
+The Groq API key is one key serving both uses. Settings → Transcription shows it while Groq
+Whisper or Smart Select is the voice model; otherwise Settings → Formatting shows it while Groq is the
+post-processing provider.
 
 ## 8. Update notices
 
@@ -536,7 +616,7 @@ check (it wakes hourly, since monotonic sleeps stop while the Mac sleeps). A fai
 retried on the next wake. `Settings.checkForUpdates = false` stops the automatic checks; "Check
 now", the tray item and the app-menu item still check on demand. When the release is newer than
 the running version (semver), the tray item reads "Update Available: X…", and the UI shows a
-banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → System,
+banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → App,
 both with an Install update button.
 
 `install_update` runs `curl -fsSL <repo>/releases/latest/download/install.sh | bash` in its own

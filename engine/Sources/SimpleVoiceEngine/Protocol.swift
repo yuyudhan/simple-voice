@@ -89,7 +89,12 @@ struct ModelParams: Decodable {
 struct TranscribeParams: Decodable {
     let model: String
     let wavPath: String
+    /// Pins recognition to one language.
     let language: String?
+    /// Languages Whisper may pick from when `language` is absent (ISO 639-1 codes).
+    let languages: [String]?
+    /// Whisper conditioning prompt (the personal dictionary).
+    let prompt: String?
 }
 
 struct KindParams: Decodable {
@@ -120,6 +125,8 @@ enum ModelID: String, Sendable, CaseIterable {
     case parakeetTdtV3 = "parakeet-tdt-v3"
     case parakeetTdtV2 = "parakeet-tdt-v2"
     case parakeetFlash = "parakeet-flash"
+    case whisperLargeV3Turbo = "whisper-large-v3-turbo"
+    case whisperHinglish = "whisper-hinglish"
     case appleSpeech = "apple-speech"
     case appleIntelligence = "apple-intelligence"
 
@@ -196,6 +203,15 @@ struct DownloadResult: Encodable, Sendable {
 struct TranscriptResult: Encodable, Sendable {
     let text: String
     let language: String?
+    var quality: TranscriptQuality? = nil
+}
+
+/// How sure the model was of a transcript; which fields are present depends on the model family.
+struct TranscriptQuality: Encodable, Sendable {
+    var avgLogprob: Float? = nil
+    var compressionRatio: Float? = nil
+    var noSpeechProb: Float? = nil
+    var confidence: Float? = nil
 }
 
 enum PermissionState: String, Encodable, Sendable {

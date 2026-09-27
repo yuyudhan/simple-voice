@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use sv_domain::models::model_name;
 use sv_domain::{
     categorize, text_stats, AppCategory, AppError, AppResult, HistoryEntry, HistoryStatus,
-    NewHistory, Style,
+    NewHistory, RetryReason, Style,
 };
 
 use crate::db::Db;
@@ -24,6 +24,8 @@ struct HistoryRow {
     edited_text: Option<String>,
     error: Option<String>,
     model: String,
+    first_model: Option<String>,
+    retry_reason: Option<String>,
     format_model: Option<String>,
     language: Option<String>,
     style: String,
@@ -58,6 +60,8 @@ impl HistoryRow {
             edited_text: self.edited_text,
             error: self.error,
             model_name: display_name(&self.model),
+            first_model_name: self.first_model.as_deref().map(display_name),
+            retry_reason: self.retry_reason.as_deref().and_then(RetryReason::parse),
             format_model_name: self.format_model.as_deref().map(display_name),
             model: self.model,
             language: self.language,
@@ -85,6 +89,7 @@ struct Derived {
     word_count: i64,
     words_corrected: i64,
     app_category: &'static str,
+    retry_reason: Option<&'static str>,
 }
 
 impl Derived {
@@ -106,6 +111,7 @@ impl Derived {
             words_corrected: saturating_i64(words_corrected),
             app_category: categorize(entry.bundle_id.as_deref(), entry.app_name.as_deref())
                 .as_str(),
+            retry_reason: entry.retry_reason.map(RetryReason::as_str),
         }
     }
 }
@@ -119,50 +125,9 @@ impl Db {
                 created_at, status, raw_text, final_text, error, model, format_model, language,
                 style, audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,
                 app_name, bundle_id, app_category, audio_path, transcribe_ms, format_ms,
-                source_text
+                source_text, first_model, retry_reason
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                ?18, ?19, ?20, ?21)",
-            entry.created_at,
-            derived.status,
-            entry.raw_text,
-            entry.final_text,
-            entry.error,
-            entry.model,
-            entry.format_model,
-            entry.language,
-            derived.style,
-            entry.audio_ms,
-            entry.latency_ms,
-            derived.word_count,
-            entry.dictionary_fixes,
-            derived.words_corrected,
-            entry.app_name,
-            entry.bundle_id,
-            derived.app_category,
-            entry.audio_path,
-            entry.transcribe_ms,
-            entry.format_ms,
-            entry.source_text
-        )
-        .execute(&inner.pool)
-        .await
-        .map_err(AppError::database)?
-        .last_insert_rowid();
-        stored_entry(&inner.pool, id).await
-    }
-
-    /// Replaces every field of an existing row, e.g. after a successful retry.
-    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
-        let inner = self.read().await;
-        let derived = Derived::of(&entry);
-        let updated = sqlx::query!(
-            "UPDATE history SET
-                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
-                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
-                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
-                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,
-                transcribe_ms = ?19, format_ms = ?20, source_text = ?21
-             WHERE id = ?22",
+                ?18, ?19, ?20, ?21, ?22, ?23)",
             entry.created_at,
             derived.status,
             entry.raw_text,
@@ -184,6 +149,52 @@ impl Db {
             entry.transcribe_ms,
             entry.format_ms,
             entry.source_text,
+            entry.first_model,
+            derived.retry_reason
+        )
+        .execute(&inner.pool)
+        .await
+        .map_err(AppError::database)?
+        .last_insert_rowid();
+        stored_entry(&inner.pool, id).await
+    }
+
+    /// Replaces every field of an existing row, e.g. after a successful retry.
+    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
+        let inner = self.read().await;
+        let derived = Derived::of(&entry);
+        let updated = sqlx::query!(
+            "UPDATE history SET
+                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
+                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
+                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
+                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,
+                transcribe_ms = ?19, format_ms = ?20, source_text = ?21, first_model = ?22,
+                retry_reason = ?23
+             WHERE id = ?24",
+            entry.created_at,
+            derived.status,
+            entry.raw_text,
+            entry.final_text,
+            entry.error,
+            entry.model,
+            entry.format_model,
+            entry.language,
+            derived.style,
+            entry.audio_ms,
+            entry.latency_ms,
+            derived.word_count,
+            entry.dictionary_fixes,
+            derived.words_corrected,
+            entry.app_name,
+            entry.bundle_id,
+            derived.app_category,
+            entry.audio_path,
+            entry.transcribe_ms,
+            entry.format_ms,
+            entry.source_text,
+            entry.first_model,
+            derived.retry_reason,
             id
         )
         .execute(&inner.pool)
@@ -252,6 +263,7 @@ impl Db {
                 raw_text AS "raw_text!: String", final_text AS "final_text!: String",
                 source_text AS "source_text?: String", edited_text AS "edited_text?: String",
                 error AS "error?: String", model AS "model!: String",
+                first_model AS "first_model?: String", retry_reason AS "retry_reason?: String",
                 format_model AS "format_model?: String",
                 language AS "language?: String", style AS "style!: String",
                 audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
@@ -326,6 +338,7 @@ async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntr
             raw_text AS "raw_text!: String", final_text AS "final_text!: String",
             source_text AS "source_text?: String", edited_text AS "edited_text?: String",
             error AS "error?: String", model AS "model!: String",
+            first_model AS "first_model?: String", retry_reason AS "retry_reason?: String",
             format_model AS "format_model?: String",
             language AS "language?: String", style AS "style!: String",
             audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
@@ -397,6 +410,8 @@ mod tests {
             source_text: None,
             error: None,
             model: "groq-whisper".to_owned(),
+            first_model: None,
+            retry_reason: None,
             format_model: None,
             language: Some("en".to_owned()),
             style: Style::Formal,
@@ -533,6 +548,51 @@ mod tests {
 
         let unformatted = db.update_history(local.id, entry("Ship it")).await.unwrap();
         assert_eq!(unformatted.format_model_name, None);
+    }
+
+    #[tokio::test]
+    async fn smart_select_retry_round_trips_and_clears_on_update() {
+        let (_dir, db) = open().await;
+        let retried = db
+            .insert_history(NewHistory {
+                model: "parakeet-tdt-v2".to_owned(),
+                first_model: Some("whisper-hinglish".to_owned()),
+                retry_reason: Some(RetryReason::LowConfidence),
+                ..entry("Ship it")
+            })
+            .await
+            .unwrap();
+        assert_eq!(retried.model_name, "Parakeet TDT v2");
+        assert_eq!(
+            retried.first_model_name.as_deref(),
+            Some("Hinglish Whisper")
+        );
+        assert_eq!(retried.retry_reason, Some(RetryReason::LowConfidence));
+        let listed = db.list_history(None, 10, None).await.unwrap();
+        assert_eq!(listed[0].retry_reason, Some(RetryReason::LowConfidence));
+
+        let provider = db
+            .update_history(
+                retried.id,
+                NewHistory {
+                    first_model: Some("some/provider-model".to_owned()),
+                    retry_reason: Some(RetryReason::MixedScript),
+                    ..entry("Ship it")
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            provider.first_model_name.as_deref(),
+            Some("some/provider-model")
+        );
+        assert_eq!(provider.retry_reason, Some(RetryReason::MixedScript));
+
+        let plain = db
+            .update_history(retried.id, entry("Ship it"))
+            .await
+            .unwrap();
+        assert_eq!((plain.first_model_name, plain.retry_reason), (None, None));
     }
 
     #[tokio::test]

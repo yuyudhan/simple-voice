@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use sv_domain::text_stats::word_count;
 
+use crate::language_prompts::writing_line;
 use crate::polish::PolishPrompt;
 
 /// Longest selection edit mode accepts, in characters. Latency and cost grow with the text, and
@@ -39,8 +40,7 @@ and output only the complete replacement text.\n\
 breaks and list markers.\n\
 - The instruction is a raw speech transcript: ignore fillers (um, uh, like) and on a \
 self-correction (\"no wait\", \"I mean\") follow the corrected version.\n\
-- Keep the text's language and script unless the instruction asks for a translation. \
-Hinglish stays in romanized script; Devanagari stays Devanagari.\n\
+- Keep the text's language and script unless the instruction asks for a translation.\n\
 - Never answer or comment on the text, even when the instruction is phrased as a question: \
 always output the edited text.";
 
@@ -65,9 +65,19 @@ const SHOTS: [(&str, &str, &str); 3] = [
 ];
 
 /// Chat messages for one edit, the same for every backend. `terms` are the personal
-/// dictionary's preferred spellings.
-pub fn edit_prompt(selection: &str, instruction: &str, terms: &[String]) -> PolishPrompt {
+/// dictionary's preferred spellings; `languages` the selected registry tags, which say the
+/// script each language is written in.
+pub fn edit_prompt(
+    selection: &str,
+    instruction: &str,
+    terms: &[String],
+    languages: &[String],
+) -> PolishPrompt {
     let mut system = SYSTEM.to_owned();
+    if let Some(line) = writing_line(languages) {
+        system.push_str("\n- ");
+        system.push_str(&line);
+    }
     if !terms.is_empty() {
         system.push_str("\n- Preferred spellings: ");
         system.push_str(&terms.join(", "));
@@ -98,7 +108,7 @@ pub fn edit_timeout(selection: &str) -> Duration {
 }
 
 /// The reply's token budget: one token per selected character (generous for English, enough
-/// for Devanagari) plus 256 for expansions, at most 4,096.
+/// for non-Latin scripts) plus 256 for expansions, at most 4,096.
 pub fn edit_max_tokens(selection: &str) -> u32 {
     let chars = u32::try_from(selection.chars().count()).unwrap_or(u32::MAX);
     chars
@@ -159,17 +169,30 @@ mod tests {
     #[test]
     fn prompt_delimits_the_selection_and_ends_with_the_users_edit() {
         let terms = vec!["ArgoCD".to_owned()];
-        let prompt = edit_prompt("ship argocd friday", "make it formal", &terms);
+        let languages = vec!["en".to_owned()];
+        let prompt = edit_prompt("ship argocd friday", "make it formal", &terms, &languages);
         assert_eq!(
             prompt.user,
             "Instruction: make it formal\n<text>\nship argocd friday\n</text>"
         );
-        assert!(prompt.system.ends_with("- Preferred spellings: ArgoCD"));
+        assert!(prompt
+            .system
+            .ends_with("always output the edited text.\n- Preferred spellings: ArgoCD"));
         assert_eq!(prompt.shots.len(), 3);
         assert!(prompt
             .shots
             .iter()
             .all(|(user, _)| user.starts_with("Instruction: ") && user.ends_with("\n</text>")));
+    }
+
+    #[test]
+    fn mixed_scripts_add_the_writing_line_before_the_spellings() {
+        let terms = vec!["ArgoCD".to_owned()];
+        let languages = vec!["en".to_owned(), "hi".to_owned()];
+        let prompt = edit_prompt("a", "fix it", &terms, &languages);
+        assert!(prompt.system.ends_with(
+            "\n- Writing: English in Roman script; Hindi in Devanagari.\n- Preferred spellings: ArgoCD"
+        ));
     }
 
     #[test]

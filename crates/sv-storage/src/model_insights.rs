@@ -18,6 +18,7 @@ struct TimingRow {
     total_ms: i64,
     audio_ms: i64,
     words: i64,
+    retries: i64,
 }
 
 impl From<TimingRow> for ModelTiming {
@@ -32,6 +33,7 @@ impl From<TimingRow> for ModelTiming {
             total_ms: row.total_ms,
             audio_ms: row.audio_ms,
             words: row.words,
+            retries: row.retries,
         }
     }
 }
@@ -49,7 +51,9 @@ impl Db {
                       MAX(transcribe_ms) AS "slowest_ms!: i64",
                       SUM(transcribe_ms) AS "total_ms!: i64",
                       SUM(audio_ms) AS "audio_ms!: i64",
-                      SUM(word_count) AS "words!: i64"
+                      SUM(word_count) AS "words!: i64",
+                      (SELECT COUNT(*) FROM history AS retried
+                        WHERE retried.first_model = history.model) AS "retries!: i64"
                FROM history WHERE transcribe_ms IS NOT NULL
                GROUP BY model ORDER BY 2 DESC, 1"#
         )
@@ -66,7 +70,8 @@ impl Db {
                       MAX(format_ms) AS "slowest_ms!: i64",
                       SUM(format_ms) AS "total_ms!: i64",
                       SUM(audio_ms) AS "audio_ms!: i64",
-                      SUM(word_count) AS "words!: i64"
+                      SUM(word_count) AS "words!: i64",
+                      0 AS "retries!: i64"
                FROM history
                WHERE format_ms IS NOT NULL AND format_model IS NOT NULL
                  AND source_text IS NULL
@@ -98,6 +103,8 @@ mod tests {
             source_text: None,
             error: None,
             model: model.to_owned(),
+            first_model: None,
+            retry_reason: None,
             format_model: format.map(|(id, _)| id.to_owned()),
             language: Some("en".to_owned()),
             style: Style::Formal,
@@ -127,6 +134,12 @@ mod tests {
             ),
             // Recorded before timings existed: excluded from every aggregate.
             timed("parakeet-tdt-v3", None, None),
+            // Smart Select retried Groq's failure on Parakeet; the retry counts against Groq.
+            NewHistory {
+                first_model: Some("groq-whisper".to_owned()),
+                retry_reason: Some(sv_domain::RetryReason::Failed),
+                ..timed("parakeet-tdt-v3", Some(350), None)
+            },
         ];
         for row in rows {
             db.insert_history(row).await.unwrap();
@@ -141,8 +154,10 @@ mod tests {
         assert!((whisper.average_ms - 500.0).abs() < f64::EPSILON);
         assert_eq!((whisper.fastest_ms, whisper.slowest_ms), (400, 600));
         assert_eq!((whisper.total_ms, whisper.audio_ms), (1_500, 9_000));
+        assert_eq!(whisper.retries, 1);
         let parakeet = &insights.transcription[1];
-        assert_eq!((parakeet.runs, parakeet.total_ms), (1, 300));
+        assert_eq!((parakeet.runs, parakeet.total_ms), (2, 650));
+        assert_eq!(parakeet.retries, 0);
         assert_eq!(insights.transcription.len(), 2);
 
         let qwen = &insights.formatting[0];

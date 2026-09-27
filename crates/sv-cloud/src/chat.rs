@@ -166,6 +166,7 @@ mod tests {
             &[],
             Style::Formal,
             sv_text::PolishTarget::Chat,
+            &["en".to_owned(), "hi-Latn".to_owned()],
         );
         let body = chat_body("qwen/qwen3.8-27b", &prompt, 2048, false);
         assert_eq!(body["model"], "qwen/qwen3.8-27b");
@@ -192,6 +193,7 @@ mod tests {
             &[],
             Style::Casual,
             sv_text::PolishTarget::Chat,
+            &["en".to_owned()],
         );
         let body = chat_body("m", &prompt, 2048, true);
         assert_eq!(body["reasoning_effort"], "none");

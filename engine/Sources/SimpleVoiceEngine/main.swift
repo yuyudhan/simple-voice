@@ -12,6 +12,7 @@ final class Engine: Sendable {
     private let output: Output
     private let store: ModelStore
     private let parakeet: ParakeetEngine
+    private let whisper: WhisperEngine
     private let muter = OutputMuter()
 
     init(modelsDirectory: URL, output: Output) {
@@ -19,6 +20,7 @@ final class Engine: Sendable {
         let store = ModelStore(root: modelsDirectory)
         self.store = store
         parakeet = ParakeetEngine(store: store)
+        whisper = WhisperEngine(store: store)
     }
 
     func accept(_ line: String) {
@@ -128,7 +130,7 @@ final class Engine: Sendable {
 
     private func modelStatus(_ id: ModelID, language: String?) async -> ModelStatusResult {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish:
             guard let hub = HubModel.forModel(id) else { return .unsupported("unknown model") }
             return store.status(of: hub)
         case .appleSpeech:
@@ -144,7 +146,7 @@ final class Engine: Sendable {
 
     private func download(_ id: ModelID, language: String?, progress: ProgressSink) async throws {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish:
             let hub = try hubModel(id)
             try await store.download(hub, progress: progress)
         case .appleSpeech:
@@ -165,6 +167,10 @@ final class Engine: Sendable {
             await parakeet.unload(id)
             let hub = try hubModel(id)
             try await store.delete(hub)
+        case .whisperLargeV3Turbo, .whisperHinglish:
+            await whisper.unload(id)
+            let hub = try hubModel(id)
+            try await store.delete(hub)
         case .appleSpeech:
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             await AppleSpeech.releaseReservations()
@@ -177,6 +183,8 @@ final class Engine: Sendable {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
             try await parakeet.preload(id)
+        case .whisperLargeV3Turbo, .whisperHinglish:
+            try await whisper.preload(id)
         case .appleSpeech:
             // SpeechAnalyzer loads per request; preloading verifies the assets are in place.
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
@@ -195,6 +203,14 @@ final class Engine: Sendable {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
             let samples = try AudioLoader.loadSamples(path: params.wavPath)
             return try await parakeet.transcribe(id, samples: samples, language: params.language)
+        case .whisperLargeV3Turbo, .whisperHinglish:
+            let samples = try AudioLoader.loadSamples(path: params.wavPath)
+            let request = WhisperRequest(
+                language: params.language,
+                languages: params.languages ?? [],
+                prompt: params.prompt
+            )
+            return try await whisper.transcribe(id, samples: samples, request: request)
         case .appleSpeech:
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             return try await AppleSpeech.transcribe(path: params.wavPath, language: params.language)

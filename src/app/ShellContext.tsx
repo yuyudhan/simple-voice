@@ -1,7 +1,7 @@
 // FilePath: src/app/ShellContext.tsx
 import { createContext, useContext } from "react";
 
-const SETTINGS_SECTIONS = ["general", "system", "models", "permissions", "data"] as const;
+const SETTINGS_SECTIONS = ["dictation", "transcription", "formatting", "app", "privacy"] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 

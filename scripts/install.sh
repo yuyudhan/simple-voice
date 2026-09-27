@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FilePath: scripts/install.sh
-# Installs or updates Simple Voice. Published with every GitHub release as
+# Installs, updates or uninstalls Simple Voice. Published with every GitHub release as
 # releases/latest/download/install.sh; README.md#install has the one-line curl command that
 # pipes it into bash.
 #
@@ -19,8 +19,14 @@
 # The app's Install button runs this same pipe without a terminal; a failure after the app quit
 # reopens the old app.
 #
+# Uninstalling quits the app, deletes it and what macOS keeps for it under ~/Library, and
+# resets its privacy permissions. The user's data in ~/.simplevoice stays unless --purge is
+# given, so a later reinstall picks up history, dictionary and settings again.
+#
 # Options:
 #   --version X.Y.Z    Install that release instead of the latest.
+#   --uninstall        Remove the app and its permissions; keep the data in ~/.simplevoice.
+#   --purge            With --uninstall, also delete ~/.simplevoice and a moved database.
 set -euo pipefail
 
 repo="yuyudhan/simple-voice"
@@ -28,6 +34,10 @@ bundle_id="dev.yuyudhan.simplevoice"
 apps_dir="${HOME}/Applications"
 app="${apps_dir}/Simple Voice.app"
 legacy_app="/Applications/Simple Voice.app"
+# What tauri-plugin-autostart wrote before the app switched to SMAppService.
+legacy_agent="${HOME}/Library/LaunchAgents/Simple Voice.plist"
+data_dir="${HOME}/.simplevoice"
+database_file="simple-voice.db"
 # Matches the bundle's executable wherever it is installed.
 executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice"
 
@@ -42,16 +52,23 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Install or update Simple Voice.
+Install, update or uninstall Simple Voice.
 
-usage: bash -s -- [--version X.Y.Z]   (piped), or bash install.sh [options]
+usage: bash -s -- [options]   (piped), or bash install.sh [options]
 
   --version X.Y.Z    Install that release instead of the latest.
+  --uninstall        Remove the app and its permissions; keep the data in ~/.simplevoice.
+  --purge            With --uninstall, also delete ~/.simplevoice (history, dictionary,
+                     settings, models) and the database in a folder it was moved to.
 EOF
 }
 
-check_platform() {
+check_macos() {
     [ "$(uname -s)" = "Darwin" ] || fail "Simple Voice runs on macOS only"
+}
+
+check_platform() {
+    check_macos
     # `uname -m` reports x86_64 under Rosetta, so ask the hardware instead.
     [ "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = "1" ] ||
         fail "Simple Voice needs an Apple Silicon Mac"
@@ -167,8 +184,64 @@ cleanup() {
     fi
 }
 
+# A database moved in Settings > Privacy & data sits in a folder the user chose, which may hold
+# their own files, so only the database files go and the folder stays.
+remove_moved_database() {
+    local pointer="${data_dir}/location" dir suffix
+    [ -f "$pointer" ] || return 0
+    dir=$(<"$pointer")
+    case "$dir" in
+        /*) ;;
+        *) return 0 ;;
+    esac
+    if [ ! -d "$dir" ]; then
+        say "the moved database folder ${dir} is not available; delete ${database_file} there yourself"
+        return 0
+    fi
+    for suffix in "" "-wal" "-shm"; do
+        rm -f "${dir}/${database_file}${suffix}"
+    done
+    say "deleted the database in ${dir}"
+}
+
+uninstall() {
+    local purge=$1 id
+    if is_running; then
+        quit_app
+    fi
+
+    if [ -e "$app" ]; then
+        rm -rf "$app"
+        say "removed ${app}"
+    fi
+    remove_legacy_app
+
+    # Development builds use ".dev" identifiers and are deliberately left alone.
+    for id in "$bundle_id" "${bundle_id}.engine"; do
+        rm -rf "${HOME}/Library/Caches/${id}" "${HOME}/Library/HTTPStorages/${id}" \
+            "${HOME}/Library/WebKit/${id}" "${HOME}/Library/Saved Application State/${id}.savedState"
+        # Through cfprefsd, which would otherwise write a cached copy back.
+        defaults delete "$id" >/dev/null 2>&1 || true
+        # Fails when macOS holds no grant for the identifier, which is fine.
+        tccutil reset All "$id" >/dev/null 2>&1 || true
+    done
+    rm -f "$legacy_agent"
+    say "reset the Microphone, Accessibility and Speech Recognition permissions"
+
+    if $purge; then
+        remove_moved_database
+        rm -rf "$data_dir"
+        say "deleted ${data_dir}"
+    elif [ -d "$data_dir" ]; then
+        say "kept your data in ${data_dir}; rerun with --uninstall --purge to delete it"
+    fi
+    say "Simple Voice is uninstalled"
+}
+
 main() {
     version=""
+    action="install"
+    purge=false
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --version)
@@ -176,6 +249,8 @@ main() {
                 version=${2#v}
                 shift
                 ;;
+            --uninstall) action="uninstall" ;;
+            --purge) purge=true ;;
             -h | --help)
                 usage
                 return 0
@@ -184,6 +259,16 @@ main() {
         esac
         shift
     done
+
+    if [ "$action" = "uninstall" ]; then
+        [ -z "$version" ] || fail "--version and --uninstall cannot be combined"
+        check_macos
+        uninstall "$purge"
+        return 0
+    fi
+    if $purge; then
+        fail "--purge only goes with --uninstall"
+    fi
 
     check_platform
 
@@ -213,7 +298,7 @@ main() {
 macOS ties the Microphone, Accessibility and Speech Recognition permissions to the app's
 signature. If dictation stops recording or pasting after an update, open System Settings >
 Privacy & Security, remove Simple Voice from the affected list, and grant it again from the
-app's Settings > Permissions.
+app's Settings > Privacy & data.
 EOF
 }
 

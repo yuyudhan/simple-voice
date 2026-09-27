@@ -17,9 +17,12 @@ export interface Settings {
     toggleShortcut: string;
     /** Hold to edit the selected text by voice; empty = edit mode off. Never "Fn". */
     editShortcut: string;
+    /** Esc cancels a recording in progress; off by default. */
+    escapeCancels: boolean;
     microphone: string | null;
     languages: string[];
     fallbackLanguage: string;
+    /** A model id, or "smart-select" to let the app pick per dictation. */
     transcriptionModel: string;
     style: Style;
     groqApiKeyPresent: boolean;
@@ -45,6 +48,8 @@ export interface Settings {
     dictionarySort: DictionarySort;
     /** Learn dictionary words from corrections made to pasted text; needs post-processing. */
     learnFromEdits: boolean;
+    /** Smart Select re-runs a dictation whose result looks unclear on the route's other model. */
+    smartRetry: boolean;
     databaseDir: string;
 }
 
@@ -61,6 +66,10 @@ export interface Microphone {
 
 export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped" | "not_pasted";
 
+/** Why Smart Select retried; "mixed_script" = Groq wrote a romanised language (e.g. Hinglish)
+ * partly in that language's own script. */
+export type RetryReason = "failed" | "low_confidence" | "mixed_script";
+
 export type AppCategory =
     "work_messages" | "personal_messages" | "email" | "documents" | "ai_prompts" | "code" | "other";
 
@@ -74,7 +83,12 @@ export interface HistoryEntry {
     sourceText: string | null;
     error: string | null;
     model: string;
+    /** The model that produced `rawText`. */
     modelName: string;
+    /** Set only when Smart Select retried: the model tried first. */
+    firstModelName: string | null;
+    /** Why the first model's result was retried; set exactly when `firstModelName` is. */
+    retryReason: RetryReason | null;
     /** Set only when a formatting pass produced the pasted text. */
     formatModelName: string | null;
     language: string | null;
@@ -184,6 +198,8 @@ export interface ModelTiming {
     totalMs: number;
     audioMs: number;
     words: number;
+    /** Dictations where this model ran first and Smart Select retried on another model. */
+    retries: number;
 }
 
 /** Each list sorted by runs, descending. */
@@ -193,7 +209,7 @@ export interface ModelInsights {
 }
 
 export type ModelKind = "transcription" | "post_processing";
-export type ModelProvider = "groq" | "parakeet" | "apple" | "custom";
+export type ModelProvider = "groq" | "parakeet" | "apple" | "whisper" | "custom";
 export type ModelStatus = "cloud" | "ready" | "not_downloaded" | "downloading" | "unsupported";
 
 export interface ModelInfo {
@@ -213,6 +229,30 @@ export interface ModelInfo {
     progress: number | null;
 }
 
+/** What Smart Select will run for the current languages. */
+export interface SmartSelectPlan {
+    /** A Groq key is saved, so Groq Whisper runs first and the local model is the fallback. */
+    groq: boolean;
+    /** Model id of the one local model of the route. */
+    local: string;
+    /** Set only when the local model can't write a selected language as chosen. */
+    notice: string | null;
+}
+
+/** One entry of the language registry, as the language picker offers it. */
+export interface LanguageInfo {
+    /** BCP 47 tag stored in settings: "en", "hi", "hi-Latn". */
+    tag: string;
+    name: string;
+    /** How it is written ("Roman script", "Devanagari"), only when another entry shares its base
+     * language and the script is what tells them apart. */
+    script: string | null;
+    /** Offered as a one-click chip. */
+    primary: boolean;
+    /** May be the fallback language. */
+    fallback: boolean;
+}
+
 export interface Permissions {
     microphone: PermissionStatus;
     accessibility: PermissionStatus;
@@ -225,6 +265,8 @@ export interface AppInfo {
     databasePath: string;
     modelsDir: string;
     engineVersion: string | null;
+    /** Debug build (`just dev`); the sidebar labels it apart from the installed app. */
+    dev: boolean;
 }
 
 export interface Release {
@@ -302,6 +344,8 @@ export const api = {
     listModels: () => invoke<ModelInfo[]>("list_models"),
     downloadModel: (id: string) => invoke<null>("download_model", { id }),
     deleteModel: (id: string) => invoke<null>("delete_model", { id }),
+    smartSelectPlan: () => invoke<SmartSelectPlan>("smart_select_plan"),
+    listLanguages: () => invoke<LanguageInfo[]>("list_languages"),
     getPermissions: () => invoke<Permissions>("get_permissions"),
     requestPermission: (kind: PermissionKind) =>
         invoke<Permissions>("request_permission", { kind }),

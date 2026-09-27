@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use reqwest::multipart::{Form, Part};
+use serde::de::IgnoredAny;
 use serde::Deserialize;
-use sv_domain::{AppError, AppResult};
+use sv_domain::{AppError, AppResult, TranscriptQuality};
 
 const TRANSCRIPTION_URL: &str = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODELS_URL: &str = "https://api.groq.com/openai/v1/models";
@@ -66,11 +67,13 @@ const LANGUAGE_CODES: &[(&str, &str)] = &[
     ("tagalog", "tl"),
 ];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Transcript {
     pub text: String,
     /// ISO 639-1 code of the language the text is in, when known.
     pub language: Option<String>,
+    /// Aggregated over the segments of the response the text came from.
+    pub quality: TranscriptQuality,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,6 +82,59 @@ struct WhisperResponse {
     text: String,
     #[serde(default)]
     language: Option<String>,
+    #[serde(default)]
+    segments: Vec<Segment>,
+}
+
+/// One `verbose_json` segment; only the fields the quality gate reads.
+#[derive(Debug, Deserialize)]
+struct Segment {
+    #[serde(default)]
+    avg_logprob: Option<f32>,
+    #[serde(default)]
+    compression_ratio: Option<f32>,
+    #[serde(default)]
+    no_speech_prob: Option<f32>,
+    /// Only the count matters: it weights the segment's means.
+    #[serde(default)]
+    tokens: Vec<IgnoredAny>,
+}
+
+impl WhisperResponse {
+    fn into_transcript(self, language: Option<String>) -> Transcript {
+        Transcript {
+            text: self.text.trim().to_owned(),
+            language,
+            quality: segment_quality(&self.segments),
+        }
+    }
+}
+
+/// Aggregates like the engine helper does for local Whisper: log probability and no-speech
+/// probability are means weighted by each segment's token count (1 for a segment without
+/// tokens), the compression ratio is the worst (highest) segment's.
+fn segment_quality(segments: &[Segment]) -> TranscriptQuality {
+    let weighted = |value: fn(&Segment) -> Option<f32>| {
+        let (sum, weight) = segments
+            .iter()
+            .filter_map(|segment| {
+                let weight = segment.tokens.len().max(1) as f64;
+                value(segment).map(|value| (f64::from(value) * weight, weight))
+            })
+            .fold((0.0, 0.0), |(sum, total), (value, weight)| {
+                (sum + value, total + weight)
+            });
+        (weight > 0.0).then(|| (sum / weight) as f32)
+    };
+    TranscriptQuality {
+        avg_logprob: weighted(|segment| segment.avg_logprob),
+        compression_ratio: segments
+            .iter()
+            .filter_map(|segment| segment.compression_ratio)
+            .reduce(f32::max),
+        no_speech_prob: weighted(|segment| segment.no_speech_prob),
+        confidence: None,
+    }
 }
 
 /// Transcribes a WAV recording. `languages` are the allowed ISO 639-1 codes; `prompt` biases
@@ -94,33 +150,25 @@ pub async fn groq_transcribe(
     // `Bytes` lets the re-run reuse the upload buffer without copying it.
     let wav = Bytes::from(wav);
     let detected = request(client, key, wav.clone(), prompt, None).await?;
-    let Some(name) = detected.language.as_deref() else {
-        return Ok(Transcript {
-            text: detected.text.trim().to_owned(),
-            language: None,
-        });
+    let Some(name) = detected.language.clone() else {
+        return Ok(detected.into_transcript(None));
     };
 
-    let code = language_code(name);
+    let code = language_code(&name);
     let allowed = code.is_some_and(|code| languages.iter().any(|l| l.eq_ignore_ascii_case(code)));
     let fallback = fallback_language.trim();
     if allowed || fallback.is_empty() {
-        return Ok(Transcript {
-            text: detected.text.trim().to_owned(),
-            language: code.map(str::to_owned),
-        });
+        return Ok(detected.into_transcript(code.map(str::to_owned)));
     }
 
     tracing::info!(
-        detected = name,
+        detected = name.as_str(),
         fallback,
         "language outside the allowed set; re-running"
     );
+    // The pinned re-run's text is what gets used, so its segments are the ones that count.
     let pinned = request(client, key, wav, prompt, Some(fallback)).await?;
-    Ok(Transcript {
-        text: pinned.text.trim().to_owned(),
-        language: Some(fallback.to_owned()),
-    })
+    Ok(pinned.into_transcript(Some(fallback.to_owned())))
 }
 
 /// Checks a key against Groq's model list, so Settings can confirm it before saving.
@@ -247,5 +295,55 @@ mod tests {
             http_error(503, b"upstream down"),
             AppError::Network("Groq HTTP 503".into())
         );
+    }
+
+    /// Shaped like Groq's `verbose_json` response for a two-segment Hinglish clip.
+    const VERBOSE_JSON: &str = r#"{
+        "task": "transcribe", "language": "Hindi", "duration": 6.2,
+        "text": " Kal meeting hai. Please send the deck.",
+        "segments": [
+            {"id": 0, "seek": 0, "start": 0.0, "end": 2.4, "text": " Kal meeting hai.",
+             "tokens": [50365, 12489, 3440, 10737, 13, 50485], "temperature": 0.0,
+             "avg_logprob": -0.5, "compression_ratio": 0.9, "no_speech_prob": 0.02},
+            {"id": 1, "seek": 0, "start": 2.4, "end": 6.2, "text": " Please send the deck.",
+             "tokens": [50485, 2555], "temperature": 0.0,
+             "avg_logprob": -1.3, "compression_ratio": 2.6, "no_speech_prob": 0.1}
+        ],
+        "x_groq": {"id": "req_01"}
+    }"#;
+
+    #[test]
+    fn quality_weights_means_by_tokens_and_keeps_the_worst_compression() {
+        let response: WhisperResponse = serde_json::from_str(VERBOSE_JSON).unwrap();
+        let transcript = response.into_transcript(Some("hi".to_owned()));
+        assert_eq!(transcript.text, "Kal meeting hai. Please send the deck.");
+        let quality = transcript.quality;
+        // (6 × -0.5 + 2 × -1.3) / 8 and (6 × 0.02 + 2 × 0.1) / 8.
+        assert!((quality.avg_logprob.unwrap() - -0.7).abs() < 1e-5);
+        assert!((quality.no_speech_prob.unwrap() - 0.04).abs() < 1e-5);
+        assert_eq!(quality.compression_ratio, Some(2.6));
+        assert_eq!(quality.confidence, None);
+    }
+
+    #[test]
+    fn segments_without_tokens_weigh_one_and_missing_fields_are_skipped() {
+        let json = r#"{"text": "ok", "segments": [
+            {"avg_logprob": -0.2, "compression_ratio": 1.1},
+            {"avg_logprob": -0.8, "tokens": []},
+            {"tokens": [1, 2, 3]}
+        ]}"#;
+        let response: WhisperResponse = serde_json::from_str(json).unwrap();
+        let quality = response.into_transcript(None).quality;
+        assert!((quality.avg_logprob.unwrap() - -0.5).abs() < 1e-6);
+        assert_eq!(quality.no_speech_prob, None);
+        assert_eq!(quality.compression_ratio, Some(1.1));
+    }
+
+    #[test]
+    fn a_response_without_segments_has_no_quality() {
+        let response: WhisperResponse = serde_json::from_str(r#"{"text": " hi "}"#).unwrap();
+        let transcript = response.into_transcript(None);
+        assert_eq!(transcript.text, "hi");
+        assert_eq!(transcript.quality, TranscriptQuality::default());
     }
 }

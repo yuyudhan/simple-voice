@@ -194,6 +194,13 @@
     color: var(--on-ink);
 }
 
+/* Whisper runs on this Mac through WhisperKit: a neutral hairline mark, not a vendor colour. */
+.sv-provider--whisper {
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+}
+
 .sv-provider--custom {
     border: 1px solid var(--border);
     background: var(--surface);

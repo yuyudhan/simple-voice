@@ -38,15 +38,17 @@ Then open **Simple Voice** from Spotlight or `~/Applications` and grant the perm
 | Task                          | How                                                                   |
 | ----------------------------- | --------------------------------------------------------------------- |
 | Upgrade                       | Click **Install update** in the app, or run the install command again |
-| Uninstall                     | `rm -rf ~/Applications/"Simple Voice.app"`                            |
-| Uninstall and delete all data | The line above, then `rm -rf ~/.simplevoice`                          |
+| Uninstall                     | `... \| bash -s -- --uninstall`                                       |
+| Uninstall and delete all data | `... \| bash -s -- --uninstall --purge`                               |
+
+Uninstalling quits the app, removes it and resets its permissions; your history, dictionary and settings stay in `~/.simplevoice` for a later reinstall. `--purge` deletes them too, including a database you moved in Settings → Privacy & data (the folder itself and any other files in it stay).
 
 Releases are signed with the project's own certificate, so macOS keeps Simple Voice's permissions across upgrades. Until Apple notarizes them, the install script clears the download quarantine so macOS opens the app.
 
 ## Why Simple Voice
 
 - **Works everywhere.** Mail, chat, your editor, a terminal: the text is pasted where your cursor is.
-- **Cloud or on-device, your pick.** Groq in the cloud, or Parakeet, Apple Speech and Apple Intelligence on your Mac. Any OpenAI-compatible endpoint, like a local Ollama or LM Studio, works too.
+- **Cloud or on-device, your pick.** Smart Select picks the model from the languages you speak. Groq in the cloud, or Parakeet, Whisper (Hindi and Hinglish too), Apple Speech and Apple Intelligence on your Mac. Any OpenAI-compatible endpoint, like a local Ollama or LM Studio, works too.
 - **Reads like you wrote it.** Fillers and false starts are dropped, lists get laid out, and your dictionary spells names and jargon your way.
 - **Yours alone.** No account, no telemetry. History, dictionary and insights stay on your Mac.
 
@@ -58,7 +60,7 @@ See [all features](docs/features.md).
 
 ![Hold fn and speak, speech to text, clean up, pasted in place](docs/images/how-it-works.gif)
 
-Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Esc cancels. Both shortcuts can be changed in Settings.
+Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Both shortcuts can be changed in Settings, where you can also let Esc cancel a recording (off by default).
 
 To change text you already wrote, select it in any app, hold **Option+/** and say how to change it: "make this more formal", "turn this into bullets", "fix the typos". The rewrite replaces the selection, and Cmd+Z undoes it.
 
@@ -66,9 +68,9 @@ To change text you already wrote, select it in any app, hold **Option+/** and sa
 
 |                | Cloud                                   | On-device                                                                                            |
 | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Speech to text | Groq Whisper (100+ languages)           | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Apple Speech |
+| Speech to text | Groq Whisper (100+ languages)           | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech |
 | Clean up       | Groq, or any OpenAI-compatible endpoint | Apple Intelligence, or a local Ollama or LM Studio                                                   |
-| You need       | A Groq API key                          | A one-time model download (250 to 480 MB); Apple Speech and Apple Intelligence need macOS 26         |
+| You need       | A Groq API key                          | A one-time model download (250 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26      |
 
 Mix and match: any speech engine works with any clean-up provider, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost.
 
@@ -80,7 +82,7 @@ Mix and match: any speech engine works with any clean-up provider, and clean-up 
 - **Insights.** Speaking speed, words, streaks and where you dictate.
 - **Dictionary.** Names, jargon and `heard -> written` rules.
 - **Style.** Formal or Casual, applied everywhere.
-- **Models.** Pick a cloud or on-device voice model.
+- **Transcription.** Pick a cloud or on-device voice model.
 
 ## Your data stays yours
 

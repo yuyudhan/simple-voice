@@ -36,10 +36,10 @@ export function App() {
     useTauriEvent(events.navigate, (target) => {
         const handlers: Record<NavigateTarget, () => void> = {
             settings: () => {
-                setPage("general");
+                setPage("dictation");
             },
             updates: () => {
-                setPage("system");
+                setPage("app");
             },
         };
         handlers[target]();

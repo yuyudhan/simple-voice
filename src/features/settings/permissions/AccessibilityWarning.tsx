@@ -7,7 +7,7 @@
 import { TriangleAlert } from "lucide-react";
 import { useSettings } from "../../../app/SettingsContext";
 import { FN_KEY } from "../shortcuts/accelerator";
-import { PermissionAction } from "./PermissionsSection";
+import { PermissionAction } from "./PermissionsGroup";
 import { usePermissions } from "./usePermissions";
 import "./AccessibilityWarning.css";
 

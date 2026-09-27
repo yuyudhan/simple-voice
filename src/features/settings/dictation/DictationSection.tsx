@@ -1,49 +1,21 @@
-// FilePath: src/features/settings/general/GeneralSection.tsx
+// FilePath: src/features/settings/dictation/DictationSection.tsx
+// Settings → Dictation: everything between pressing a shortcut and the text landing in the app:
+// how a recording starts, what it records, how the text is pasted, and the cues along the way.
 import { useCallback, useEffect, useState } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
-import { api, errorMessage, type Microphone, type Theme } from "../../../lib/api";
+import { api, errorMessage, type Microphone } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import {
-    Segmented,
-    Select,
-    SettingRow,
-    SettingsGroup,
-    Toggle,
-    type SegmentedOption,
-} from "../../../ui";
+import { Select, SettingRow, SettingsGroup, Toggle } from "../../../ui";
 import { AccessibilityWarning } from "../permissions/AccessibilityWarning";
 import { ShortcutRecorder } from "../shortcuts/ShortcutRecorder";
-import { LanguagePicker } from "./LanguagePicker";
+import { FeedbackGroup } from "./FeedbackGroup";
+import { EscapeCancelsRow } from "./EscapeCancelsRow";
 import "../common.css";
-import "./general.css";
+import "./dictation.css";
 
 // Select values are strings; the empty string stands for automatic selection (null).
 const AUTOMATIC = "";
 
-const THEME_OPTIONS: SegmentedOption<Theme>[] = [
-    { value: "system", label: "System", icon: <Monitor /> },
-    { value: "light", label: "Light", icon: <Sun /> },
-    { value: "dark", label: "Dark", icon: <Moon /> },
-];
-
-const LEARNING_DESCRIPTION =
-    "After a dictation is pasted, Simple Voice reads that text field for up to a minute. When " +
-    "you fix a misspelled name or term, only the changed words are sent to your post-processing " +
-    "model, which decides whether to add them to your dictionary.";
-
-function ThemeSelect() {
-    const { settings, update } = useSettings();
-    return (
-        <Segmented
-            label="Theme"
-            value={settings.theme}
-            options={THEME_OPTIONS}
-            onChange={(theme) => {
-                void update({ theme });
-            }}
-        />
-    );
-}
+const MAX_LENGTH_MINUTES = [1, 2, 5, 10, 15, 30];
 
 function MicrophoneSelect() {
     const { settings, update } = useSettings();
@@ -90,7 +62,7 @@ function MicrophoneSelect() {
     }
 
     return (
-        <div className="sv-general__mic">
+        <div className="sv-dictation__mic">
             <Select
                 value={current ?? AUTOMATIC}
                 options={options}
@@ -107,45 +79,61 @@ function MicrophoneSelect() {
     );
 }
 
-function LearningRow() {
+function RecordingGroup() {
     const { settings, update } = useSettings();
-    // The post-processing model is the one deciding what to learn, so without it nothing can be.
-    const unavailable = settings.postProcessing === "off";
+
+    const maxOptions = MAX_LENGTH_MINUTES.map((m) => ({
+        value: String(m * 60),
+        label: m === 1 ? "1 minute" : `${String(m)} minutes`,
+    }));
+    if (!maxOptions.some((o) => o.value === String(settings.maxRecordingSeconds))) {
+        maxOptions.push({
+            value: String(settings.maxRecordingSeconds),
+            label: `${String(Math.round(settings.maxRecordingSeconds / 60))} minutes`,
+        });
+    }
+
     return (
-        <SettingRow
-            title="Learn from your corrections"
-            description={
-                <>
-                    {LEARNING_DESCRIPTION}
-                    {unavailable && (
-                        <p className="sv-inline-note sv-learning__note">
-                            Needs AI post-processing (Settings → Models).
-                        </p>
-                    )}
-                </>
-            }
-        >
-            <Toggle
-                label="Learn from your corrections"
-                checked={settings.learnFromEdits}
-                disabled={unavailable}
-                onChange={(learnFromEdits) => {
-                    void update({ learnFromEdits });
-                }}
-            />
-        </SettingRow>
+        <SettingsGroup title="Recording">
+            <SettingRow
+                title="Input device"
+                description="Bluetooth headsets drop to a low-quality mode while recording, so the built-in microphone is preferred."
+            >
+                <MicrophoneSelect />
+            </SettingRow>
+            <SettingRow
+                title="Maximum recording length"
+                description="A recording that runs this long is stopped and transcribed automatically."
+            >
+                <Select
+                    value={String(settings.maxRecordingSeconds)}
+                    options={maxOptions}
+                    onChange={(value) => {
+                        void update({ maxRecordingSeconds: Number(value) });
+                    }}
+                />
+            </SettingRow>
+            <SettingRow
+                title="Mute all audio while dictating"
+                description="Silences music and videos while you speak so the microphone hears only you. Your previous output state is restored afterwards."
+            >
+                <Toggle
+                    label="Mute all audio while dictating"
+                    checked={settings.muteWhileDictating}
+                    onChange={(muteWhileDictating) => {
+                        void update({ muteWhileDictating });
+                    }}
+                />
+            </SettingRow>
+        </SettingsGroup>
     );
 }
 
-export function GeneralSection() {
+export function DictationSection() {
+    const { settings, update } = useSettings();
+
     return (
         <>
-            <SettingsGroup title="Appearance">
-                <SettingRow title="Theme" description="System follows your Mac's appearance.">
-                    <ThemeSelect />
-                </SettingRow>
-            </SettingsGroup>
-
             <SettingsGroup title="Shortcuts">
                 <SettingRow
                     title="Hold to speak"
@@ -155,7 +143,7 @@ export function GeneralSection() {
                 </SettingRow>
                 <SettingRow
                     title="Toggle to speak"
-                    description="Press once to start and again to stop. Esc cancels a recording."
+                    description="Press once to start and again to stop."
                 >
                     <ShortcutRecorder field="toggleShortcut" />
                 </SettingRow>
@@ -165,25 +153,28 @@ export function GeneralSection() {
                 >
                     <ShortcutRecorder field="editShortcut" />
                 </SettingRow>
+                <EscapeCancelsRow />
             </SettingsGroup>
             <AccessibilityWarning placement="inline" />
 
-            <SettingsGroup title="Microphone">
+            <RecordingGroup />
+
+            <SettingsGroup title="Pasting">
                 <SettingRow
-                    title="Input device"
-                    description="Bluetooth headsets drop to a low-quality mode while recording, so the built-in microphone is preferred."
+                    title="Restore clipboard after pasting"
+                    description="Text is pasted through the clipboard. Off keeps the dictated text there; on puts back what was there before."
                 >
-                    <MicrophoneSelect />
+                    <Toggle
+                        label="Restore clipboard after pasting"
+                        checked={settings.restoreClipboard}
+                        onChange={(restoreClipboard) => {
+                            void update({ restoreClipboard });
+                        }}
+                    />
                 </SettingRow>
             </SettingsGroup>
 
-            <SettingsGroup title="Dictation languages">
-                <LanguagePicker />
-            </SettingsGroup>
-
-            <SettingsGroup title="Learning">
-                <LearningRow />
-            </SettingsGroup>
+            <FeedbackGroup />
         </>
     );
 }

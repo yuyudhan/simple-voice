@@ -123,6 +123,36 @@ Tauri build script refuses to run without it. `just test` also runs `swift build
 Building needs the macOS 26 SDK (Xcode 26+ or its Command Line Tools) for SpeechAnalyzer and
 FoundationModels; the binary links FoundationModels weakly and still runs on macOS 14.
 
+## Transcription eval
+
+`scripts/eval/transcription-eval.sh` runs a folder of labelled clips through transcription models
+and prints word error rate, the share of romanised output, speed and the quality numbers Smart
+Select gates on (requirement M-11). Clips are `<category>-<name>.wav` (16 kHz mono PCM16) with
+the expected text in `<category>-<name>.txt`; record your own dictations for real numbers.
+
+```sh
+just engine
+GROQ_API_KEY=... scripts/eval/transcription-eval.sh --clips ~/sv-clips \
+    --models groq-whisper,whisper-hinglish,whisper-large-v3-turbo,parakeet-tdt-v3 --out eval.tsv
+```
+
+Engine models are read from `~/.simplevoice/models` (`--models-dir` to change) and must be
+downloaded. The first run of a Whisper model includes its one-time Core ML compile.
+
+The run that chose Smart Select's models used 36 macOS `say` clips (English, Hindi and Hinglish
+voices, some with white noise) plus two real dictations:
+
+| Model            | English WER | Hindi | Hinglish romanised | Warm time per clip |
+| ---------------- | ----------- | ----- | ------------------ | ------------------ |
+| Groq Whisper     | 4.3%        | 4.9% WER, Devanagari | 3 of 16      | ~0.4 s (network)   |
+| Whisper Turbo    | 4.3%        | 8.2% WER, Devanagari | 3 of 16      | ~1.1 s             |
+| Hinglish Whisper | 8.6%        | romanised            | 16 of 16     | ~1.9 s             |
+| Parakeet TDT v3  | 4.3%        | unusable             | —            | ~0.1 s             |
+
+Groq's average log-probability stayed above -0.52 on every clip, including wrong ones, so the
+Whisper floor stays at -1.0; Groq writing Hinglish half in Devanagari is caught by the mixed-script
+check instead.
+
 ## Permissions during development
 
 macOS remembers Microphone, Accessibility and Speech Recognition grants per code signature.
@@ -131,14 +161,16 @@ may forget a grant or show a stale entry that no longer matches:
 
 - If recording or pasting stops working after a rebuild, open System Settings → Privacy &
   Security, remove Simple Voice (and `simple-voice-engine`, if listed) from the affected list,
-  then grant it again from the app's Settings → Permissions.
+  then grant it again from the app's Settings → Privacy & data.
 - `tccutil reset Accessibility dev.yuyudhan.simplevoice` (or `Microphone`,
   `SpeechRecognition`) clears a grant from the command line.
 - `just dev` merges `src-tauri/tauri.dev.conf.json` and runs the debug engine helper, which
   embeds `engine/Info.dev.plist`. A development run is therefore named "Simple Voice Dev", with
   the identifiers `dev.yuyudhan.simplevoice.dev` (app) and `dev.yuyudhan.simplevoice.dev.engine`
   (helper), so it never shares an identity with the installed Simple Voice. Release builds
-  (`just build`) keep "Simple Voice" and `dev.yuyudhan.simplevoice`.
+  (`just build`) keep "Simple Voice" and `dev.yuyudhan.simplevoice`. Debug builds also report
+  `dev: true` from `app_info`, and the sidebar shows "(dev)" in place of the version,
+  so the two windows are distinguishable side by side. Both still share `~/.simplevoice`.
 - `just dev` runs the bare binary, not an app bundle, so macOS attributes its permissions to
   the terminal that started it (with tmux, the terminal that started the tmux server). Grant
   Accessibility and Microphone to that terminal, then restart `just dev`; a "Simple Voice" entry

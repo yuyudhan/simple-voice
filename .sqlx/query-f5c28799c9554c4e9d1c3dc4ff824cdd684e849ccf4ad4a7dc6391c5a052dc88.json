@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT model AS \"model!: String\",\n                      COUNT(*) AS \"runs!: i64\",\n                      AVG(transcribe_ms) AS \"average_ms!: f64\",\n                      MIN(transcribe_ms) AS \"fastest_ms!: i64\",\n                      MAX(transcribe_ms) AS \"slowest_ms!: i64\",\n                      SUM(transcribe_ms) AS \"total_ms!: i64\",\n                      SUM(audio_ms) AS \"audio_ms!: i64\",\n                      SUM(word_count) AS \"words!: i64\"\n               FROM history WHERE transcribe_ms IS NOT NULL\n               GROUP BY model ORDER BY 2 DESC, 1",
+  "query": "SELECT model AS \"model!: String\",\n                      COUNT(*) AS \"runs!: i64\",\n                      AVG(transcribe_ms) AS \"average_ms!: f64\",\n                      MIN(transcribe_ms) AS \"fastest_ms!: i64\",\n                      MAX(transcribe_ms) AS \"slowest_ms!: i64\",\n                      SUM(transcribe_ms) AS \"total_ms!: i64\",\n                      SUM(audio_ms) AS \"audio_ms!: i64\",\n                      SUM(word_count) AS \"words!: i64\",\n                      (SELECT COUNT(*) FROM history AS retried\n                        WHERE retried.first_model = history.model) AS \"retries!: i64\"\n               FROM history WHERE transcribe_ms IS NOT NULL\n               GROUP BY model ORDER BY 2 DESC, 1",
   "describe": {
     "columns": [
       {
@@ -55,6 +55,12 @@
         "ordinal": 7,
         "type_info": "Integer",
         "origin": "Expression"
+      },
+      {
+        "name": "retries!: i64",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -68,8 +74,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "d5b8149b492a830c1f85ec654458b97ad7c17107b090e8386036f371a8e80d4f"
+  "hash": "f5c28799c9554c4e9d1c3dc4ff824cdd684e849ccf4ad4a7dc6391c5a052dc88"
 }

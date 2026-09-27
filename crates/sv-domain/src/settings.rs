@@ -69,7 +69,7 @@ pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 /// Hold-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = "groq-whisper";
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::GROQ_WHISPER;
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 
@@ -80,13 +80,20 @@ pub struct Settings {
     pub toggle_shortcut: String,
     /// Hold to edit the selected text by voice; empty = edit mode off. Never `Fn`.
     pub edit_shortcut: String,
+    /// Esc cancels a recording in progress. Registering Esc globally takes it from every app
+    /// while recording, so it is opt-in.
+    pub escape_cancels: bool,
     /// Input device name; `None` = automatic (built-in microphone preferred).
     pub microphone: Option<String>,
-    /// Allowed dictation languages, ISO 639-1.
+    /// Allowed dictation languages: tags of [`crate::languages::LANGUAGES`].
     pub languages: Vec<String>,
-    /// Language a transcription is re-run in when detection lands outside `languages`.
+    /// Language a transcription is re-run in when detection lands outside `languages`. Always
+    /// a registry tag models know as is, never a script variant such as `hi-Latn`.
     pub fallback_language: String,
     pub transcription_model: String,
+    /// Smart Select double-checks a low-confidence result with a second model; when off, only
+    /// an error makes it try another model.
+    pub smart_retry: bool,
     pub style: Style,
     /// Derived: a Groq key is stored (or `GROQ_API_KEY` is set). Never deserialized from rows.
     pub groq_api_key_present: bool,
@@ -125,10 +132,13 @@ impl Default for Settings {
             hold_shortcut: DEFAULT_HOLD_SHORTCUT.to_owned(),
             toggle_shortcut: DEFAULT_TOGGLE_SHORTCUT.to_owned(),
             edit_shortcut: DEFAULT_EDIT_SHORTCUT.to_owned(),
+            // Off by default: Esc belongs to the focused app (Vim, dialogs) unless the user opts in.
+            escape_cancels: false,
             microphone: None,
-            languages: vec!["en".to_owned(), "hi".to_owned()],
+            languages: vec!["en".to_owned(), "hi".to_owned(), "hi-Latn".to_owned()],
             fallback_language: "hi".to_owned(),
             transcription_model: DEFAULT_TRANSCRIPTION_MODEL.to_owned(),
+            smart_retry: true,
             style: Style::Formal,
             groq_api_key_present: false,
             sounds: true,
@@ -167,11 +177,13 @@ pub struct SettingsPatch {
     pub hold_shortcut: Option<String>,
     pub toggle_shortcut: Option<String>,
     pub edit_shortcut: Option<String>,
+    pub escape_cancels: Option<bool>,
     #[serde(with = "double_option")]
     pub microphone: Option<Option<String>>,
     pub languages: Option<Vec<String>>,
     pub fallback_language: Option<String>,
     pub transcription_model: Option<String>,
+    pub smart_retry: Option<bool>,
     pub style: Option<Style>,
     pub sounds: Option<bool>,
     pub sound_theme: Option<SoundTheme>,

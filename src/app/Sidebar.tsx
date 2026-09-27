@@ -90,11 +90,13 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
     const [activity, setActivity] = useState<Activity>("idle");
     const [permissions, setPermissions] = useState<Permissions | null>(null);
     const [version, setVersion] = useState<string | null>(null);
+    const [dev, setDev] = useState(false);
 
     useEffect(() => {
         void api.appInfo().then(
             (info) => {
                 setVersion(info.version);
+                setDev(info.dev);
             },
             (error: unknown) => {
                 console.error("app_info failed", error);
@@ -137,7 +139,16 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
             <div className="sv-brand" data-tauri-drag-region>
                 <BrandMark className="sv-brand__mark" />
                 <span className="sv-brand__name">Simple Voice</span>
-                {version && <span className="sv-brand__version">v{version}</span>}
+                {dev ? (
+                    <span
+                        className="sv-brand__version"
+                        title={version ? `Development build of v${version}` : "Development build"}
+                    >
+                        (dev)
+                    </span>
+                ) : (
+                    version && <span className="sv-brand__version">v{version}</span>
+                )}
             </div>
 
             <nav className="sv-nav" aria-label="Main">
@@ -163,7 +174,7 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
                             label={item.label}
                             icon={item.icon}
                             active={page === item.id}
-                            alert={item.id === "permissions" && needsPermission}
+                            alert={item.id === "privacy" && needsPermission}
                             onNavigate={onNavigate}
                         />
                     ))}
@@ -174,7 +185,7 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
                         label="Shortcut settings"
                         icon={<Gear />}
                         onClick={() => {
-                            onNavigate("general");
+                            onNavigate("dictation");
                         }}
                     />
                     <span className="sv-status__line" role="status" aria-live="polite">
