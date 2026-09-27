@@ -21,7 +21,7 @@
     <a href="#install">Install</a> · <a href="docs/features.md">Features</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/privacy.md">Privacy</a>
 </p>
 
-![Simple Voice showing the dictation history, with the recording pill below the window](docs/images/hero.png)
+![Holding fn while saying "um so hi ankur, the launch is on friday, no wait, thursday", then the cleaned-up email pasted into Mail](docs/images/demo.gif)
 
 ## Install
 
@@ -52,20 +52,19 @@ Releases are signed with the project's own certificate, so macOS keeps Simple Vo
 - **Reads like you wrote it.** Fillers and false starts are dropped, lists get laid out, and your dictionary spells names and jargon your way.
 - **Yours alone.** No account, no telemetry. History, dictionary and insights stay on your Mac.
 
-| You say                                                      | Simple Voice types                   |
-| ------------------------------------------------------------ | ------------------------------------ |
-| "um so can you send the report by friday, no wait, thursday" | Can you send the report by Thursday? |
-| "press control shift m to mute"                              | Press Ctrl+Shift+M to mute.          |
-| "the app reads from post gres"                               | The app reads from PostgreSQL.       |
-| "kal ki meeting 5 baje hai na"                               | Kal ki meeting 5 baje hai na?        |
+![Five spoken phrases turned into clean text: fillers and false starts dropped, shortcuts, jargon, dictionary names and Hinglish](docs/images/cleanup.gif)
 
 See [all features](docs/features.md).
 
 ## How it works
 
-![Hold fn and speak, speech to text, clean up, pasted in place](docs/images/how-it-works.png)
+![Hold fn and speak, speech to text, clean up, pasted in place](docs/images/how-it-works.gif)
 
 Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Both shortcuts can be changed in Settings, where you can also let Esc cancel a recording (off by default).
+
+To change text you already wrote, select it in any app, hold **Option+/** and say how to change it: "make this more formal", "turn this into bullets", "fix the typos". The rewrite replaces the selection, and Cmd+Z undoes it.
+
+![Selecting a note, holding Option+/ and saying "make this more formal", then the note rewritten in place](docs/images/edit-by-voice.gif)
 
 |                | Cloud                                   | On-device                                                                                            |
 | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -77,13 +76,17 @@ Mix and match: any speech engine works with any clean-up provider, and clean-up 
 
 ## A look inside
 
-| ![Insights page with usage by app and daily activity](docs/images/insights.png) | ![Transcription settings with cloud and on-device voice models](docs/images/models.png) |
-| :-----------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------: |
-|       **Insights.** Speaking speed, words, streaks and where you dictate.       |                **Transcription.** Pick a cloud or on-device voice model.                |
-| ![Dictionary page with words and replacement rules](docs/images/dictionary.png) |           ![Style page with Formal and Casual options](docs/images/style.png)           |
-|           **Dictionary.** Names, jargon and `heard -> written` rules.           |                    **Style.** Formal or Casual, applied everywhere.                     |
+![A tour of the History, Insights, Dictionary, Style and Models pages](docs/images/tour.gif)
+
+- **History.** Every dictation with the time, the app it went to and the text. Search, copy, retry.
+- **Insights.** Speaking speed, words, streaks and where you dictate.
+- **Dictionary.** Names, jargon and `heard -> written` rules.
+- **Style.** Formal or Casual, applied everywhere.
+- **Transcription.** Pick a cloud or on-device voice model.
 
 ## Your data stays yours
+
+![No account, no telemetry, and everything stored in ~/.simplevoice on your Mac](docs/images/privacy.gif)
 
 Everything lives in `~/.simplevoice` on your Mac: settings, history, dictionary, insights and downloaded models. There is no account and no telemetry. Only what the providers you pick need leaves your Mac: the recording goes to Groq if you use Groq Whisper, and the transcript goes to your clean-up provider, each with your dictionary words as a hint. With an on-device setup, your words never leave your Mac. Read more in [Privacy and your data](docs/privacy.md).
 
