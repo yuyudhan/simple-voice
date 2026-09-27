@@ -1,10 +1,11 @@
 // FilePath: src/features/settings/models/VoiceModelList.tsx
 // Transcription model picker: one row per model with provider mark, speed/accuracy, languages,
 // size, availability and download controls. Selecting a row makes it the active voice model.
-import { Apple, Cloud, Download, Trash2 } from "lucide-react";
+import { Apple, AudioWaveform, Cloud } from "lucide-react";
 import type { ModelInfo, ModelProvider } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import { Badge, Button, IconButton, ProgressBar, Spinner } from "../../../ui";
+import { Spinner } from "../../../ui";
+import { ModelDetails, ModelSide } from "./ModelStatus";
 import type { ModelsState } from "./useModels";
 import "./models.css";
 
@@ -23,6 +24,13 @@ export function ProviderMark({ provider }: { provider: ModelProvider }) {
             </span>
         );
     }
+    if (provider === "whisper") {
+        return (
+            <span className="sv-provider sv-provider--whisper" aria-label="Whisper on this Mac">
+                <AudioWaveform size={15} strokeWidth={1.8} />
+            </span>
+        );
+    }
     return (
         <span className="sv-provider sv-provider--groq" aria-label="Groq cloud">
             <Cloud size={15} strokeWidth={1.8} />
@@ -35,23 +43,6 @@ function formatSize(sizeMb: number | null): string | null {
     return sizeMb >= 1000 ? `${(sizeMb / 1000).toFixed(1)} GB` : `${String(sizeMb)} MB`;
 }
 
-function StatusBadge({ model, fraction }: { model: ModelInfo; fraction: number | undefined }) {
-    if (fraction !== undefined || model.status === "downloading") {
-        const value = fraction ?? model.progress ?? 0;
-        return <Badge tone="accent">Downloading {Math.round(value * 100)}%</Badge>;
-    }
-    switch (model.status) {
-        case "cloud":
-            return <Badge tone="neutral">Cloud</Badge>;
-        case "ready":
-            return <Badge tone="success">Downloaded</Badge>;
-        case "not_downloaded":
-            return <Badge tone="neutral">Not downloaded</Badge>;
-        case "unsupported":
-            return <Badge tone="warning">Unsupported</Badge>;
-    }
-}
-
 interface RowProps {
     model: ModelInfo;
     active: boolean;
@@ -59,14 +50,8 @@ interface RowProps {
 }
 
 function ModelRow({ model, active, state }: RowProps) {
-    const fraction = state.progress[model.id];
-    const downloading = fraction !== undefined || model.status === "downloading";
     const unsupported = model.status === "unsupported";
-    const pending = state.pendingUse === model.id;
-    const failure = state.failures[model.id];
     const size = formatSize(model.sizeMb);
-    const local = model.provider !== "groq";
-
     return (
         <div
             className={[
@@ -104,44 +89,8 @@ function ModelRow({ model, active, state }: RowProps) {
                     </span>
                 </span>
             </button>
-            <div className="sv-model__side">
-                <StatusBadge model={model} fraction={fraction} />
-                {local && model.status === "not_downloaded" && !downloading && (
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        icon={<Download size={14} />}
-                        onClick={() => {
-                            void state.download(model.id);
-                        }}
-                    >
-                        Download
-                    </Button>
-                )}
-                {local && model.status === "ready" && !active && (
-                    <IconButton
-                        label={`Delete ${model.name}`}
-                        icon={<Trash2 size={15} />}
-                        onClick={() => {
-                            void state.remove(model.id);
-                        }}
-                    />
-                )}
-            </div>
-            {downloading && (
-                <div className="sv-model__progress">
-                    <ProgressBar value={fraction ?? model.progress ?? 0} />
-                    {pending && (
-                        <span className="sv-model__note">Switches to this model when ready</span>
-                    )}
-                </div>
-            )}
-            {unsupported && model.reason && <p className="sv-model__reason">{model.reason}</p>}
-            {failure && (
-                <p className="sv-model__error" role="alert">
-                    {failure}
-                </p>
-            )}
+            <ModelSide model={model} state={state} deletable={!active} />
+            <ModelDetails model={model} state={state} />
         </div>
     );
 }

@@ -1,14 +1,18 @@
 // FilePath: src/features/onboarding/ModelStep.tsx
-// Voice model choice. Continuing requires a usable model: Groq with a verified key, or a local
-// model that is downloaded (plus Speech Recognition access for Apple Speech).
+// Voice model setup, Smart Select by default. Continuing requires a usable route: for Smart
+// Select a saved Groq key or every local model of its plan downloaded; for a chosen model, Groq
+// with a verified key or a downloaded local model (plus Speech Recognition access for Apple
+// Speech).
 import { AudioLines } from "lucide-react";
 import { useSettings } from "../../app/SettingsContext";
 import { Button } from "../../ui";
 import { GroqKeyField } from "../settings/models/GroqKeyField";
 import { useModels } from "../settings/models/useModels";
 import { VoiceModelList } from "../settings/models/VoiceModelList";
-import { PermissionAction, StatusBadge } from "../settings/permissions/PermissionsSection";
+import { PermissionAction, StatusBadge } from "../settings/permissions/PermissionsGroup";
 import { usePermissions } from "../settings/permissions/usePermissions";
+import { SmartSelectPanel, VoiceModelModeSwitch } from "../settings/transcription/SmartSelectPanel";
+import { useSmartSelect } from "../settings/transcription/useSmartSelect";
 import { StepFooter } from "./StepFooter";
 
 interface Props {
@@ -19,17 +23,32 @@ interface Props {
 export function ModelStep({ onBack, onNext }: Props) {
     const { settings } = useSettings();
     const models = useModels();
+    const smart = useSmartSelect(models);
     const { permissions, busy, request, openSettings } = usePermissions(1500);
+    const isSmart = smart.mode === "smart";
     const active = models.models?.find((m) => m.id === settings.transcriptionModel);
-    const isGroq = settings.transcriptionModel === "groq-whisper";
-    const isAppleSpeech = active?.provider === "apple";
+    const isGroq = !isSmart && settings.transcriptionModel === "groq-whisper";
+    const isAppleSpeech = !isSmart && active?.provider === "apple";
     const speech = permissions?.speech;
 
     let ready = false;
     let blocker = "";
-    if (isGroq) {
+    if (isSmart) {
+        const plan = smart.plan;
+        const catalog = models.models ?? [];
+        ready =
+            plan !== null &&
+            (plan.groq ||
+                (plan.rows.length > 0 &&
+                    plan.rows.every((row) =>
+                        catalog.some((m) => m.id === row.model && m.status === "ready"),
+                    )));
+        blocker = "Download the models above, or save a Groq API key.";
+    } else if (isGroq) {
         ready = settings.groqApiKeyPresent;
         blocker = "Save a Groq API key to continue, or pick a local model.";
+    } else if (active === undefined && models.pendingUse === null) {
+        blocker = "Pick a model to continue.";
     } else if (active?.status !== "ready") {
         blocker =
             models.pendingUse !== null
@@ -48,12 +67,26 @@ export function ModelStep({ onBack, onNext }: Props) {
             </div>
             <h1 className="sv-onb__title">Choose a voice model</h1>
             <p className="sv-onb__lead">
-                Groq Whisper runs in the cloud and needs a free API key. Parakeet and Apple Speech
-                run entirely on this Mac once downloaded. You can change this any time in Settings.
+                Pick the languages you speak and Smart Select handles the model: Groq Whisper in the
+                cloud once you save a free API key, and models on this Mac otherwise. Hinglish works
+                on this Mac with the Hinglish model. You can change this any time in Settings.
             </p>
             <div className="sv-onb__wide">
-                <VoiceModelList state={models} />
-                {isGroq && <GroqKeyField />}
+                {/* A block wrapper keeps the switch at its natural width in the flex column. */}
+                <div>
+                    <VoiceModelModeSwitch mode={smart.mode} onChange={smart.setMode} />
+                </div>
+                {isSmart ? (
+                    <SmartSelectPanel
+                        models={models}
+                        plan={smart.plan}
+                        planError={smart.planError}
+                        framed
+                    />
+                ) : (
+                    <VoiceModelList state={models} />
+                )}
+                {(isSmart || isGroq) && <GroqKeyField />}
                 {isAppleSpeech && speech !== undefined && speech !== "granted" && (
                     <div className="sv-onb__perm-row">
                         <span>Speech Recognition</span>

@@ -50,15 +50,30 @@ function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     const transcribed =
         entry.transcribeMs === null ? "" : ` in ${formatSeconds(entry.transcribeMs)}`;
     const formatted = entry.formatMs === null ? "" : ` in ${formatSeconds(entry.formatMs)}`;
+    const first = entry.firstModelName;
+    const model = entry.modelName;
+    const reason = entry.retryReason === "low_confidence" ? "low confidence" : "failed";
+    // The first model's name equals the final one when the retry did not help and its result
+    // was kept, so there is no route to draw.
+    const kept = first === model;
+    let route = model;
+    let retried = "";
+    let tooltip = `Transcribed with ${model}${transcribed}`;
+    if (first !== null && kept) {
+        retried = ` · kept after retry (${reason})`;
+        tooltip = `Transcribed with ${model}${transcribed}; a retry (${reason}) did not help`;
+    } else if (first !== null) {
+        route = `${first} → ${model}`;
+        retried = ` · retried: ${reason}`;
+        tooltip = `Tried ${first} first (${reason}), then transcribed with ${model}${transcribed}`;
+    }
     return (
         <span className="history-row__models">
-            <span
-                className="history-row__model"
-                title={`Transcribed with ${entry.modelName}${transcribed}`}
-            >
+            <span className="history-row__model" title={tooltip}>
                 <AudioLines aria-hidden="true" />
-                {entry.modelName}
+                {route}
                 {entry.transcribeMs !== null && ` (${formatSeconds(entry.transcribeMs)})`}
+                {retried}
             </span>
             {formatter && (
                 <span

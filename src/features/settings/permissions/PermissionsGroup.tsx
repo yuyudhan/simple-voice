@@ -1,4 +1,4 @@
-// FilePath: src/features/settings/permissions/PermissionsSection.tsx
+// FilePath: src/features/settings/permissions/PermissionsGroup.tsx
 import { CircleCheck } from "lucide-react";
 import type { PermissionKind, PermissionStatus } from "../../../lib/api";
 import { Badge, Button, SettingRow, SettingsGroup, Spinner } from "../../../ui";
@@ -87,7 +87,7 @@ export function PermissionAction({ kind, status, busy, onRequest, onOpenSettings
     );
 }
 
-export function PermissionsSection() {
+export function PermissionsGroup() {
     const { permissions, error, busy, request, openSettings } = usePermissions();
 
     return (

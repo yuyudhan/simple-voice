@@ -1,4 +1,4 @@
-// FilePath: src/features/settings/general/LanguagePicker.tsx
+// FilePath: src/features/settings/transcription/LanguagePicker.tsx
 // Allowed dictation languages plus the fallback a transcription is re-run in when detection
 // lands outside them. At least one language always stays selected, and the fallback is always
 // one of the selected languages.
@@ -8,7 +8,7 @@ import { useSettings } from "../../../app/SettingsContext";
 import { Select } from "../../../ui";
 import { LANGUAGE_NAMES, PRIMARY_LANGUAGES } from "./languages";
 import "../common.css";
-import "./general.css";
+import "./languages.css";
 
 const nameOf = (code: string) => LANGUAGE_NAMES[code] ?? code.toUpperCase();
 

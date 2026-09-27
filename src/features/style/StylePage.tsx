@@ -131,7 +131,7 @@ export function StylePage() {
                         variant="secondary"
                         size="sm"
                         onClick={() => {
-                            navigate("models");
+                            navigate("formatting");
                         }}
                     >
                         Change in Settings

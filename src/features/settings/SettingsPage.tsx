@@ -2,20 +2,20 @@
 import type { ReactNode } from "react";
 import type { SettingsSection } from "../../app/ShellContext";
 import { PageHeader } from "../../ui";
-import { DataSection } from "./data/DataSection";
-import { GeneralSection } from "./general/GeneralSection";
-import { ModelsSection } from "./models/ModelsSection";
-import { PermissionsSection } from "./permissions/PermissionsSection";
+import { AppSection } from "./app/AppSection";
+import { DictationSection } from "./dictation/DictationSection";
+import { FormattingSection } from "./formatting/FormattingSection";
+import { PrivacySection } from "./privacy/PrivacySection";
 import { SETTINGS_PAGES } from "./settingsPages";
-import { SystemSection } from "./system/SystemSection";
+import { TranscriptionSection } from "./transcription/TranscriptionSection";
 import "./common.css";
 
 const CONTENT: Record<SettingsSection, () => ReactNode> = {
-    general: () => <GeneralSection />,
-    system: () => <SystemSection />,
-    models: () => <ModelsSection />,
-    permissions: () => <PermissionsSection />,
-    data: () => <DataSection />,
+    dictation: () => <DictationSection />,
+    transcription: () => <TranscriptionSection />,
+    formatting: () => <FormattingSection />,
+    app: () => <AppSection />,
+    privacy: () => <PrivacySection />,
 };
 
 /** One settings section as a page of the main window, titled from its sidebar entry. */

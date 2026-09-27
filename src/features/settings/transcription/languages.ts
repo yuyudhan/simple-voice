@@ -1,4 +1,4 @@
-// FilePath: src/features/settings/general/languages.ts
+// FilePath: src/features/settings/transcription/languages.ts
 // Languages Whisper recognises well, keyed by the ISO 639-1 code stored in settings.
 
 export const LANGUAGE_NAMES: Record<string, string> = {

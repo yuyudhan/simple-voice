@@ -1,6 +1,6 @@
 // FilePath: src/features/updates/UpdateBanner.tsx
 // Shown above every page while a newer release is out. Dismissing it skips that version only:
-// the next release brings it back, and Settings → System keeps showing the update meanwhile.
+// the next release brings it back, and Settings → App keeps showing the update meanwhile.
 import { CircleArrowUp, X } from "lucide-react";
 import { useSettings } from "../../app/SettingsContext";
 import { IconButton } from "../../ui";

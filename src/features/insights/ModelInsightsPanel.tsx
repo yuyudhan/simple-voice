@@ -74,6 +74,8 @@ function StageCard({ title, caption, icon, models, empty, speed }: StageCardProp
                                     Fastest {formatSeconds(model.fastestMs)} · slowest{" "}
                                     {formatSeconds(model.slowestMs)}
                                     {rate && ` · ${rate}`}
+                                    {model.retries > 0 &&
+                                        ` · ${formatNumber(model.retries)} retried`}
                                 </p>
                             </li>
                         );
@@ -115,7 +117,7 @@ export function ModelInsightsPanel() {
                 caption="Average time for the AI formatting pass"
                 icon={<Sparkles />}
                 models={data.formatting}
-                empty="No formatted dictations yet. Turn on AI formatting in Settings → Models."
+                empty="No formatted dictations yet. Turn on AI formatting in Settings → Formatting."
                 speed={wordsPerSecond}
             />
         </div>

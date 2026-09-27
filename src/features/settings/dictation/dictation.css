@@ -1,0 +1,39 @@
+/* FilePath: src/features/settings/dictation/dictation.css */
+
+.sv-dictation__mic {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    width: 280px;
+}
+
+.sv-dictation__mic > * {
+    width: 100%;
+}
+
+/* Shortcut rows: the fn-key note, hint and error run full width under the row instead of
+   wrapping into a narrow right-aligned column beside the keys. */
+.sv-setting-row:has(.sv-shortcut-rec) {
+    flex-wrap: wrap;
+    row-gap: 8px;
+}
+
+.sv-setting-row:has(.sv-shortcut-rec) .sv-setting-row__control,
+.sv-setting-row .sv-shortcut-rec {
+    display: contents;
+}
+
+.sv-setting-row .sv-shortcut-rec__note,
+.sv-setting-row .sv-shortcut-rec__hint,
+.sv-setting-row .sv-shortcut-rec__error {
+    flex-basis: 100%;
+    max-width: none;
+    text-align: left;
+}
+
+.sv-setting-row .sv-shortcut-rec__note {
+    padding: 8px 10px;
+    border-radius: var(--radius-control);
+    background: var(--surface);
+}
