@@ -35,6 +35,11 @@
     color: var(--faint);
 }
 
+/* The script only tells two entries of one base language apart, so it stays quiet. */
+.sv-chip__script {
+    color: var(--faint);
+}
+
 button.sv-chip:hover:not(:disabled) {
     border-color: var(--border-strong);
     color: var(--text);

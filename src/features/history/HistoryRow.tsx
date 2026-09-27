@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Copy, PenLine, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import type { HistoryEntry, RetryReason } from "../../lib/api";
+import { useSettings } from "../../app/SettingsContext";
 import { CATEGORY_META } from "../../lib/categories";
 import { formatSeconds, formatTime } from "../../lib/format";
+import { useLanguages } from "../../lib/useLanguages";
 import { Badge, IconButton, Spinner } from "../../ui";
 
 export interface HistoryRowProps {
@@ -50,6 +52,8 @@ const RETRY_LABEL: Record<RetryReason, string> = {
 };
 
 function ModelsUsed({ entry }: { entry: HistoryEntry }) {
+    const { settings } = useSettings();
+    const { languages } = useLanguages();
     const formatter = entry.formatModelName;
     const verb = entry.sourceText === null ? "Formatted" : "Edited";
     // Rows recorded before stage timings existed have none; their tooltips omit the duration.
@@ -59,8 +63,14 @@ function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     const first = entry.firstModelName;
     const model = entry.modelName;
     const reason = entry.retryReason === null ? "failed" : RETRY_LABEL[entry.retryReason];
-    const why =
-        entry.retryReason === "mixed_script" ? "wrote Hinglish partly in Devanagari" : reason;
+    // A mixed-script retry is about a romanised variant (a tag with a script subtag). With exactly
+    // one selected, it names the language; otherwise which one is unknown.
+    const variants = (languages ?? []).filter(
+        (language) => language.tag.includes("-") && settings.languages.includes(language.tag),
+    );
+    const only = variants.length === 1 ? variants[0] : undefined;
+    const mixed = only ? `wrote ${only.name} partly in another script` : "mixed two scripts";
+    const why = entry.retryReason === "mixed_script" ? mixed : reason;
     // The first model's name equals the final one when the retry did not help and its result
     // was kept, so there is no route to draw.
     const kept = first === model;

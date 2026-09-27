@@ -1,8 +1,7 @@
 // FilePath: src/features/onboarding/ModelStep.tsx
-// Voice model setup, Smart Select by default. Continuing requires a usable route: for Smart
-// Select a saved Groq key or every local model of its plan downloaded; for a chosen model, Groq
-// with a verified key or a downloaded local model (plus Speech Recognition access for Apple
-// Speech).
+// Voice model choice, with Smart Select (beta) one switch away. Continuing requires a usable
+// model: Groq with a verified key or a downloaded local model (plus Speech Recognition access for
+// Apple Speech); for Smart Select, a saved Groq key or every local model of its plan downloaded.
 import { AudioLines } from "lucide-react";
 import { useSettings } from "../../app/SettingsContext";
 import { Button } from "../../ui";
@@ -35,15 +34,11 @@ export function ModelStep({ onBack, onNext }: Props) {
     let blocker = "";
     if (isSmart) {
         const plan = smart.plan;
-        const catalog = models.models ?? [];
         ready =
             plan !== null &&
             (plan.groq ||
-                (plan.rows.length > 0 &&
-                    plan.rows.every((row) =>
-                        catalog.some((m) => m.id === row.model && m.status === "ready"),
-                    )));
-        blocker = "Download the models above, or save a Groq API key.";
+                (models.models ?? []).some((m) => m.id === plan.local && m.status === "ready"));
+        blocker = "Download the model above, or save a Groq API key.";
     } else if (isGroq) {
         ready = settings.groqApiKeyPresent;
         blocker = "Save a Groq API key to continue, or pick a local model.";
@@ -67,9 +62,9 @@ export function ModelStep({ onBack, onNext }: Props) {
             </div>
             <h1 className="sv-onb__title">Choose a voice model</h1>
             <p className="sv-onb__lead">
-                Pick the languages you speak and Smart Select handles the model: Groq Whisper in the
-                cloud once you save a free API key, and models on this Mac otherwise. Hinglish works
-                on this Mac with the Hinglish model. You can change this any time in Settings.
+                Groq Whisper runs in the cloud and needs a free API key. Parakeet, Hinglish Whisper
+                and Apple Speech run entirely on this Mac once downloaded. You can change this any
+                time in Settings.
             </p>
             <div className="sv-onb__wide">
                 {/* A block wrapper keeps the switch at its natural width in the flex column. */}

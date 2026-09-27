@@ -66,7 +66,8 @@ export interface Microphone {
 
 export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped" | "not_pasted";
 
-/** Why Smart Select retried; "mixed_script" = Groq wrote Hinglish partly in Devanagari. */
+/** Why Smart Select retried; "mixed_script" = Groq wrote a romanised language (e.g. Hinglish)
+ * partly in that language's own script. */
 export type RetryReason = "failed" | "low_confidence" | "mixed_script";
 
 export type AppCategory =
@@ -228,18 +229,28 @@ export interface ModelInfo {
     progress: number | null;
 }
 
-/** One local model on the Smart Select route, with what it transcribes. */
-export interface SmartSelectRow {
-    purpose: string;
-    model: string;
-}
-
 /** What Smart Select will run for the current languages. */
 export interface SmartSelectPlan {
-    /** A Groq key is saved, so Groq Whisper runs first and these rows are the fallback. */
+    /** A Groq key is saved, so Groq Whisper runs first and the local model is the fallback. */
     groq: boolean;
-    /** Local models of the route, in the order they run. */
-    rows: SmartSelectRow[];
+    /** Model id of the one local model of the route. */
+    local: string;
+    /** Set only when the local model can't write a selected language as chosen. */
+    notice: string | null;
+}
+
+/** One entry of the language registry, as the language picker offers it. */
+export interface LanguageInfo {
+    /** BCP 47 tag stored in settings: "en", "hi", "hi-Latn". */
+    tag: string;
+    name: string;
+    /** How it is written ("Roman script", "Devanagari"), only when another entry shares its base
+     * language and the script is what tells them apart. */
+    script: string | null;
+    /** Offered as a one-click chip. */
+    primary: boolean;
+    /** May be the fallback language. */
+    fallback: boolean;
 }
 
 export interface Permissions {
@@ -334,6 +345,7 @@ export const api = {
     downloadModel: (id: string) => invoke<null>("download_model", { id }),
     deleteModel: (id: string) => invoke<null>("delete_model", { id }),
     smartSelectPlan: () => invoke<SmartSelectPlan>("smart_select_plan"),
+    listLanguages: () => invoke<LanguageInfo[]>("list_languages"),
     getPermissions: () => invoke<Permissions>("get_permissions"),
     requestPermission: (kind: PermissionKind) =>
         invoke<Permissions>("request_permission", { kind }),

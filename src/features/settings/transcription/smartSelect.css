@@ -1,8 +1,8 @@
 /* FilePath: src/features/settings/transcription/smartSelect.css */
 /* Smart Select panel and the voice-model mode switch. The panel reads top to bottom: languages,
-   the model they need, where audio goes, the double-check toggle, each split by a hairline. The
-   model row looks like a model-table row (provider mark, trailing status) but is not a choice,
-   so it carries no radio, no hover and no selection marker. */
+   the numbered steps a dictation runs through, any notice about them, the double-check toggle,
+   each split by a hairline. A step looks like a model-table row (provider mark, trailing status)
+   but is not a choice, so it carries no radio, no hover and no selection marker. */
 
 .sv-smart__mode {
     padding: 12px 16px 0;
@@ -13,6 +13,14 @@
     border-radius: var(--radius-card);
     background: var(--panel);
     overflow: hidden;
+}
+
+.sv-smart__beta {
+    margin: 0;
+    padding: 12px 16px 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--muted);
 }
 
 .sv-smart__langs {
@@ -29,21 +37,18 @@
     padding-top: 10px;
 }
 
-.sv-smart__intro {
-    margin: 0;
-    padding: 12px 16px;
+.sv-smart__route {
+    padding-top: 14px;
     border-top: 1px solid var(--border);
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: var(--muted);
 }
 
-.sv-smart > .sv-models__loading {
+.sv-smart__route > .sv-models__loading {
+    margin-top: 10px;
     border-top: 1px solid var(--border);
 }
 
 .sv-smart__rows {
-    margin: 0;
+    margin: 10px 0 0;
     padding: 0;
     list-style: none;
     border-top: 1px solid var(--border);
@@ -61,11 +66,12 @@
     border-top: 1px solid var(--border);
 }
 
-/* Progress, reasons and errors line up with the text, past the 28px provider mark. */
+/* Progress, reasons and errors line up with the model name, past the step number and the 28px
+   provider mark. */
 .sv-smart__row .sv-model__progress,
 .sv-smart__row .sv-model__reason,
 .sv-smart__row .sv-model__error {
-    margin-left: 40px;
+    margin-left: 68px;
 }
 
 .sv-smart__lead {
@@ -75,10 +81,35 @@
     min-width: 0;
 }
 
-.sv-smart__purpose {
-    font-size: 13.5px;
-    font-weight: 600;
+.sv-smart__step {
+    flex: none;
+    width: 16px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-align: center;
+    color: var(--faint);
+}
+
+/* A caution about the route, not an error: the route still works, one language reads
+   differently offline. */
+.sv-smart__notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 16px 12px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+    border-radius: var(--radius-card);
+    background: var(--warning-soft);
     color: var(--text);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.sv-smart__notice-icon {
+    flex: none;
+    margin-top: 2px;
+    color: var(--warning);
 }
 
 .sv-smart .sv-setting-row {
