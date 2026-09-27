@@ -48,7 +48,7 @@ Releases are signed with the project's own certificate, so macOS keeps Simple Vo
 ## Why Simple Voice
 
 - **Works everywhere.** Mail, chat, your editor, a terminal: the text is pasted where your cursor is.
-- **Cloud or on-device, your pick.** Groq in the cloud, or Parakeet, Apple Speech and Apple Intelligence on your Mac. Any OpenAI-compatible endpoint, like a local Ollama or LM Studio, works too.
+- **Cloud or on-device, your pick.** Smart Select picks the model from the languages you speak. Groq in the cloud, or Parakeet, Whisper (Hindi and Hinglish too), Apple Speech and Apple Intelligence on your Mac. Any OpenAI-compatible endpoint, like a local Ollama or LM Studio, works too.
 - **Reads like you wrote it.** Fillers and false starts are dropped, lists get laid out, and your dictionary spells names and jargon your way.
 - **Yours alone.** No account, no telemetry. History, dictionary and insights stay on your Mac.
 
@@ -69,9 +69,9 @@ Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop
 
 |                | Cloud                                   | On-device                                                                                            |
 | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Speech to text | Groq Whisper (100+ languages)           | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Apple Speech |
+| Speech to text | Groq Whisper (100+ languages)           | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech |
 | Clean up       | Groq, or any OpenAI-compatible endpoint | Apple Intelligence, or a local Ollama or LM Studio                                                   |
-| You need       | A Groq API key                          | A one-time model download (250 to 480 MB); Apple Speech and Apple Intelligence need macOS 26         |
+| You need       | A Groq API key                          | A one-time model download (250 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26      |
 
 Mix and match: any speech engine works with any clean-up provider, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost.
 

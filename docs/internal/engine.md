@@ -4,7 +4,7 @@
 
 The Swift helper that Simple Voice runs as a Tauri sidecar. Everything that needs Apple frameworks
 or Objective-C / C APIs lives here, so the Rust crates can forbid `unsafe`: Parakeet transcription
-(FluidAudio on Core ML), Apple Speech (`SpeechAnalyzer`), Apple Intelligence post-processing
+(FluidAudio on Core ML), Whisper transcription (WhisperKit on Core ML), Apple Speech (`SpeechAnalyzer`), Apple Intelligence post-processing
 (Foundation Models), model downloads, permission checks, the frontmost app, synthetic Cmd+V,
 muting the output device, the floating overlay pill and launch at login (`SMAppService.mainApp`,
 which resolves to the Simple Voice.app the helper sits in).
@@ -86,7 +86,8 @@ deployment target is macOS 14. Apple Speech and Apple Intelligence need macOS 26
 at runtime; on older systems `model_status` reports `unsupported` with a reason. FoundationModels
 is linked weakly so the helper still launches on macOS 14 and 15.
 
-Dependency: [FluidAudio](https://github.com/FluidInference/FluidAudio) pinned to `0.17.4`.
+Dependencies: [FluidAudio](https://github.com/FluidInference/FluidAudio) pinned to `0.17.4` and
+[WhisperKit](https://github.com/argmaxinc/WhisperKit) pinned to `1.1.0`.
 
 `engine/Info.plist` is embedded into the executable's `__TEXT,__info_plist` section by
 the linker. It carries the microphone and speech recognition usage descriptions, which the
@@ -105,6 +106,8 @@ Local models are stored under the `--models-dir` the app passes (by default
 | `parakeet-tdt-v3` | `FluidInference/parakeet-tdt-0.6b-v3-coreml`                         | `Preprocessor`, `Encoder`, `Decoder`, `JointDecisionv3` (`.mlmodelc`), `parakeet_vocab.json` |
 | `parakeet-tdt-v2` | `FluidInference/parakeet-tdt-0.6b-v2-coreml`                         | `Preprocessor`, `Encoder`, `Decoder`, `JointDecision` (`.mlmodelc`), `parakeet_vocab.json`   |
 | `parakeet-flash`  | `FluidInference/parakeet-realtime-eou-120m-coreml`, folder `1280ms/` | `streaming_encoder`, `decoder`, `joint_decision` (`.mlmodelc`), `vocab.json`                 |
+| `whisper-large-v3-turbo` | `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder`, `TextDecoderContextPrefill` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (1.64 GB) |
+| `whisper-hinglish` | `vbhar/whisperkit-hindi2hinglish-prime-coreml` (Apache-2.0 Core ML conversion of `Oriserve/Whisper-Hindi2Hinglish-Prime`), folder `Oriserve_Whisper-Hindi2Hinglish-Prime_fp16/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (3.1 GB) |
 
 - `download_model` lists the repository through the Hugging Face API
   (`/api/models/<repo>/tree/main?recursive=true`), keeps only the files above and downloads them
@@ -115,6 +118,19 @@ Local models are stored under the `--models-dir` the app passes (by default
 - `model_status` is `ready` only when the marker exists; `sizeBytes` is the downloaded size.
 - `preload` loads a model into memory; loaded models stay resident until `delete_model`, which
   unloads the model and removes both directories.
+- A model may combine files from several repositories: the Whisper models take their tokenizer
+  from `openai/whisper-large-v3`, stored at the top of the model directory so WhisperKit loads it
+  without the network (the helper never lets WhisperKit download anything).
+- Whisper (`Whisper.swift`): the language is pinned when `language` is sent; otherwise the helper
+  runs WhisperKit's language detection with a sampler restricted to the `languages` tokens (all
+  languages when none are sent; skipped when exactly one is allowed), then decodes with `prompt`
+  as prompt tokens. Clips under 2 s are padded with silence (WhisperKit stops 1 s before the end).
+  `quality` averages segments by token count; non-finite values (an empty segment's infinite
+  compression ratio) are left out. Hinglish Whisper labels romanised Hindi as `en`.
+- The first load of a Whisper model compiles it for the Neural Engine: about 110 s for Whisper
+  Turbo and about 240 s for Hinglish Whisper on an M-series Mac; later loads take 1–2 s. The app
+  preloads the Smart Select model after its download so this never lands on a dictation.
+- Parakeet TDT returns `quality.confidence` (FluidAudio's `ASRResult.confidence`, 0.1–1.0).
 - Parakeet Flash is a streaming model; for a finished recording the whole file is fed through the
   streaming manager and then flushed.
 - `apple-speech` assets belong to macOS. `download_model` installs them for the requested locale

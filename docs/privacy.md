@@ -11,7 +11,8 @@ Only what the providers you choose need:
 | Groq Whisper           | The recording and your dictionary words (as a recognition hint), to Groq.                                               |
 | Groq formatting        | The transcript and your dictionary words, to Groq. For an edit, also the text you selected.                             |
 | Custom endpoint        | The transcript and your dictionary words (and the selected text of an edit), to the URL you configure. A local Ollama or LM Studio keeps this on your Mac. |
-| Parakeet, Apple Speech | Nothing. Models are downloaded once, then everything runs on-device.                                                    |
+| Parakeet, Whisper, Apple Speech | Nothing. Models are downloaded once, then everything runs on-device.                                           |
+| Smart Select           | Without a Groq key, nothing. With a key, the same as Groq Whisper; the on-device model runs when Groq fails or looks unclear. |
 | Apple Intelligence     | Nothing. Runs on-device.                                                                                                |
 | Formatting off         | Nothing.                                                                                                                |
 | Update checks          | A request for the latest release, to GitHub, once a day. It carries the app version and nothing about you or your use.  |

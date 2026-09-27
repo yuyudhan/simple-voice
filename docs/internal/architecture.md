@@ -18,9 +18,10 @@ once at app launch, kept resident (so Core ML models stay loaded), and restarted
 flowchart LR
     K[Global shortcut] --> C[dictation coordinator]
     C --> A[cpal capture 16 kHz mono]
-    A --> T{model}
+    A --> T{model / Smart Select route}
     T -->|groq| G[Groq Whisper]
-    T -->|parakeet / apple| E[Swift engine helper]
+    T -->|parakeet / whisper / apple| E[Swift engine helper]
+    G -.->|failed or unclear: one retry| E
     G --> F[deterministic format]
     E --> F
     F --> P[Groq LLM polish]
@@ -116,7 +117,9 @@ CREATE TABLE history (
     bundle_id        TEXT,
     app_category     TEXT NOT NULL,      -- see AppCategory
     audio_path       TEXT,               -- set only while a failed entry can be retried
-    edited_text      TEXT                -- the pasted text after the user corrected it in place (0006)
+    edited_text      TEXT,               -- the pasted text after the user corrected it in place (0006)
+    first_model      TEXT,               -- Smart Select: model tried first when a retry happened (0007)
+    retry_reason     TEXT                -- 'failed' | 'low_confidence' | 'mixed_script' (0007)
 );
 CREATE INDEX history_created_at ON history(created_at);
 ```
@@ -165,6 +168,15 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // Settings.learnFromEdits (default false) turns on learning from corrections.
 // Settings.escapeCancels (default false) registers Esc for the length of each recording so it
 // cancels it; off, Esc is never taken from the focused app.
+// Smart Select (beta, opt-in): models::SMART_SELECT ("smart-select"); the default stays GROQ_WHISPER;
+// WHISPER_TURBO ("whisper-large-v3-turbo"), WHISPER_HINGLISH ("whisper-hinglish") are local
+// WhisperKit models (ModelProvider::Whisper). SmartSelectPlan { groq, rows: [SmartSelectRow
+// { purpose, model }] } (one row: the local model the languages need). Settings.smartRetry
+// (default true). TranscriptQuality { avg_logprob, compression_ratio, no_speech_prob,
+// confidence } (all Option<f32>). RetryReason = Failed | LowConfidence | MixedScript, wire "failed" |
+// "low_confidence" | "mixed_script"; NewHistory.first_model / retry_reason, HistoryEntry.firstModelName /
+// retryReason: model is the one that produced raw_text; first_model == model means the retry
+// did not help and the first result was kept. ModelTiming.retries: rows with first_model = model.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -253,7 +265,8 @@ pub fn accept_learning(corrections: &[Correction], output: &str, finished: bool)
     // the `after` of each offered number; nothing when unfinished
 
 // ── sv-cloud ────────────────────────────────────────────────────────────────────────────
-pub struct Transcript { pub text: String, pub language: Option<String> }
+pub struct Transcript { pub text: String, pub language: Option<String>, pub quality: TranscriptQuality }
+// quality from verbose_json segments: token-weighted avg_logprob / no_speech_prob, max compression_ratio
 pub async fn groq_transcribe(client: &reqwest::Client, key: &str, wav: Vec<u8>, prompt: &str,
     languages: &[String], fallback_language: &str) -> AppResult<Transcript>;
 pub async fn groq_verify_key(client: &reqwest::Client, key: &str) -> AppResult<()>;
@@ -316,8 +329,9 @@ impl EngineClient {
 //       -> ModelStatusResult { status: ModelStatus, size_bytes: Option<u64>, reason: Option<String> }
 //   download_model(model: &str, language: Option<&str>, on_progress: ProgressCallback) -> ()
 //   delete_model(model: &str) -> ();  preload(model: &str) -> ()
-//   transcribe(model: &str, wav_path: &Path, language: Option<&str>)
-//       -> EngineTranscript { text, language: Option<String> }
+//   transcribe(model: &str, wav_path: &Path, options: TranscribeOptions { language: Option<&str>,
+//       languages: &[String], prompt: &str })   // empty languages / prompt are not sent
+//       -> EngineTranscript { text, language: Option<String>, quality: TranscriptQuality }
 //   permissions() -> Permissions;  request_permission(kind: PermissionKind) -> Permissions
 //   open_settings(kind: PermissionKind) -> ()
 //   frontmost_app() -> FrontmostApp { name: Option<String>, bundle_id: Option<String> }
@@ -401,6 +415,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `get_insights`                                                                 | —                                                   | `Insights`                                                                                                       |
 | `get_model_insights`                                                           | —                                                   | `ModelInsights` (per-model transcription and formatting timings)                                                 |
 | `list_models`                                                                  | —                                                   | `ModelInfo[]` (transcription models + `apple-intelligence` post-processing availability)                         |
+| `smart_select_plan`                                                            | —                                                   | `SmartSelectPlan` (whether Groq runs first; the local model the dictation languages need)                        |
 | `download_model`                                                               | `id`                                                | `null` (progress via events)                                                                                     |
 | `delete_model`                                                                 | `id`                                                | `null`                                                                                                           |
 | `get_permissions`                                                              | —                                                   | `Permissions`                                                                                                    |
@@ -477,7 +492,7 @@ produces nothing.
 | `download_model`     | `model`, `language`?                                     | `{"status": "ready"}` after progress events                                                                                                                  |
 | `delete_model`       | `model`                                                  | `{}`                                                                                                                                                         |
 | `preload`            | `model`                                                  | `{}` (loads into memory so the first dictation is fast)                                                                                                      |
-| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`? | `{"text": s, "language"?: s}`                                                                                                                                |
+| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`?, `languages`?, `prompt`? | `{"text": s, "language"?: s, "quality"?: {"avgLogprob"?, "compressionRatio"?, "noSpeechProb"?, "confidence"?}}`                                                                                                                                |
 | `permissions`        | —                                                        | `{"microphone": P, "accessibility": P, "speech": P}`; P = `"granted" \| "denied" \| "not_determined" \| "restricted"` (accessibility is only granted/denied) |
 | `request_permission` | `kind`                                                   | same as `permissions`                                                                                                                                        |
 | `open_settings`      | `kind`                                                   | `{}` (opens the matching Privacy & Security pane)                                                                                                            |
@@ -501,13 +516,31 @@ Notification (app → helper, no id, never answered, applied on the main thread 
 | `overlay_visible` | `visible: bool`; `true` (re)places the pill under the cursor and orders it in             |
 | `overlay_level`   | `level: number` 0..1 (RMS), ~30 Hz while recording                                        |
 
-Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `apple-speech` (transcription);
+Model ids: `parakeet-tdt-v3`, `parakeet-tdt-v2`, `parakeet-flash`, `whisper-large-v3-turbo`,
+`whisper-hinglish`, `apple-speech` (transcription);
 `apple-intelligence` (post-processing; `model_status` reports availability, never downloads).
 `groq-whisper` is cloud-only and never reaches the helper.
 `language` (optional everywhere) is a language code such as `en` or `hi`, or a full locale such as
 `en-GB`; only `apple-speech` uses it for `model_status` / `download_model` (its assets are per
-locale; default `en-US`). Parakeet files live in `<models-dir>/<model-id>/`, downloaded into
-`<model-id>.partial/` and renamed into place when complete.
+locale; default `en-US`). Parakeet and Whisper files live in `<models-dir>/<model-id>/`,
+downloaded into `<model-id>.partial/` and renamed into place when complete. `languages` (allowed
+ISO 639-1 codes) and `prompt` (the dictionary prompt, as Groq gets it) only reach `whisper-*`
+models: they pick the most likely allowed language and condition on the prompt. `quality` is
+Whisper's token-weighted `avgLogprob` / `noSpeechProb` and maximum `compressionRatio`, or
+Parakeet TDT's `confidence`; absent for Parakeet Flash and Apple Speech.
+
+### Smart Select (`src-tauri/src/features/models/smart_select.rs`)
+
+The dictation languages pick one local model: all `en` → `parakeet-tdt-v2`; any `hi` →
+`whisper-hinglish`; all in Parakeet TDT v3's 25 languages → `parakeet-tdt-v3`; otherwise
+`whisper-large-v3-turbo`. With a Groq key the route is `[groq-whisper, local]`, else `[local]`;
+models that are not ready are skipped, and nothing ready is an error naming Settings →
+Transcription. The second model of the route runs once, sequentially, when the first fails or
+(`smartRetry` on, 3+ words) its Whisper quality is below the floor: `avgLogprob < -1.0` or
+`compressionRatio > 2.4`, except silence (`noSpeechProb > 0.6` with `avgLogprob < -1.0`), or
+(Hindi among the languages) its text mixes Devanagari and Latin letters (`mixed_script`: Groq
+writing Hinglish half in Devanagari). A retry with text replaces the first result. The route's
+local model is preloaded at launch, after its download, and when the model or languages change.
 
 Launch at login: `settings.launchAtLogin` mirrors `login_item`. `update_settings` changes the
 login item before saving and stores nothing when macOS refuses; the core re-reads the status
@@ -523,10 +556,10 @@ Any transcription model combines with any post-processing provider:
 |                                 | Groq LLM | Apple Intelligence (on-device) | Custom OpenAI-compatible (Ollama local or any remote) | Off             |
 | ------------------------------- | -------- | ------------------------------ | ----------------------------------------------------- | --------------- |
 | Groq Whisper (cloud)            | default  | ✓                              | ✓                                                     | ✓               |
-| Parakeet / Apple Speech (local) | ✓        | ✓ fully offline                | ✓                                                     | ✓ fully offline |
+| Parakeet / Whisper / Apple Speech (local) | ✓ | ✓ fully offline            | ✓                                                     | ✓ fully offline |
 
 The Groq API key is one key serving both uses. Settings → Transcription shows it while Groq
-Whisper is the voice model; otherwise Settings → Formatting shows it while Groq is the
+Whisper or Smart Select is the voice model; otherwise Settings → Formatting shows it while Groq is the
 post-processing provider.
 
 ## 8. Update notices

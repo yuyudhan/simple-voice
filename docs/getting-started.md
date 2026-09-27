@@ -21,8 +21,8 @@ it rather than failing silently.
 
 ## Groq API key
 
-If you use Groq, paste your API key in Settings → Transcription when Groq Whisper is your voice
-model, or in Settings → Formatting when Groq formats your text. One key serves both. Create one at
+If you use Groq, paste your API key in Settings → Transcription when Groq Whisper or Smart Select
+is your voice model, or in Settings → Formatting when Groq formats your text. One key serves both. Create one at
 [console.groq.com](https://console.groq.com/keys). The `GROQ_API_KEY` environment variable is used
 when no key is saved. On-device engines need no key.
 
