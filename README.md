@@ -38,8 +38,10 @@ Then open **Simple Voice** from Spotlight or `~/Applications` and grant the perm
 | Task                          | How                                                                   |
 | ----------------------------- | --------------------------------------------------------------------- |
 | Upgrade                       | Click **Install update** in the app, or run the install command again |
-| Uninstall                     | `rm -rf ~/Applications/"Simple Voice.app"`                            |
-| Uninstall and delete all data | The line above, then `rm -rf ~/.simplevoice`                          |
+| Uninstall                     | `... \| bash -s -- --uninstall`                                       |
+| Uninstall and delete all data | `... \| bash -s -- --uninstall --purge`                               |
+
+Uninstalling quits the app, removes it and resets its permissions; your history, dictionary and settings stay in `~/.simplevoice` for a later reinstall. `--purge` deletes them too, including a database you moved in Settings → Privacy & data (the folder itself and any other files in it stay).
 
 Releases are signed with the project's own certificate, so macOS keeps Simple Voice's permissions across upgrades. Until Apple notarizes them, the install script clears the download quarantine so macOS opens the app.
 
@@ -63,7 +65,7 @@ See [all features](docs/features.md).
 
 ![Hold fn and speak, speech to text, clean up, pasted in place](docs/images/how-it-works.png)
 
-Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Esc cancels. Both shortcuts can be changed in Settings.
+Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Both shortcuts can be changed in Settings, where you can also let Esc cancel a recording (off by default).
 
 |                | Cloud                                   | On-device                                                                                            |
 | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -75,11 +77,11 @@ Mix and match: any speech engine works with any clean-up provider, and clean-up 
 
 ## A look inside
 
-| ![Insights page with usage by app and daily activity](docs/images/insights.png) | ![Models settings with cloud and on-device voice models](docs/images/models.png) |
-| :-----------------------------------------------------------------------------: | :------------------------------------------------------------------------------: |
-|       **Insights.** Speaking speed, words, streaks and where you dictate.       |                **Models.** Pick a cloud or on-device voice model.                |
-| ![Dictionary page with words and replacement rules](docs/images/dictionary.png) |       ![Style page with Formal and Casual options](docs/images/style.png)        |
-|           **Dictionary.** Names, jargon and `heard -> written` rules.           |                 **Style.** Formal or Casual, applied everywhere.                 |
+| ![Insights page with usage by app and daily activity](docs/images/insights.png) | ![Transcription settings with cloud and on-device voice models](docs/images/models.png) |
+| :-----------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------: |
+|       **Insights.** Speaking speed, words, streaks and where you dictate.       |                **Transcription.** Pick a cloud or on-device voice model.                |
+| ![Dictionary page with words and replacement rules](docs/images/dictionary.png) |           ![Style page with Formal and Casual options](docs/images/style.png)           |
+|           **Dictionary.** Names, jargon and `heard -> written` rules.           |                    **Style.** Formal or Casual, applied everywhere.                     |
 
 ## Your data stays yours
 

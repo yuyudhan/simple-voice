@@ -16,7 +16,7 @@ Only what the providers you choose need:
 | Formatting off         | Nothing.                                                                                                                |
 | Update checks          | A request for the latest release, to GitHub, once a day. It carries the app version and nothing about you or your use.  |
 
-There is no telemetry and no account. Update checks can be turned off in Settings → System. The
+There is no telemetry and no account. Update checks can be turned off in Settings → App. The
 name of the app you dictated into is stored in your local history to power Insights; it never
 leaves your Mac. History also keeps the text each edit replaced, locally.
 
@@ -31,7 +31,12 @@ Everything is stored locally in `~/.simplevoice/`:
 | `audio/`          | Audio of failed dictations, kept so they can be retried; removed once retried or deleted.                |
 | `backups/`        | A copy of the database taken before each upgrade migrates it (the last three are kept).                  |
 
-You can move the database to another folder in Settings → Data; Simple Voice remembers the new
-location. To remove everything, delete the app and its data:
-`rm -rf ~/Applications/"Simple Voice.app"` and `rm -rf ~/.simplevoice` (and the folder you moved
-the database to, if any).
+You can move the database to another folder in Settings → Privacy & data; Simple Voice remembers
+the new location. To remove everything, run the install command with `--uninstall --purge`:
+
+```sh
+curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash -s -- --uninstall --purge
+```
+
+It deletes the app, `~/.simplevoice` and the database in a folder you moved it to, and resets
+the app's permissions. Without `--purge` it keeps `~/.simplevoice`.

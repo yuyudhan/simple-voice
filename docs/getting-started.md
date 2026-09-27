@@ -7,8 +7,8 @@ Install Simple Voice with the install script as described in the
 
 ## Permissions
 
-On first launch a short onboarding asks for three macOS permissions. Settings → Permissions shows
-their live status at any time and links straight to the right pane of System Settings.
+On first launch a short onboarding asks for three macOS permissions. Settings → Privacy & data
+shows their live status at any time and links straight to the right pane of System Settings.
 
 | Permission             | Why it is needed                                                                                            |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -21,9 +21,10 @@ it rather than failing silently.
 
 ## Groq API key
 
-If you use Groq, paste your API key in Settings → Models (one key serves both transcription and
-formatting). Create one at [console.groq.com](https://console.groq.com/keys). The `GROQ_API_KEY`
-environment variable is used when no key is saved. On-device engines need no key.
+If you use Groq, paste your API key in Settings → Transcription when Groq Whisper is your voice
+model, or in Settings → Formatting when Groq formats your text. One key serves both. Create one at
+[console.groq.com](https://console.groq.com/keys). The `GROQ_API_KEY` environment variable is used
+when no key is saved. On-device engines need no key.
 
 ## Updates
 
@@ -39,7 +40,7 @@ signature, quits Simple Voice
 while it updates and reopens it afterwards. It installs into `~/Applications`, so no
 administrator password is needed. If the update fails, the banner says why and the full
 output is in `~/.simplevoice/update.log`; running the command above in Terminal does the same
-update. Dismissing the banner skips that version only. Settings → System → Updates shows the
+update. Dismissing the banner skips that version only. Settings → App → Updates shows the
 running version, checks on demand, installs the update, and turns the daily check off.
 
 ## After an upgrade
@@ -48,4 +49,4 @@ macOS ties permissions to the certificate the app is signed with, and every rele
 one, so permissions carry over. Upgrading from an older release that was ad-hoc signed is the one
 exception: if dictation then stops recording or pasting, open System Settings → Privacy &
 Security, remove Simple Voice from the affected list, and grant it again from the app's
-Settings → Permissions.
+Settings → Privacy & data.

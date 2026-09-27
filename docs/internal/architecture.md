@@ -55,10 +55,10 @@ keeps only the offered corrections via `sv_text::accept_learning`, and adds them
     - `update.log` — output of the last in-app update install (file mode 0600), replaced by each.
     - `simple-voice.db` — default database location (file mode 0600).
     - `location` — optional one-line file holding the absolute path of the directory that
-      contains the database when the user moved it (Settings → Data). Absent = default. If that
-      directory is missing at launch (e.g. an unmounted drive), `Db::open` fails with a message
-      instead of creating an empty database there. `Db::open_at(dir)` treats `dir` as both the
-      data directory and the database directory.
+      contains the database when the user moved it (Settings → Privacy & data). Absent =
+      default. If that directory is missing at launch (e.g. an unmounted drive), `Db::open` fails
+      with a message instead of creating an empty database there. `Db::open_at(dir)` treats `dir`
+      as both the data directory and the database directory.
     - `models/` — downloaded local models (owned by the engine helper, passed as `--models-dir`).
     - `audio/` — WAVs of failed dictations, kept for retry; deleted when the entry is retried
       successfully or deleted.
@@ -163,6 +163,8 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // DictionarySource = Manual | Learned, wire "manual" | "learned"; DictionaryEntry.source.
 // HistoryEntry.editedText: the pasted text as the user corrected it, None when never corrected.
 // Settings.learnFromEdits (default false) turns on learning from corrections.
+// Settings.escapeCancels (default false) registers Esc for the length of each recording so it
+// cancels it; off, Esc is never taken from the focused app.
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -345,16 +347,16 @@ Shared UI state lives in two React contexts in `src/app/`: `SettingsContext.tsx`
 `settings-changed`; `update` shows its own error toast and resolves `false`) and
 `ShellContext.tsx` (`useShell()` → `{ navigate(page) }`, with
 `Page = "home" | "insights" | "dictionary" | "style" | SettingsSection` and
-`SettingsSection = "general" | "system" | "models" | "permissions" | "data"`). Each settings
-section is a first-class page: the sidebar lists it under a Settings group at the bottom and
-`settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri events are
-consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`; toasts with
-`useToast()` from `src/ui`.
+`SettingsSection = "dictation" | "transcription" | "formatting" | "app" | "privacy"`). Each
+settings section is a first-class page: the sidebar lists it under a Settings group at the
+bottom and `settings/SettingsPage.tsx` renders it in the content area like any other page. Tauri
+events are consumed with `useTauriEvent(events.x, handler)` from `src/lib/useTauriEvent.ts`;
+toasts with `useToast()` from `src/ui`.
 
 Accessibility access: `settings/permissions/AccessibilityWarning.tsx` has no dismiss control. The
 shell pins it (sticky) above every page whenever `permissions.accessibility !== "granted"`, saying
 that text is only copied, and that Fn does nothing when `holdShortcut` or `toggleShortcut` is
-`"Fn"`. The General settings and the onboarding shortcut step show it inline only while Fn is a
+`"Fn"`. The Dictation settings and the onboarding shortcut step show it inline only while Fn is a
 shortcut. The helper gates paste and its Fn event tap on the same grant, so the warning, paste and
 the tap agree. `AXIsProcessTrusted()` can stay false inside a running process after the user
 grants access, so while it does the helper re-checks in a short-lived copy of itself
@@ -421,7 +423,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `settings-changed`    | `Settings`                                                                                                                                        |
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
 | `permissions-changed` | `Permissions`                                                                                                                                     |
-| `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → General, or Settings → System for `"updates"` |
+| `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → Dictation, or Settings → App for `"updates"`  |
 | `update-status`       | `UpdateStatus` — when a check starts and ends, and when an install starts and ends without quitting the app                                      |
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
@@ -431,14 +433,14 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 ## 5. Windows
 
 - `main` — 1080×720 (min 860×600), `titleBarStyle: "Overlay"`, hidden title, traffic lights
-  inset. Closing hides it; the tray reopens it. The Dock icon shows only while `main` is visible
-  (and `Settings.showInDock` is on): hiding `main` switches the app to the Accessory activation
-  policy, so with the window closed there is no Dock "Quit" to stop the shortcuts. The app menu
-  binds Cmd+Q to "Close to Menu Bar" (hides `main`, like closing) and offers "Quit Simple Voice"
-  without a shortcut; the tray's Quit, the Dock's Quit, logout and the update installer still quit
-  the app. Starts hidden when `launchAtLogin` is on and the Dock started at most 120 s earlier (a
-  login launch: `SMAppService` passes no arguments, so this is the only signal an `unsafe`-free
-  core can read). Gaining focus re-reads the login item (see `login_item` below).
+  inset. Closing it (red button or Cmd+W) hides it; the tray reopens it. The Dock icon shows only
+  while `main` is visible (and `Settings.showInDock` is on): hiding `main` switches the app to the
+  Accessory activation policy, so with the window closed there is no Dock "Quit" to stop the
+  shortcuts. The app menu keeps the standard macOS Quit (Cmd+Q); it, the tray's Quit, the Dock's
+  Quit, logout and the update installer quit the app. Starts hidden when `launchAtLogin` is on and
+  the Dock started at most 120 s earlier (a login launch: `SMAppService` passes no arguments, so
+  this is the only signal an `unsafe`-free core can read). Gaining focus re-reads the login item
+  (see `login_item` below).
 - The overlay pill is not a Tauri window: the Swift helper draws it (`engine/.../Overlay.swift`,
   `PillView.swift`) because floating over full-screen apps needs the AppKit
   `fullScreenAuxiliary` collection behaviour, which Tauri does not expose and Rust cannot set
@@ -523,8 +525,9 @@ Any transcription model combines with any post-processing provider:
 | Groq Whisper (cloud)            | default  | ✓                              | ✓                                                     | ✓               |
 | Parakeet / Apple Speech (local) | ✓        | ✓ fully offline                | ✓                                                     | ✓ fully offline |
 
-The Groq API key is entered in Settings → Models, next to the Groq Whisper model and the Groq
-post-processing provider; one key serves both.
+The Groq API key is one key serving both uses. Settings → Transcription shows it while Groq
+Whisper is the voice model; otherwise Settings → Formatting shows it while Groq is the
+post-processing provider.
 
 ## 8. Update notices
 
@@ -536,7 +539,7 @@ check (it wakes hourly, since monotonic sleeps stop while the Mac sleeps). A fai
 retried on the next wake. `Settings.checkForUpdates = false` stops the automatic checks; "Check
 now", the tray item and the app-menu item still check on demand. When the release is newer than
 the running version (semver), the tray item reads "Update Available: X…", and the UI shows a
-banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → System,
+banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → App,
 both with an Install update button.
 
 `install_update` runs `curl -fsSL <repo>/releases/latest/download/install.sh | bash` in its own

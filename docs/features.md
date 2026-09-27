@@ -5,13 +5,14 @@
 Simple Voice is a small, quiet dictation app for macOS on Apple Silicon. Hold a shortcut, talk,
 let go: your words are transcribed, tidied up, and pasted into the focused text field of any
 app: mail, chat, your editor, a terminal. It stays out of the way in the menu bar and shows a
-small floating bar while it listens. Closing the window or pressing Cmd+Q keeps it running in
-the menu bar, with no Dock icon, so the shortcuts keep working; quit from the menu bar icon.
+small floating bar while it listens. Closing the window (Cmd+W) keeps it running in the menu bar,
+with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Quit quits it.
 
 - **Dictation anywhere.** Works in any app that accepts text. The result is pasted where your
   cursor is and stays on the clipboard; Settings can restore the previous clipboard instead.
 - **Two shortcuts.** _Hold to speak_ records while the keys are held; _toggle to speak_ starts
-  on one press and stops on the next. Both are configurable, and Esc cancels a recording.
+  on one press and stops on the next. Both are configurable. Esc can cancel a recording once
+  you turn that on in Settings; it is off by default so Esc keeps working in your apps.
 - **Your choice of speech engine.**
     - **Groq Whisper** (`whisper-large-v3-turbo`) in the cloud: fast and accurate, needs a Groq
       API key.
@@ -36,7 +37,7 @@ the menu bar, with no Dock icon, so the shortcuts keep working; quit from the me
   place, and Cmd+Z in that app undoes it. It uses your formatting provider, so it needs one
   that is not off; nothing is changed when nothing is selected or the edit fails. Edits appear
   in History with what you said and the text they replaced. The shortcut is configurable in
-  Settings → General and can be turned off.
+  Settings → Dictation and can be turned off.
 
 - **Two styles.** _Formal_ (capitals and full punctuation) or _Casual_ (capitals, lighter
   punctuation), applied everywhere.
@@ -45,7 +46,7 @@ the menu bar, with no Dock icon, so the shortcuts keep working; quit from the me
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
   your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file.
 - **Learns from your corrections.** Turn on _Learn from your corrections_ in Settings →
-  General and fix a misspelled name or term right in the text field after it is pasted: the
+  Formatting and fix a misspelled name or term right in the text field after it is pasted: the
   corrected word joins your dictionary, marked _Learned_. Only the changed words, never the rest
   of the field, go to your AI post-processing provider, which decides what is worth learning.
   Works in native apps, Electron apps and Chromium browsers, not in terminals. Delete a learned
