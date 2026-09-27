@@ -66,7 +66,8 @@ export interface Microphone {
 
 export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped" | "not_pasted";
 
-export type RetryReason = "failed" | "low_confidence";
+/** Why Smart Select retried; "mixed_script" = Groq wrote Hinglish partly in Devanagari. */
+export type RetryReason = "failed" | "low_confidence" | "mixed_script";
 
 export type AppCategory =
     "work_messages" | "personal_messages" | "email" | "documents" | "ai_prompts" | "code" | "other";

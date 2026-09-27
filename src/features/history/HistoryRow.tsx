@@ -1,7 +1,7 @@
 // FilePath: src/features/history/HistoryRow.tsx
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Copy, PenLine, RotateCcw, Sparkles, Trash2 } from "lucide-react";
-import type { HistoryEntry } from "../../lib/api";
+import type { HistoryEntry, RetryReason } from "../../lib/api";
 import { CATEGORY_META } from "../../lib/categories";
 import { formatSeconds, formatTime } from "../../lib/format";
 import { Badge, IconButton, Spinner } from "../../ui";
@@ -43,6 +43,12 @@ function StatusBadge({ entry }: { entry: HistoryEntry }) {
     }
 }
 
+const RETRY_LABEL: Record<RetryReason, string> = {
+    failed: "failed",
+    low_confidence: "low confidence",
+    mixed_script: "mixed script",
+};
+
 function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     const formatter = entry.formatModelName;
     const verb = entry.sourceText === null ? "Formatted" : "Edited";
@@ -52,7 +58,9 @@ function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     const formatted = entry.formatMs === null ? "" : ` in ${formatSeconds(entry.formatMs)}`;
     const first = entry.firstModelName;
     const model = entry.modelName;
-    const reason = entry.retryReason === "low_confidence" ? "low confidence" : "failed";
+    const reason = entry.retryReason === null ? "failed" : RETRY_LABEL[entry.retryReason];
+    const why =
+        entry.retryReason === "mixed_script" ? "wrote Hinglish partly in Devanagari" : reason;
     // The first model's name equals the final one when the retry did not help and its result
     // was kept, so there is no route to draw.
     const kept = first === model;
@@ -65,7 +73,7 @@ function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     } else if (first !== null) {
         route = `${first} → ${model}`;
         retried = ` · retried: ${reason}`;
-        tooltip = `Tried ${first} first (${reason}), then transcribed with ${model}${transcribed}`;
+        tooltip = `Tried ${first} first (${why}), then transcribed with ${model}${transcribed}`;
     }
     return (
         <span className="history-row__models">

@@ -576,7 +576,7 @@ mod tests {
                 retried.id,
                 NewHistory {
                     first_model: Some("some/provider-model".to_owned()),
-                    retry_reason: Some(RetryReason::Failed),
+                    retry_reason: Some(RetryReason::MixedScript),
                     ..entry("Ship it")
                 },
             )
@@ -586,7 +586,7 @@ mod tests {
             provider.first_model_name.as_deref(),
             Some("some/provider-model")
         );
-        assert_eq!(provider.retry_reason, Some(RetryReason::Failed));
+        assert_eq!(provider.retry_reason, Some(RetryReason::MixedScript));
 
         let plain = db
             .update_history(retried.id, entry("Ship it"))

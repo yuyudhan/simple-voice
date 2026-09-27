@@ -53,6 +53,8 @@ pub enum RetryReason {
     Failed,
     /// The first model's result was below its confidence floor.
     LowConfidence,
+    /// Hinglish came back written half in Devanagari; the app writes Hinglish romanised.
+    MixedScript,
 }
 
 impl RetryReason {
@@ -60,6 +62,7 @@ impl RetryReason {
         match self {
             Self::Failed => "failed",
             Self::LowConfidence => "low_confidence",
+            Self::MixedScript => "mixed_script",
         }
     }
 
@@ -67,6 +70,7 @@ impl RetryReason {
         match value {
             "failed" => Some(Self::Failed),
             "low_confidence" => Some(Self::LowConfidence),
+            "mixed_script" => Some(Self::MixedScript),
             _ => None,
         }
     }

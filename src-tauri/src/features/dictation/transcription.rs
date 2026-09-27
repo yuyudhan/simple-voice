@@ -154,7 +154,12 @@ async fn smart_transcribe(
     let first = route.first;
     let first_result = run(state, settings, vocabulary, audio, first).await;
     let reason = match &first_result {
-        Ok(result) => smart_select::gate(&result.text, &result.quality, settings.smart_retry),
+        Ok(result) => smart_select::gate(
+            &result.text,
+            &result.quality,
+            &settings.languages,
+            settings.smart_retry,
+        ),
         Err(_) => Some(RetryReason::Failed),
     };
     let retry = reason.zip(route.retry);

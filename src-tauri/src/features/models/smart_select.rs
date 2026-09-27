@@ -23,9 +23,7 @@ pub(crate) const WHISPER_COMPRESSION_CEILING: f32 = 2.4;
 /// Above this no-speech probability a low log probability means silence, which another model
 /// would not hear better.
 pub(crate) const WHISPER_NO_SPEECH_FLOOR: f32 = 0.6;
-/// A Parakeet result whose confidence (0.1..=1.0) is below this is unsure.
-pub(crate) const PARAKEET_CONFIDENCE_FLOOR: f32 = 0.6;
-/// Shorter clips skip the confidence check: a word or two scores low without being wrong.
+/// Shorter clips skip the gate: a word or two scores low without being wrong.
 const MIN_CHECKED_WORDS: usize = 3;
 
 pub(crate) const NO_READY_MODEL: &str =
@@ -164,17 +162,18 @@ pub(crate) fn ready_route(
     })
 }
 
-/// Whether a successful result is unsure enough to double-check. Whisper models report log
-/// probabilities, Parakeet a confidence; models reporting neither always pass.
+/// Whether a successful first result should be double-checked by the local model. The first
+/// model of a two-model route is always Groq Whisper, so only Whisper's numbers are read.
 pub(crate) fn gate(
     text: &str,
     quality: &TranscriptQuality,
+    languages: &[String],
     smart_retry: bool,
 ) -> Option<RetryReason> {
     if !smart_retry || word_count(text) < MIN_CHECKED_WORDS {
         return None;
     }
-    let unsure = if let Some(logprob) = quality.avg_logprob {
+    if let Some(logprob) = quality.avg_logprob {
         let doubtful = logprob < WHISPER_LOGPROB_FLOOR
             || quality
                 .compression_ratio
@@ -183,13 +182,21 @@ pub(crate) fn gate(
             .no_speech_prob
             .is_some_and(|prob| prob > WHISPER_NO_SPEECH_FLOOR)
             && logprob < WHISPER_LOGPROB_FLOOR;
-        doubtful && !silence
-    } else {
-        quality
-            .confidence
-            .is_some_and(|confidence| confidence < PARAKEET_CONFIDENCE_FLOOR)
-    };
-    unsure.then_some(RetryReason::LowConfidence)
+        if doubtful && !silence {
+            return Some(RetryReason::LowConfidence);
+        }
+    }
+    // Groq often writes Hinglish half in Devanagari with full confidence ("कल का stand up");
+    // Hinglish is written romanised, which the local Hinglish model does. Pure Devanagari is
+    // Hindi and pure Latin is English or romanised Hinglish; both pass.
+    let hindi = languages.iter().any(|code| is(code, "hi"));
+    (hindi && is_mixed_script(text)).then_some(RetryReason::MixedScript)
+}
+
+/// Devanagari letters and ASCII Latin letters in the same text.
+fn is_mixed_script(text: &str) -> bool {
+    let devanagari = text.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c));
+    devanagari && text.chars().any(|c| c.is_ascii_alphabetic())
 }
 
 /// What Smart Select runs for `languages`, for its card in Settings → Transcription.
@@ -251,12 +258,7 @@ mod tests {
         }
     }
 
-    fn parakeet(confidence: f32) -> TranscriptQuality {
-        TranscriptQuality {
-            confidence: Some(confidence),
-            ..TranscriptQuality::default()
-        }
-    }
+    const HINDI: &[&str] = &["en", "hi"];
 
     const SENTENCE: &str = "move the standup to ten";
 
@@ -327,62 +329,90 @@ mod tests {
         assert!(error.to_string().contains("Settings → Transcription"));
     }
 
+    fn gated(text: &str, quality: &TranscriptQuality, languages: &[&str]) -> Option<RetryReason> {
+        gate(text, quality, &langs(languages), true)
+    }
+
     #[test]
     fn whisper_gate_flags_low_logprob_and_repetition() {
-        assert_eq!(gate(SENTENCE, &whisper(-0.3, 1.2, 0.01), true), None);
+        assert_eq!(gated(SENTENCE, &whisper(-0.3, 1.2, 0.01), HINDI), None);
         assert_eq!(
-            gate(SENTENCE, &whisper(-1.2, 1.2, 0.01), true),
+            gated(SENTENCE, &whisper(-1.2, 1.2, 0.01), HINDI),
             Some(RetryReason::LowConfidence)
         );
         assert_eq!(
-            gate(SENTENCE, &whisper(-0.3, 2.6, 0.01), true),
+            gated(SENTENCE, &whisper(-0.3, 2.6, 0.01), &["en"]),
             Some(RetryReason::LowConfidence)
         );
         // Exactly at the floors is still fine.
-        assert_eq!(
-            gate(
-                SENTENCE,
-                &whisper(WHISPER_LOGPROB_FLOOR, WHISPER_COMPRESSION_CEILING, 0.0),
-                true
-            ),
-            None
-        );
+        let edge = whisper(WHISPER_LOGPROB_FLOOR, WHISPER_COMPRESSION_CEILING, 0.0);
+        assert_eq!(gated(SENTENCE, &edge, HINDI), None);
     }
 
     #[test]
     fn whisper_gate_exempts_silence() {
         // Likely silence: another model would not hear more.
-        assert_eq!(gate(SENTENCE, &whisper(-1.4, 1.0, 0.8), true), None);
+        assert_eq!(gated(SENTENCE, &whisper(-1.4, 1.0, 0.8), HINDI), None);
         // A high no-speech probability alone does not hide repetition.
         assert_eq!(
-            gate(SENTENCE, &whisper(-0.5, 2.8, 0.8), true),
+            gated(SENTENCE, &whisper(-0.5, 2.8, 0.8), HINDI),
             Some(RetryReason::LowConfidence)
         );
     }
 
     #[test]
-    fn parakeet_gate_uses_confidence() {
-        assert_eq!(gate(SENTENCE, &parakeet(0.9), true), None);
+    fn confident_hinglish_half_in_devanagari_is_mixed_script() {
+        let confident = whisper(-0.1, 1.1, 0.01);
+        let mixed = "कल का stand up 11 बजे shift कर दो.";
         assert_eq!(
-            gate(SENTENCE, &parakeet(0.3), true),
-            Some(RetryReason::LowConfidence)
+            gated(mixed, &confident, HINDI),
+            Some(RetryReason::MixedScript)
         );
         assert_eq!(
-            gate(SENTENCE, &parakeet(PARAKEET_CONFIDENCE_FLOOR), true),
-            None
+            gated(mixed, &confident, &["hi"]),
+            Some(RetryReason::MixedScript)
         );
+        // Without quality numbers the script check still runs.
+        assert_eq!(
+            gated(mixed, &TranscriptQuality::default(), HINDI),
+            Some(RetryReason::MixedScript)
+        );
+    }
+
+    #[test]
+    fn one_script_or_no_hindi_is_not_mixed_script() {
+        let confident = whisper(-0.1, 1.1, 0.01);
+        let hindi = "कल की मीटिंग ग्यारह बजे है";
+        let romanised = "kal ka stand up 11 baje shift kar do";
+        assert_eq!(gated(hindi, &confident, HINDI), None);
+        assert_eq!(gated(romanised, &confident, HINDI), None);
+        assert_eq!(gated(SENTENCE, &confident, HINDI), None);
+        // Hindi not allowed: mixed script is not Smart Select's concern.
+        let mixed = "कल का stand up 11 बजे shift कर दो.";
+        assert_eq!(gated(mixed, &confident, &["en", "mr"]), None);
     }
 
     #[test]
     fn short_clips_unreported_quality_and_retry_off_are_never_gated() {
-        assert_eq!(gate("ship it", &parakeet(0.2), true), None);
+        let unsure = whisper(-3.0, 4.0, 0.0);
+        assert_eq!(gated("ship it", &unsure, HINDI), None);
+        assert_eq!(gated("कल stand", &unsure, HINDI), None);
         assert_eq!(
-            gate("one two three", &parakeet(0.2), true),
+            gated("one two three", &unsure, HINDI),
             Some(RetryReason::LowConfidence)
         );
-        assert_eq!(gate(SENTENCE, &TranscriptQuality::default(), true), None);
-        assert_eq!(gate(SENTENCE, &whisper(-3.0, 4.0, 0.0), false), None);
-        assert_eq!(gate(SENTENCE, &parakeet(0.1), false), None);
+        assert_eq!(gated(SENTENCE, &TranscriptQuality::default(), HINDI), None);
+        let hindi = langs(HINDI);
+        assert_eq!(gate(SENTENCE, &unsure, &hindi, false), None);
+        assert_eq!(
+            gate(
+                "कल का stand up",
+                &TranscriptQuality::default(),
+                &hindi,
+                false
+            ),
+            None
+        );
     }
 
     #[test]
