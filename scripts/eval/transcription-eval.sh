@@ -73,14 +73,16 @@ word_errors() {
 
 # Aggregates Whisper segments exactly as Smart Select does: token-weighted means of
 # avg_logprob and no_speech_prob, the maximum compression ratio.
-groq_quality='(.segments // []) as $s
+read -r -d '' groq_quality <<'JQ' || true
+(.segments // []) as $s
     | if ($s | length) == 0 then {} else
         ($s | map((.tokens // []) | length | if . == 0 then 1 else . end)) as $w
         | ($w | add) as $total
         | {avgLogprob: ([range($s | length)] | map($s[.].avg_logprob * $w[.]) | add / $total),
            noSpeechProb: ([range($s | length)] | map($s[.].no_speech_prob * $w[.]) | add / $total),
            compressionRatio: ($s | map(.compression_ratio) | max)}
-      end'
+      end
+JQ
 
 transcribe_groq() {
     local wav="$1" body code attempt
@@ -171,7 +173,8 @@ for model in "${model_list[@]}"; do
             echo "$model $(basename "$wav"): $(jq -r '.error' <<<"$line")" >&2
         fi
     done
-    exec {ENGINE[1]}>&-
+    engine_in=${ENGINE[1]}
+    exec {engine_in}>&-
     wait "$ENGINE_PID" || true
 done
 
