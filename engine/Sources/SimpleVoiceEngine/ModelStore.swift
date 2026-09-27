@@ -1,5 +1,5 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/ModelStore.swift
-// Parakeet model files on disk: status, Hugging Face downloads and deletion.
+// Local model files on disk: status, Hugging Face downloads and deletion.
 //
 // Layout: `<models-dir>/<model-id>/` holds exactly the files the loader needs plus a completion
 // marker. Downloads land in `<model-id>.partial/` and are renamed into place only once every file
@@ -7,50 +7,13 @@
 
 import Foundation
 
-/// The subset of a Hugging Face repository one local model needs.
-struct HubModel: Sendable {
-    let id: ModelID
+/// The files of one Hugging Face repository folder that a local model needs.
+struct HubSource: Sendable {
     let repo: String
     /// Repository folder holding the variant (empty for the repository root).
     let subdirectory: String
     /// Files or `.mlmodelc` directories, relative to `subdirectory`.
     let entries: [String]
-
-    static func forModel(_ id: ModelID) -> HubModel? {
-        switch id {
-        case .parakeetTdtV3:
-            HubModel(
-                id: id,
-                repo: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-                subdirectory: "",
-                entries: [
-                    "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
-                    "JointDecisionv3.mlmodelc", "parakeet_vocab.json",
-                ]
-            )
-        case .parakeetTdtV2:
-            HubModel(
-                id: id,
-                repo: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
-                subdirectory: "",
-                entries: [
-                    "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
-                    "JointDecision.mlmodelc", "parakeet_vocab.json",
-                ]
-            )
-        case .parakeetFlash:
-            // The 1280 ms variant: the helper transcribes whole recordings, where the largest
-            // chunk gives the best accuracy and throughput.
-            HubModel(
-                id: id,
-                repo: "FluidInference/parakeet-realtime-eou-120m-coreml",
-                subdirectory: "1280ms",
-                entries: ["streaming_encoder.mlmodelc", "decoder.mlmodelc", "joint_decision.mlmodelc", "vocab.json"]
-            )
-        case .appleSpeech, .appleIntelligence:
-            nil
-        }
-    }
 
     /// Maps a repository path to its path inside the model directory, or nil when not needed.
     func localPath(forRepoPath repoPath: String) -> String? {
@@ -60,6 +23,96 @@ struct HubModel: Sendable {
         let wanted = entries.contains { relative == $0 || relative.hasPrefix($0 + "/") }
         return wanted ? relative : nil
     }
+}
+
+/// Everything one local model needs, possibly gathered from several repositories. Every source
+/// lands at the top of the same model directory, so their local paths must not overlap.
+struct HubModel: Sendable {
+    let id: ModelID
+    let sources: [HubSource]
+
+    static func forModel(_ id: ModelID) -> HubModel? {
+        switch id {
+        case .parakeetTdtV3:
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
+                        subdirectory: "",
+                        entries: [
+                            "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
+                            "JointDecisionv3.mlmodelc", "parakeet_vocab.json",
+                        ]
+                    )
+                ])
+        case .parakeetTdtV2:
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
+                        subdirectory: "",
+                        entries: [
+                            "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
+                            "JointDecision.mlmodelc", "parakeet_vocab.json",
+                        ]
+                    )
+                ])
+        case .parakeetFlash:
+            // The 1280 ms variant: the helper transcribes whole recordings, where the largest
+            // chunk gives the best accuracy and throughput.
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "FluidInference/parakeet-realtime-eou-120m-coreml",
+                        subdirectory: "1280ms",
+                        entries: [
+                            "streaming_encoder.mlmodelc", "decoder.mlmodelc", "joint_decision.mlmodelc", "vocab.json",
+                        ]
+                    )
+                ])
+        case .whisperLargeV3Turbo:
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "argmaxinc/whisperkit-coreml",
+                        subdirectory: "openai_whisper-large-v3-v20240930_turbo",
+                        entries: [
+                            "AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc",
+                            "TextDecoderContextPrefill.mlmodelc", "config.json", "generation_config.json",
+                        ]
+                    ),
+                    whisperTokenizer,
+                ])
+        case .whisperHinglish:
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "vbhar/whisperkit-hindi2hinglish-prime-coreml",
+                        subdirectory: "Oriserve_Whisper-Hindi2Hinglish-Prime_fp16",
+                        entries: [
+                            "AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc",
+                            "config.json", "generation_config.json",
+                        ]
+                    ),
+                    whisperTokenizer,
+                ])
+        case .appleSpeech, .appleIntelligence:
+            nil
+        }
+    }
+
+    /// WhisperKit looks for `tokenizer.json` at the top of the model folder before it would
+    /// fetch one, so bundling the large-v3 tokenizer keeps loading offline.
+    private static let whisperTokenizer = HubSource(
+        repo: "openai/whisper-large-v3",
+        subdirectory: "",
+        entries: ["tokenizer.json", "tokenizer_config.json"]
+    )
 }
 
 actor ModelStore {
@@ -84,7 +137,8 @@ actor ModelStore {
     /// The model directory, or an error telling the user to download the model first.
     nonisolated func readyDirectory(for model: HubModel) throws -> URL {
         guard completedSize(of: model) != nil else {
-            throw EngineError("\(model.id.rawValue) is not downloaded; download it in Settings → Models")
+            throw EngineError(
+                "\(model.id.rawValue) is not downloaded; download it in Settings → Transcription")
         }
         return directory(for: model.id)
     }
@@ -151,6 +205,7 @@ private struct HubEntry: Decodable {
 }
 
 private struct PlannedFile {
+    let repo: String
     let remotePath: String
     let localPath: String
     let size: Int64
@@ -183,7 +238,7 @@ private struct HubDownload {
                 continue
             }
             try Task.checkCancellation()
-            let url = try resolveURL(file.remotePath)
+            let url = try resolveURL(repo: file.repo, path: file.remotePath)
             try await transfer.fetch(url, to: target, using: session)
             counter.finishFile(file.size)
         }
@@ -197,43 +252,51 @@ private struct HubDownload {
         Log.info("downloaded \(model.id.rawValue) (\(total) bytes)")
     }
 
-    /// Lists the repository and keeps only the files the loader reads.
+    /// Lists every source and keeps only the files the loader reads.
     private func plan() async throws -> [PlannedFile] {
+        var files: [PlannedFile] = []
+        for source in model.sources {
+            files += try await plan(source)
+        }
+        return files
+    }
+
+    private func plan(_ source: HubSource) async throws -> [PlannedFile] {
         var entries: [HubEntry] = []
-        var next: URL? = try listingURL()
+        var next: URL? = try listingURL(source)
         while let url = next {
             let (data, response) = try await URLSession.shared.data(from: url)
             let http = response as? HTTPURLResponse
             guard let http, (200..<300).contains(http.statusCode) else {
-                throw EngineError("Hugging Face listing failed (HTTP \(http?.statusCode ?? 0)) for \(model.repo)")
+                throw EngineError("Hugging Face listing failed (HTTP \(http?.statusCode ?? 0)) for \(source.repo)")
             }
             entries += try JSONDecoder().decode([HubEntry].self, from: data)
             next = nextPage(http)
         }
 
         let files = entries.compactMap { entry -> PlannedFile? in
-            guard entry.type == "file", let local = model.localPath(forRepoPath: entry.path) else { return nil }
-            return PlannedFile(remotePath: entry.path, localPath: local, size: entry.byteCount)
+            guard entry.type == "file", let local = source.localPath(forRepoPath: entry.path) else { return nil }
+            return PlannedFile(repo: source.repo, remotePath: entry.path, localPath: local, size: entry.byteCount)
         }
-        for required in model.entries {
+        for required in source.entries {
             let present = files.contains { $0.localPath == required || $0.localPath.hasPrefix(required + "/") }
             if !present {
-                throw EngineError("\(model.repo) no longer contains \(required); update Simple Voice")
+                throw EngineError("\(source.repo) no longer contains \(required); update Simple Voice")
             }
         }
         return files
     }
 
-    private func listingURL() throws -> URL {
-        let folder = model.subdirectory.isEmpty ? "" : "/" + model.subdirectory
-        let text = "https://huggingface.co/api/models/\(model.repo)/tree/main\(folder)?recursive=true"
+    private func listingURL(_ source: HubSource) throws -> URL {
+        let folder = source.subdirectory.isEmpty ? "" : "/" + source.subdirectory
+        let text = "https://huggingface.co/api/models/\(source.repo)/tree/main\(folder)?recursive=true"
         guard let url = URL(string: text) else { throw EngineError("invalid listing URL \(text)") }
         return url
     }
 
-    private func resolveURL(_ path: String) throws -> URL {
+    private func resolveURL(repo: String, path: String) throws -> URL {
         let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let text = "https://huggingface.co/\(model.repo)/resolve/main/\(encoded)"
+        let text = "https://huggingface.co/\(repo)/resolve/main/\(encoded)"
         guard let url = URL(string: text) else { throw EngineError("invalid download URL \(text)") }
         return url
     }
