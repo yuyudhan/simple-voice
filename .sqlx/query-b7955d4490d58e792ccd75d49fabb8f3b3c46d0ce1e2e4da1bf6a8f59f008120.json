@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT format_model AS \"model!: String\",\n                      COUNT(*) AS \"runs!: i64\",\n                      AVG(format_ms) AS \"average_ms!: f64\",\n                      MIN(format_ms) AS \"fastest_ms!: i64\",\n                      MAX(format_ms) AS \"slowest_ms!: i64\",\n                      SUM(format_ms) AS \"total_ms!: i64\",\n                      SUM(audio_ms) AS \"audio_ms!: i64\",\n                      SUM(word_count) AS \"words!: i64\"\n               FROM history\n               WHERE format_ms IS NOT NULL AND format_model IS NOT NULL\n                 AND source_text IS NULL\n               GROUP BY format_model ORDER BY 2 DESC, 1",
+  "query": "SELECT format_model AS \"model!: String\",\n                      COUNT(*) AS \"runs!: i64\",\n                      AVG(format_ms) AS \"average_ms!: f64\",\n                      MIN(format_ms) AS \"fastest_ms!: i64\",\n                      MAX(format_ms) AS \"slowest_ms!: i64\",\n                      SUM(format_ms) AS \"total_ms!: i64\",\n                      SUM(audio_ms) AS \"audio_ms!: i64\",\n                      SUM(word_count) AS \"words!: i64\",\n                      0 AS \"retries!: i64\"\n               FROM history\n               WHERE format_ms IS NOT NULL AND format_model IS NOT NULL\n                 AND source_text IS NULL\n               GROUP BY format_model ORDER BY 2 DESC, 1",
   "describe": {
     "columns": [
       {
@@ -55,6 +55,12 @@
         "ordinal": 7,
         "type_info": "Integer",
         "origin": "Expression"
+      },
+      {
+        "name": "retries!: i64",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -68,8 +74,9 @@
       true,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "60fcdd4b312061d0ff18b8040776bfd7138a7c5531326e60a04a8fdf995eeb5c"
+  "hash": "b7955d4490d58e792ccd75d49fabb8f3b3c46d0ce1e2e4da1bf6a8f59f008120"
 }
