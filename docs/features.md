@@ -13,11 +13,12 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
 - **Two shortcuts.** _Hold to speak_ records while the keys are held; _toggle to speak_ starts
   on one press and stops on the next. Both are configurable. Esc can cancel a recording once
   you turn that on in Settings; it is off by default so Esc keeps working in your apps.
-- **Smart Select (Beta).** For advanced users: pick the languages you speak; Simple Voice picks the model and
-  offers the one download those languages need (Parakeet for English, Hinglish Whisper for Hindi
-  and Hinglish, Whisper Turbo for other languages). Without a Groq key everything stays on your
-  Mac. With a key, Groq Whisper runs first and the local model takes over when you're offline or a
-  Groq result looks unclear.
+- **Smart Select (Beta).** Pick the languages you speak; Simple Voice picks the model and offers
+  the one download those languages need (Parakeet for English and many European languages,
+  Hinglish Whisper for Hinglish, Whisper Turbo for Hindi and other languages). Without a Groq key
+  everything stays on your Mac. With a key, Groq Whisper runs first and the local model takes
+  over when you're offline or a result looks wrong. If the model can't write one of your
+  languages the way you chose offline (Hindi and Hinglish together, for example), it tells you.
 - **Or choose the speech engine yourself** (the default).
     - **Groq Whisper** (`whisper-large-v3-turbo`) in the cloud: fast and accurate, needs a Groq
       API key.
@@ -48,8 +49,10 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
 
 - **Two styles.** _Formal_ (capitals and full punctuation) or _Casual_ (capitals, lighter
   punctuation), applied everywhere.
-- **Languages.** English, Hindi and Hinglish out of the box, on-device too. Hinglish Whisper
-  writes Hindi and Hinglish in Roman script. The allowed languages are configurable.
+- **Languages.** English, Hindi and Hinglish out of the box, each its own choice, on-device
+  too. Hinglish is written in Roman script, Hindi in Devanagari; when two choices share a
+  language, the picker shows which script each one is written in. The allowed languages are
+  configurable.
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
   your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file.
 - **Learns from your corrections.** Turn on _Learn from your corrections_ in Settings →
