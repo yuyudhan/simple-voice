@@ -1,8 +1,11 @@
 // FilePath: src/features/onboarding/ModelStep.tsx
-// Voice model choice, with Smart Select (beta) one switch away. Continuing requires a usable
-// model: Groq with a verified key or a downloaded local model (plus Speech Recognition access for
-// Apple Speech); for Smart Select, a saved Groq key or every local model of its plan downloaded.
-import { AudioLines } from "lucide-react";
+// Voice model choice, with Smart Select (beta) one switch away. A local model leads with its
+// download card (a new install: Parakeet TDT v3) and the full list sits one click away.
+// Continuing requires a usable model: Groq with a verified key or a downloaded local model (plus
+// Speech Recognition access for Apple Speech); for Smart Select, a saved Groq key or every local
+// model of its plan downloaded.
+import { useState } from "react";
+import { AudioLines, ChevronDown, ChevronUp } from "lucide-react";
 import { useSettings } from "../../app/SettingsContext";
 import { Button } from "../../ui";
 import { GroqKeyField } from "../settings/models/GroqKeyField";
@@ -13,6 +16,7 @@ import { usePermissions } from "../settings/permissions/usePermissions";
 import { SmartSelectPanel, VoiceModelModeSwitch } from "../settings/transcription/SmartSelectPanel";
 import { useSmartSelect } from "../settings/transcription/useSmartSelect";
 import { StepFooter } from "./StepFooter";
+import { ModelDownloadCard } from "./ModelDownloadCard";
 
 interface Props {
     onBack: () => void;
@@ -29,6 +33,16 @@ export function ModelStep({ onBack, onNext }: Props) {
     const isGroq = !isSmart && settings.transcriptionModel === "groq-whisper";
     const isAppleSpeech = !isSmart && active?.provider === "apple";
     const speech = permissions?.speech;
+    const [listOpen, setListOpen] = useState(false);
+    // The model this step is setting up: one waiting on its download, else the chosen one.
+    const target = isSmart
+        ? undefined
+        : models.models?.find((m) => m.id === (models.pendingUse ?? settings.transcriptionModel));
+    const featured =
+        target !== undefined && target.provider !== "groq" && target.sizeMb !== null
+            ? target
+            : undefined;
+    const showList = featured === undefined || listOpen;
 
     let ready = false;
     let blocker = "";
@@ -45,10 +59,13 @@ export function ModelStep({ onBack, onNext }: Props) {
     } else if (active === undefined && models.pendingUse === null) {
         blocker = "Pick a model to continue.";
     } else if (active?.status !== "ready") {
-        blocker =
-            models.pendingUse !== null
-                ? "Downloading — you can continue once it finishes."
-                : "Download the model to continue.";
+        const downloading =
+            models.pendingUse !== null ||
+            (active !== undefined &&
+                (active.status === "downloading" || models.progress[active.id] !== undefined));
+        blocker = downloading
+            ? "Downloading — you can continue once it finishes."
+            : "Download the model to continue.";
     } else if (isAppleSpeech && speech !== "granted") {
         blocker = "Apple Speech needs Speech Recognition access.";
     } else {
@@ -60,11 +77,11 @@ export function ModelStep({ onBack, onNext }: Props) {
             <div className="sv-onb__icon">
                 <AudioLines size={20} />
             </div>
-            <h1 className="sv-onb__title">Choose a voice model</h1>
+            <h1 className="sv-onb__title">Set up your voice model</h1>
             <p className="sv-onb__lead">
-                Groq Whisper runs in the cloud and needs a free API key. Parakeet, Hinglish Whisper
-                and Apple Speech run entirely on this Mac once downloaded. You can change this any
-                time in Settings.
+                Parakeet turns your speech into text right on this Mac: fast, private and offline
+                once downloaded. Prefer Groq in the cloud, or dictate in Hindi or Hinglish? Choose a
+                different model. You can change this any time in Settings.
             </p>
             <div className="sv-onb__wide">
                 {/* A block wrapper keeps the switch at its natural width in the flex column. */}
@@ -79,7 +96,31 @@ export function ModelStep({ onBack, onNext }: Props) {
                         framed
                     />
                 ) : (
-                    <VoiceModelList state={models} />
+                    <>
+                        {featured && <ModelDownloadCard model={featured} state={models} />}
+                        {featured && (
+                            <div className="sv-onb__dl-more">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-expanded={listOpen}
+                                    icon={
+                                        listOpen ? (
+                                            <ChevronUp size={14} />
+                                        ) : (
+                                            <ChevronDown size={14} />
+                                        )
+                                    }
+                                    onClick={() => {
+                                        setListOpen((open) => !open);
+                                    }}
+                                >
+                                    {listOpen ? "Hide other models" : "Choose a different model"}
+                                </Button>
+                            </div>
+                        )}
+                        {showList && <VoiceModelList state={models} />}
+                    </>
                 )}
                 {(isSmart || isGroq) && <GroqKeyField />}
                 {isAppleSpeech && speech !== undefined && speech !== "granted" && (

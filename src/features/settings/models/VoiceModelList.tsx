@@ -38,7 +38,7 @@ export function ProviderMark({ provider }: { provider: ModelProvider }) {
     );
 }
 
-function formatSize(sizeMb: number | null): string | null {
+export function formatSize(sizeMb: number | null): string | null {
     if (sizeMb === null) return null;
     return sizeMb >= 1000 ? `${(sizeMb / 1000).toFixed(1)} GB` : `${String(sizeMb)} MB`;
 }

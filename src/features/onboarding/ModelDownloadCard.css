@@ -1,0 +1,86 @@
+/* FilePath: src/features/onboarding/ModelDownloadCard.css */
+/* Model download card: the model onboarding will use, its promises and the download itself. It
+   sits inside .sv-onb__wide, whose gap spaces it, so it drops the panel's own top margin. */
+
+.sv-onb__dl {
+    margin-top: 0;
+    animation: sv-onb-enter var(--dur) var(--ease);
+}
+
+.sv-onb__dl-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 16px 0;
+}
+
+.sv-onb__dl-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Indented past the 28px provider mark and its 12px gap, so the points align with the name. */
+.sv-onb__dl-points {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 14px 16px 16px 56px;
+    list-style: none;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.sv-onb__dl-points li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sv-onb__dl-points svg {
+    flex: none;
+    color: var(--success);
+}
+
+.sv-onb__dl-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 32px;
+}
+
+.sv-onb__dl-text {
+    min-width: 0;
+}
+
+.sv-onb__dl-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 6px 0;
+}
+
+.sv-onb__dl-percent {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-text);
+}
+
+.sv-onb__dl-note {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.sv-onb__dl-error {
+    margin: 0;
+}
+
+/* The ghost "Choose a different model" button sits flush with the column edge; its padding
+   hangs outside, like the footer's Back button. */
+.sv-onb__dl-more {
+    margin: -8px 0 0 -9px;
+}
