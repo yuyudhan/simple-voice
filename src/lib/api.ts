@@ -15,7 +15,7 @@ export type PermissionStatus = "granted" | "denied" | "not_determined" | "restri
 export interface Settings {
     holdShortcut: string;
     toggleShortcut: string;
-    /** Hold to edit the selected text by voice; empty = edit mode off. Never "Fn". */
+    /** Toggle to edit the selected text by voice; empty = edit mode off. Never "Fn". */
     editShortcut: string;
     /** Esc cancels a recording in progress; off by default. */
     escapeCancels: boolean;

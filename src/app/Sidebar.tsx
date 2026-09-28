@@ -198,6 +198,11 @@ export function Sidebar({ page, onNavigate }: SidebarProps) {
                     <span className="sv-status__hint">
                         Press <ShortcutKeys accelerator={settings.toggleShortcut} /> to toggle
                     </span>
+                    {settings.editShortcut !== "" && (
+                        <span className="sv-status__hint">
+                            Press <ShortcutKeys accelerator={settings.editShortcut} /> to edit
+                        </span>
+                    )}
                 </div>
             </div>
         </aside>

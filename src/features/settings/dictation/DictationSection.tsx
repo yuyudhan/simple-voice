@@ -148,8 +148,8 @@ export function DictationSection() {
                     <ShortcutRecorder field="toggleShortcut" />
                 </SettingRow>
                 <SettingRow
-                    title="Hold to edit"
-                    description="Select text in any app, hold the keys and say how to change it, like “make this more formal”. Needs AI post-processing."
+                    title="Toggle to edit"
+                    description="Select text in any app, press the keys, say how to change it, like “make this more formal”, and press again to apply. Needs AI post-processing."
                 >
                     <ShortcutRecorder field="editShortcut" />
                 </SettingRow>

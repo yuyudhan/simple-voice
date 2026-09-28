@@ -67,7 +67,7 @@ pub enum DictionarySort {
 pub const FN_KEY_ACCELERATOR: &str = "Fn";
 pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
-/// Hold-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
+/// Toggle-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
 pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::GROQ_WHISPER;
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
@@ -78,7 +78,7 @@ pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 pub struct Settings {
     pub hold_shortcut: String,
     pub toggle_shortcut: String,
-    /// Hold to edit the selected text by voice; empty = edit mode off. Never `Fn`.
+    /// Toggle to edit the selected text by voice; empty = edit mode off. Never `Fn`.
     pub edit_shortcut: String,
     /// Esc cancels a recording in progress. Registering Esc globally takes it from every app
     /// while recording, so it is opt-in.

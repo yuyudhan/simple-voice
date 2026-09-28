@@ -40,12 +40,12 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
     away. If formatting is slow or fails, the plain transcript is pasted instead; nothing is lost.
 
 - **Edit selected text by voice.** Select text in any input (a Gmail draft, a browser search box,
-  a note), hold _Hold to edit_ (⌥/ by default) and say how to change it: "make this more
-  formal", "turn this into bullets", "fix the typos". The rewrite replaces the selection in
-  place, and Cmd+Z in that app undoes it. It uses your formatting provider, so it needs one
-  that is not off; nothing is changed when nothing is selected or the edit fails. Edits appear
-  in History with what you said and the text they replaced. The shortcut is configurable in
-  Settings → Dictation and can be turned off.
+  a note), press _Toggle to edit_ (⌥/ by default), say how to change it: "make this more
+  formal", "turn this into bullets", "fix the typos", then press it again. The rewrite replaces
+  the selection in place, and Cmd+Z in that app undoes it. It uses your formatting provider, so
+  it needs one that is not off; nothing is changed when nothing is selected or the edit fails.
+  Edits appear in History with what you said and the text they replaced. The shortcut is
+  configurable in Settings → Dictation and can be turned off.
 
 - **Two styles.** _Formal_ (capitals and full punctuation) or _Casual_ (capitals, lighter
   punctuation), applied everywhere.

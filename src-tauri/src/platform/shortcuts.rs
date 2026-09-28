@@ -1,5 +1,5 @@
 // FilePath: src-tauri/src/platform/shortcuts.rs
-//! Global shortcuts: hold-to-talk, toggle, hold-to-edit (edit mode), and Esc (cancel) while
+//! Global shortcuts: hold-to-talk, toggle, toggle-to-edit (edit mode), and Esc (cancel) while
 //! recording.
 //!
 //! Key combinations go through the global-shortcut plugin (Carbon hot keys). Carbon cannot
@@ -28,7 +28,7 @@ pub(crate) enum Binding {
     Toggle,
     /// Hold and toggle share one accelerator: a tap toggles, a long press is push-to-talk.
     Both,
-    /// Hold to record an instruction that edits the selected text.
+    /// Press to start recording an instruction that edits the selected text, again to apply it.
     Edit,
     Escape,
 }

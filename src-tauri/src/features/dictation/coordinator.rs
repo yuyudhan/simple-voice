@@ -1,5 +1,5 @@
 // FilePath: src-tauri/src/features/dictation/coordinator.rs
-//! The recorder state machine: start, stop, cancel, the hold/toggle shortcut semantics and the
+//! The recorder state machine: start, stop, cancel, the hold/toggle/edit shortcut semantics and
 //! watchdog. One recorder is active at a time; each finished recording is handed to its own
 //! pipeline task so a new dictation can start while the previous one is still transcribing.
 
@@ -58,8 +58,6 @@ struct Coordinator {
     active: Option<Active>,
     /// The current recording was started by pressing the hold shortcut.
     hold_started: bool,
-    /// The current recording was started by pressing the edit shortcut.
-    edit_started: bool,
     /// When the shared hold/toggle shortcut started the current recording.
     pressed_at: Option<Instant>,
 }
@@ -70,7 +68,6 @@ pub(crate) fn spawn_coordinator(app: AppHandle, mut control: mpsc::UnboundedRece
             app,
             active: None,
             hold_started: false,
-            edit_started: false,
             pressed_at: None,
         };
         while let Some(message) = control.recv().await {
@@ -138,19 +135,15 @@ impl Coordinator {
                     self.stop().await;
                 }
             }
-            // Edit mode is hold-only: press to record the instruction, release to apply it.
+            // Edit mode toggles: press to record the instruction, press again to apply it.
             (Binding::Edit, true) => {
-                if self.active.is_none() {
-                    self.start(true).await;
-                    self.edit_started = self.active.is_some();
-                }
-            }
-            (Binding::Edit, false) => {
-                if self.edit_started {
+                if self.active.is_some() {
                     self.stop().await;
+                } else {
+                    self.start(true).await;
                 }
             }
-            (Binding::Escape | Binding::Toggle, false) => {}
+            (Binding::Escape | Binding::Toggle | Binding::Edit, false) => {}
         }
     }
 
@@ -159,8 +152,7 @@ impl Coordinator {
         let started_by_press = match binding {
             Binding::Hold => self.hold_started,
             Binding::Both => self.pressed_at.is_some(),
-            Binding::Edit => self.edit_started,
-            Binding::Toggle | Binding::Escape => false,
+            Binding::Toggle | Binding::Edit | Binding::Escape => false,
         };
         if started_by_press {
             self.cancel().await;
@@ -290,7 +282,6 @@ impl Coordinator {
             selection,
         } = self.active.take()?;
         self.hold_started = false;
-        self.edit_started = false;
         self.pressed_at = None;
         watchdog.abort();
         let state = self.app.state::<AppState>();

@@ -62,9 +62,9 @@ See [all features](docs/features.md).
 
 Hold **fn** and speak, let go to paste. Or press **Control+/** to start and stop. Both shortcuts can be changed in Settings, where you can also let Esc cancel a recording (off by default).
 
-To change text you already wrote, select it in any app, hold **Option+/** and say how to change it: "make this more formal", "turn this into bullets", "fix the typos". The rewrite replaces the selection, and Cmd+Z undoes it.
+To change text you already wrote, select it in any app, press **Option+/**, say how to change it ("make this more formal", "turn this into bullets", "fix the typos") and press **Option+/** again. The rewrite replaces the selection, and Cmd+Z undoes it.
 
-![Selecting a note, holding Option+/ and saying "make this more formal", then the note rewritten in place](docs/images/edit-by-voice.gif)
+![Selecting a note, pressing Option+/ and saying "make this more formal", then the note rewritten in place](docs/images/edit-by-voice.gif)
 
 |                | Cloud                                   | On-device                                                                                            |
 | -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |

@@ -290,7 +290,7 @@ fn validate(settings: &Settings) -> AppResult<()> {
     Ok(())
 }
 
-/// Edit mode is hold-only on its own key combination: the Fn key is taken by dictation's watch,
+/// Edit mode toggles on its own key combination: the Fn key is taken by dictation's watch,
 /// and a combination shared with a dictation shortcut could never tell the two apart.
 fn validate_edit_shortcut(settings: &Settings) -> AppResult<()> {
     let edit = settings.edit_shortcut.as_str();

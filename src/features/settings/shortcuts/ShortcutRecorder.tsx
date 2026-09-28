@@ -18,7 +18,7 @@ const FIELDS: ShortcutField[] = ["holdShortcut", "toggleShortcut", "editShortcut
 const FIELD_LABEL: Record<ShortcutField, string> = {
     holdShortcut: "Hold to speak",
     toggleShortcut: "Toggle to speak",
-    editShortcut: "Hold to edit",
+    editShortcut: "Toggle to edit",
 };
 
 function patchFor(field: ShortcutField, accelerator: string): SettingsPatch {
