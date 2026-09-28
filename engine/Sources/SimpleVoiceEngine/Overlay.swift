@@ -34,6 +34,8 @@ struct PillState: Decodable, Sendable {
 
 private struct OverlayStateParams: Decodable {
     let state: PillState
+    /// How long `done` stays before settling to idle; the app derives it from the user's setting.
+    let doneHoldMs: Int64
 }
 
 private struct OverlayVisibleParams: Decodable {
@@ -52,10 +54,10 @@ final class OverlayController {
     private static let bottomMargin: CGFloat = 80
     /// Fade in and out, as Hammerspoon's `hs.alert` does.
     private static let fade: TimeInterval = 0.15
-    /// How long a finished phase stays on screen before the pill settles back to idle. The app
-    /// hides the pill after 4 s (done) or 1.2 s; the holds only show when the pill stays up.
+    /// How long a failed or cancelled phase stays on screen before the pill settles back to idle.
+    /// The app hides the pill after 1.2 s; the holds only show when the pill stays up. `done`
+    /// follows the user's setting and arrives with each state.
     private static let holds: [PillPhase: Duration] = [
-        .done: .milliseconds(4150),
         .error: .milliseconds(2000),
         .cancelled: .milliseconds(350),
     ]
@@ -74,7 +76,8 @@ final class OverlayController {
         do {
             switch cmd {
             case "overlay_state":
-                apply(try request.params(OverlayStateParams.self).state)
+                let params = try request.params(OverlayStateParams.self)
+                apply(params.state, doneHold: .milliseconds(params.doneHoldMs))
             case "overlay_visible":
                 setVisible(try request.params(OverlayVisibleParams.self).visible)
             case "overlay_level":
@@ -87,7 +90,7 @@ final class OverlayController {
         }
     }
 
-    private func apply(_ state: PillState) {
+    private func apply(_ state: PillState, doneHold: Duration) {
         if state.phase == .recording, model.phase != .recording || model.sessionId != state.sessionId {
             model.startedAt = state.startedAt.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? .now
             model.meter.reset()
@@ -102,7 +105,7 @@ final class OverlayController {
         }
         hold?.cancel()
         hold = nil
-        guard let delay = Self.holds[state.phase] else { return }
+        guard let delay = state.phase == .done ? doneHold : Self.holds[state.phase] else { return }
         hold = Task { [weak self] in
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled, let self else { return }

@@ -4,7 +4,7 @@
 //! separate accessory process, can show it without ever activating Simple Voice. This module
 //! decides what the pill shows and when, and sends it as `overlay_*` notifications.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -14,18 +14,48 @@ use tauri::{AppHandle, Manager};
 use crate::state::{lock, AppState};
 
 const HIDE_DELAY: Duration = Duration::from_millis(1200);
-/// A finished dictation shows the start of its text long enough to read it.
-const DONE_HIDE_DELAY: Duration = Duration::from_secs(4);
+/// The helper keeps the finished text this much longer than the app keeps the pill up, so the
+/// text never switches to idle before the 0.15 s fade-out ends.
+const DONE_HOLD_MARGIN_MS: u64 = 150;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct OverlayState {
     always: AtomicBool,
+    /// How long a finished dictation shows the start of its text (`pastedTextSeconds`).
+    pasted_text_seconds: AtomicU32,
     /// Whether the pill is meant to be on screen.
     shown: AtomicBool,
     /// Bumped on every phase change so a pending hide is skipped once a newer phase arrives.
     generation: AtomicU64,
     /// The last state sent, replayed to a restarted helper.
     last: Mutex<Option<DictationState>>,
+}
+
+impl OverlayState {
+    pub(crate) fn new(pasted_text_seconds: u32) -> Self {
+        Self {
+            always: AtomicBool::new(false),
+            pasted_text_seconds: AtomicU32::new(pasted_text_seconds),
+            shown: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
+            last: Mutex::new(None),
+        }
+    }
+
+    fn done_delay(&self) -> Duration {
+        Duration::from_secs(u64::from(self.pasted_text_seconds.load(Ordering::SeqCst)))
+    }
+
+    fn done_hold_ms(&self) -> u64 {
+        u64::from(self.pasted_text_seconds.load(Ordering::SeqCst)) * 1000 + DONE_HOLD_MARGIN_MS
+    }
+}
+
+/// Applies a new `pastedTextSeconds` to the next finished dictation.
+pub(crate) fn set_pasted_text_seconds(app: &AppHandle, seconds: u32) {
+    app.state::<OverlayState>()
+        .pasted_text_seconds
+        .store(seconds, Ordering::SeqCst);
 }
 
 /// Keeps the pill visible at all times when the user asked for it.
@@ -45,7 +75,12 @@ pub(crate) fn set_always(app: &AppHandle, always: bool) {
 pub(crate) fn follow(app: &AppHandle, state: &DictationState) {
     let overlay = app.state::<OverlayState>();
     *lock(&overlay.last) = Some(state.clone());
-    send("state", app.state::<AppState>().engine.overlay_state(state));
+    send(
+        "state",
+        app.state::<AppState>()
+            .engine
+            .overlay_state(state, overlay.done_hold_ms()),
+    );
     let generation = overlay.generation.fetch_add(1, Ordering::SeqCst) + 1;
     match state.phase {
         DictationPhase::Idle => {
@@ -59,7 +94,7 @@ pub(crate) fn follow(app: &AppHandle, state: &DictationState) {
         DictationPhase::Done | DictationPhase::Error | DictationPhase::Cancelled => {
             set_visible(app, true);
             let delay = if state.phase == DictationPhase::Done {
-                DONE_HIDE_DELAY
+                overlay.done_delay()
             } else {
                 HIDE_DELAY
             };
@@ -86,7 +121,10 @@ pub(crate) fn resync(app: &AppHandle) {
     let overlay = app.state::<OverlayState>();
     let engine = &app.state::<AppState>().engine;
     if let Some(state) = lock(&overlay.last).clone() {
-        send("state", engine.overlay_state(&state));
+        send(
+            "state",
+            engine.overlay_state(&state, overlay.done_hold_ms()),
+        );
     }
     send(
         "visibility",

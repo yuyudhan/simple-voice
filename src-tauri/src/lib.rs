@@ -114,7 +114,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let version = app.package_info().version.to_string();
     app.manage(AppState::new(db, handle, version));
     app.manage(shortcuts::ShortcutRegistry::default());
-    app.manage(overlay::OverlayState::default());
+    app.manage(overlay::OverlayState::new(settings.pasted_text_seconds));
     app.manage(engine_process::EngineProcess::default());
     app.manage(dock::DockSetting::default());
     let events_app = app.clone();

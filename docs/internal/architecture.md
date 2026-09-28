@@ -494,7 +494,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
   shows the preview text and hugs it (188–560 pt), with an amber
   instead of a green check when the text went out unformatted. `platform/overlay.rs` decides
   what it shows and when: visible while a session is active (or always when `showBarAlways`),
-  hidden 4 s after `done` and 1.2 s after `error` / `cancelled`,
+  hidden `pastedTextSeconds` (default 2 s, 1–10) after `done` and 1.2 s after `error` / `cancelled`,
   placed bottom-centre of the visible frame of the screen under the cursor, 80 pt up. It fades
   in and out over 0.15 s. It replays the last state and visibility to a restarted helper.
 
@@ -539,7 +539,7 @@ Notification (app → helper, no id, never answered, applied on the main thread 
 
 | cmd               | Params                                                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------- |
-| `overlay_state`   | `state: DictationState` (§ 4); done, error and cancelled settle back to idle after 4.15 s, 2 s and 0.35 s |
+| `overlay_state`   | `state: DictationState` (§ 4), `doneHoldMs: number`; done settles back to idle after `doneHoldMs` (`pastedTextSeconds` + 0.15 s), error and cancelled after 2 s and 0.35 s |
 | `overlay_visible` | `visible: bool`; `true` (re)places the pill under the cursor and orders it in             |
 | `overlay_level`   | `level: number` 0..1 (RMS), ~30 Hz while recording                                        |
 

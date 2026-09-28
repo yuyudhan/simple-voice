@@ -32,6 +32,8 @@ export interface Settings {
     muteWhileDictating: boolean;
     launchAtLogin: boolean;
     showBarAlways: boolean;
+    /** Seconds the pill shows the start of the pasted text after a dictation (1–10). */
+    pastedTextSeconds: number;
     postProcessing: PostProcessing;
     groqFormattingModel: string;
     customBaseUrl: string;

@@ -20,6 +20,8 @@ const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
 const DERIVED_FIELDS: [&str; 3] = ["groqApiKeyPresent", "customApiKeyPresent", "databaseDir"];
 const MIN_RECORDING_SECONDS: u32 = 10;
 const MAX_RECORDING_SECONDS: u32 = 1800;
+const MIN_PASTED_TEXT_SECONDS: u32 = 1;
+const MAX_PASTED_TEXT_SECONDS: u32 = 10;
 
 impl Db {
     pub async fn settings(&self) -> AppResult<Settings> {
@@ -176,6 +178,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         mute_while_dictating,
         launch_at_login,
         show_bar_always,
+        pasted_text_seconds,
         post_processing,
         groq_formatting_model,
         custom_base_url,
@@ -216,6 +219,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.mute_while_dictating, mute_while_dictating);
     set(&mut settings.launch_at_login, launch_at_login);
     set(&mut settings.show_bar_always, show_bar_always);
+    set(&mut settings.pasted_text_seconds, pasted_text_seconds);
     set(&mut settings.post_processing, post_processing);
     set_trimmed(&mut settings.groq_formatting_model, groq_formatting_model);
     set_trimmed(&mut settings.custom_base_url, custom_base_url);
@@ -259,6 +263,12 @@ fn validate(settings: &Settings) -> AppResult<()> {
     if !(MIN_RECORDING_SECONDS..=MAX_RECORDING_SECONDS).contains(&settings.max_recording_seconds) {
         return Err(AppError::invalid(
             "Maximum recording length must be between 10 seconds and 30 minutes",
+        ));
+    }
+    if !(MIN_PASTED_TEXT_SECONDS..=MAX_PASTED_TEXT_SECONDS).contains(&settings.pasted_text_seconds)
+    {
+        return Err(AppError::invalid(
+            "The pasted text must show for between 1 and 10 seconds",
         ));
     }
     if settings.languages.is_empty() {
@@ -408,6 +418,7 @@ mod tests {
             languages: Some(vec!["en".to_owned(), " HI-latn".to_owned()]),
             fallback_language: Some("EN".to_owned()),
             max_recording_seconds: Some(600),
+            pasted_text_seconds: Some(5),
             learn_from_edits: Some(true),
             escape_cancels: Some(true),
             smart_retry: Some(false),
@@ -428,6 +439,7 @@ mod tests {
         assert_eq!(stored.languages, vec!["en", "hi-Latn"]);
         assert_eq!(stored.fallback_language, "en");
         assert_eq!(stored.max_recording_seconds, 600);
+        assert_eq!(stored.pasted_text_seconds, 5);
         assert!(stored.learn_from_edits);
         assert!(stored.escape_cancels);
         assert!(!stored.smart_retry);
@@ -455,6 +467,14 @@ mod tests {
             },
             SettingsPatch {
                 max_recording_seconds: Some(5),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                pasted_text_seconds: Some(0),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                pasted_text_seconds: Some(11),
                 ..SettingsPatch::default()
             },
             SettingsPatch {

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Play, Volume1, Volume2 } from "lucide-react";
 import { api, errorMessage, type SoundTheme } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import { IconButton, SettingRow, SettingsGroup, Toggle, useToast } from "../../../ui";
+import { IconButton, Select, SettingRow, SettingsGroup, Toggle, useToast } from "../../../ui";
 import "./feedback.css";
 
 const THEMES: { id: SoundTheme; name: string; description: string }[] = [
@@ -14,6 +14,8 @@ const THEMES: { id: SoundTheme; name: string; description: string }[] = [
     { id: "pop", name: "Pop", description: "Short and playful" },
     { id: "chime", name: "Chime", description: "A two-note bell" },
 ];
+
+const PASTED_TEXT_SECONDS = [1, 2, 3, 5, 8];
 
 function SoundThemePicker() {
     const { settings, update } = useSettings();
@@ -99,6 +101,17 @@ function VolumeSlider({ value, disabled }: { value: number; disabled: boolean })
 export function FeedbackGroup() {
     const { settings, update } = useSettings();
 
+    const pastedTextOptions = PASTED_TEXT_SECONDS.map((s) => ({
+        value: String(s),
+        label: s === 1 ? "1 second" : `${String(s)} seconds`,
+    }));
+    if (!PASTED_TEXT_SECONDS.includes(settings.pastedTextSeconds)) {
+        pastedTextOptions.push({
+            value: String(settings.pastedTextSeconds),
+            label: `${String(settings.pastedTextSeconds)} seconds`,
+        });
+    }
+
     return (
         <SettingsGroup title="Feedback">
             <SettingRow
@@ -110,6 +123,18 @@ export function FeedbackGroup() {
                     checked={settings.showBarAlways}
                     onChange={(showBarAlways) => {
                         void update({ showBarAlways });
+                    }}
+                />
+            </SettingRow>
+            <SettingRow
+                title="Show pasted text for"
+                description="How long the pill shows the start of what was pasted after a dictation."
+            >
+                <Select
+                    value={String(settings.pastedTextSeconds)}
+                    options={pastedTextOptions}
+                    onChange={(value) => {
+                        void update({ pastedTextSeconds: Number(value) });
                     }}
                 />
             </SettingRow>

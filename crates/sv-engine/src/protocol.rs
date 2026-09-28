@@ -358,10 +358,17 @@ impl EngineClient {
         self.request("polish", params, POLISH).await
     }
 
-    /// Tells the overlay pill what to show; see [`EngineClient::notify`].
-    pub fn overlay_state(&self, state: &DictationState) -> AppResult<()> {
+    /// Tells the overlay pill what to show and how long a finished dictation stays before the
+    /// pill settles back to idle; see [`EngineClient::notify`].
+    pub fn overlay_state(&self, state: &DictationState, done_hold_ms: u64) -> AppResult<()> {
         let state = serde_json::to_value(state).map_err(AppError::engine)?;
-        self.notify("overlay_state", params([("state", Some(state))]))
+        self.notify(
+            "overlay_state",
+            params([
+                ("state", Some(state)),
+                ("doneHoldMs", Some(Value::from(done_hold_ms))),
+            ]),
+        )
     }
 
     /// Shows the pill under the cursor, or hides it.

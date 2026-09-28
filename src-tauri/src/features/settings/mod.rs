@@ -110,6 +110,9 @@ fn apply_changes(app: &AppHandle, old: &Settings, new: &Settings) {
     if old.show_bar_always != new.show_bar_always {
         overlay::set_always(app, new.show_bar_always);
     }
+    if old.pasted_text_seconds != new.pasted_text_seconds {
+        overlay::set_pasted_text_seconds(app, new.pasted_text_seconds);
+    }
     // Covers a new model choice and, with Smart Select, languages that change its route.
     let target = models::preload_target(new);
     if let Some(model) = target.filter(|&model| models::preload_target(old) != Some(model)) {
