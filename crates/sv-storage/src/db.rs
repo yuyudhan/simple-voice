@@ -508,4 +508,60 @@ mod tests {
         assert_eq!(migrated.languages, vec!["en", "hi-Latn"]);
         assert_eq!(migrated.fallback_language, "hi");
     }
+
+    #[tokio::test]
+    async fn parakeet_default_migration_keeps_existing_installs_on_groq() {
+        use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+
+        let before_default = Migrator::with_migrations(
+            MIGRATOR
+                .iter()
+                .filter(|migration| migration.version < 9)
+                .cloned()
+                .collect(),
+        );
+        let upgraded = async |rows: &[(&str, &str)]| {
+            let dir = tempfile::tempdir().unwrap();
+            let old = Db::open_with(
+                dir.path().to_path_buf(),
+                dir.path().to_path_buf(),
+                &before_default,
+            )
+            .await
+            .unwrap();
+            {
+                let inner = old.read().await;
+                for &(key, value) in rows {
+                    sqlx::query!(
+                        "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                        key,
+                        value
+                    )
+                    .execute(&inner.pool)
+                    .await
+                    .unwrap();
+                }
+            }
+            drop(old);
+            let db = Db::open_at(dir.path()).await.unwrap();
+            db.settings().await.unwrap().transcription_model
+        };
+
+        // Onboarded on the old Groq default without ever saving a voice model.
+        assert_eq!(
+            upgraded(&[("onboardingComplete", "true")]).await,
+            GROQ_WHISPER
+        );
+        // A voice model the user chose is left alone.
+        assert_eq!(
+            upgraded(&[
+                ("onboardingComplete", "true"),
+                ("transcriptionModel", r#""whisper-hinglish""#),
+            ])
+            .await,
+            WHISPER_HINGLISH
+        );
+        // Nothing saved yet: a new install takes the new default.
+        assert_eq!(upgraded(&[]).await, PARAKEET_TDT_V3);
+    }
 }

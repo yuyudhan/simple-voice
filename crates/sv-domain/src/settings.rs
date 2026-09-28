@@ -69,7 +69,8 @@ pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 /// Toggle-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::GROQ_WHISPER;
+/// Runs on the Mac, so a new install needs no account; onboarding prompts for its download.
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::PARAKEET_TDT_V3;
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 
