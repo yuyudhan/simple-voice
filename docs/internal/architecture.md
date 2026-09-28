@@ -125,7 +125,10 @@ CREATE INDEX history_created_at ON history(created_at);
 ```
 
 Data-only migrations: `0008_language_tags.sql` rewrites the stored `languages` setting from the
-old `"hinglish"` code to the BCP 47 tag `"hi-Latn"`.
+old `"hinglish"` code to the BCP 47 tag `"hi-Latn"`. `0009_parakeet_default.sql` stores
+`transcriptionModel = "groq-whisper"` for a database that already has settings rows but none for
+`transcriptionModel`, so installs that relied on the old Groq Whisper default keep it while fresh
+installs take Parakeet TDT v3.
 
 ## 2. Code organization
 
@@ -171,7 +174,8 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // Settings.learnFromEdits (default false) turns on learning from corrections.
 // Settings.escapeCancels (default false) registers Esc for the length of each recording so it
 // cancels it; off, Esc is never taken from the focused app.
-// Smart Select (beta, opt-in): models::SMART_SELECT ("smart-select"); the default stays GROQ_WHISPER;
+// Smart Select (beta, opt-in): models::SMART_SELECT ("smart-select"); the default is
+// PARAKEET_TDT_V3 (installs with saved settings from before 0009 keep GROQ_WHISPER);
 // WHISPER_TURBO ("whisper-large-v3-turbo"), WHISPER_HINGLISH ("whisper-hinglish") are local
 // WhisperKit models (ModelProvider::Whisper). SmartSelectPlan { groq, local, notice } (camelCase):
 // whether Groq runs first, the model id of the one local model the languages need, and a notice
@@ -599,8 +603,8 @@ Any transcription model combines with any post-processing provider:
 
 |                                 | Groq LLM | Apple Intelligence (on-device) | Custom OpenAI-compatible (Ollama local or any remote) | Off             |
 | ------------------------------- | -------- | ------------------------------ | ----------------------------------------------------- | --------------- |
-| Groq Whisper (cloud)            | default  | ✓                              | ✓                                                     | ✓               |
-| Parakeet / Whisper / Apple Speech (local) | ✓ | ✓ fully offline            | ✓                                                     | ✓ fully offline |
+| Groq Whisper (cloud)            | ✓        | ✓                              | ✓                                                     | ✓               |
+| Parakeet / Whisper / Apple Speech (local) | default (Parakeet TDT v3) | ✓ fully offline | ✓                               | ✓ fully offline |
 
 The Groq API key is one key serving both uses. Settings → Transcription shows it while Groq
 Whisper or Smart Select is the voice model; otherwise Settings → Formatting shows it while Groq is the

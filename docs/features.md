@@ -20,10 +20,12 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   over when you're offline or a result looks wrong. If the model can't write one of your
   languages the way you chose offline (Hindi and Hinglish together, for example), it tells you.
 - **Or choose the speech engine yourself** (the default).
+    - **Parakeet** on-device models (TDT v3 multilingual, TDT v2 English, and Parakeet Flash),
+      downloaded from within the app when you pick them. Parakeet TDT v3 is the default: on
+      first launch, setup offers its one-time download (480 MB), and after that dictation works
+      offline with nothing leaving your Mac.
     - **Groq Whisper** (`whisper-large-v3-turbo`) in the cloud: fast and accurate, needs a Groq
       API key.
-    - **Parakeet** on-device models (TDT v3 multilingual, TDT v2 English, and Parakeet Flash),
-      downloaded from within the app when you pick them.
     - **Whisper** on-device models: Hinglish Whisper (Hindi and Hinglish, written in Roman script)
       and Whisper Turbo (99 languages).
     - **Apple Speech**, on-device, on macOS 26 and later.
