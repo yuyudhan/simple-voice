@@ -113,13 +113,22 @@ remove_legacy_app() {
     fi
 }
 
+# A signal, not `osascript -e 'quit app ...'`: an Apple Event needs Automation permission, and
+# when the app's own Install button runs this script macOS attributes the event to the app,
+# whose hardened runtime lacks the apple-events entitlement, so the quit is silently refused.
+# The app keeps nothing unsaved, and its engine helper exits when the app's end of its stdin
+# closes, so TERM is a clean quit.
 quit_app() {
     say "quitting Simple Voice"
-    osascript -e "quit app id \"${bundle_id}\"" >/dev/null 2>&1 || true
+    pkill -TERM -f "$executable_pattern" 2>/dev/null || true
     waited=0
     while is_running; do
         waited=$((waited + 1))
-        [ "$waited" -le 20 ] || fail "Simple Voice did not quit; quit it from the menu bar and rerun"
+        if [ "$waited" -eq 20 ]; then
+            pkill -KILL -f "$executable_pattern" 2>/dev/null || true
+        fi
+        [ "$waited" -le 30 ] ||
+            fail "Simple Voice did not quit; quit it from the menu bar and install again"
         sleep 0.5
     done
 }
@@ -140,7 +149,13 @@ install_release() {
     asset="Simple-Voice_${version}_aarch64.zip"
     base="https://github.com/${repo}/releases/download/v${version}"
     say "downloading Simple Voice ${version}"
-    curl -fL --progress-bar -o "${tmp}/${asset}" "${base}/${asset}" ||
+    # The bar redraws with carriage returns, which fill the app's update.log with noise.
+    if [ -t 2 ]; then
+        progress=--progress-bar
+    else
+        progress=--silent
+    fi
+    curl -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
         fail "download failed: ${base}/${asset}"
     curl -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
         fail "download failed: ${base}/${asset}.sha256"
