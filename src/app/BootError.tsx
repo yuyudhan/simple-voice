@@ -18,15 +18,16 @@ export function BootError({ message, onRetry }: { message: string; onRetry: () =
         setProblem(null);
         try {
             const checked = await api.checkForUpdates();
-            if (checked.error !== null) {
+            // A newer build already on disk only needs a restart, even when GitHub is out of reach.
+            if (checked.installedVersion !== null || checked.updateAvailable) {
+                await api.installUpdate();
+            } else if (checked.error !== null) {
                 setProblem(`Could not check for updates: ${checked.error}`);
-            } else if (!checked.updateAvailable) {
+            } else {
                 setProblem(
                     `Simple Voice ${checked.currentVersion} is the latest release; ` +
                         "there is nothing newer to install.",
                 );
-            } else {
-                await api.installUpdate();
             }
         } catch (e) {
             setProblem(errorMessage(e));

@@ -9,7 +9,8 @@
 #
 # It installs from the GitHub release: it checks the zip against the release's .sha256 and the
 # bundle's code signature before it replaces ~/Applications/Simple Voice.app, quitting the app
-# first and reopening it afterwards when it was running.
+# first and reopening it afterwards when it was running. When that release is already installed
+# but the running app started before it was, the app is only restarted.
 #
 # The app goes in the user's own Applications folder, so installing and updating never need an
 # administrator password; Spotlight and Launchpad index that folder like /Applications. A copy
@@ -136,6 +137,38 @@ quit_app() {
     done
 }
 
+# An older script replaced the bundle without quitting the app, which keeps running the old build
+# until it restarts. ditto keeps the build's modification times, so the executable's inode change
+# time is what records when this copy was installed.
+running_old_build() {
+    local pid started installed
+    pid=$(pgrep -a -f "$executable_pattern" 2>/dev/null | head -n 1) || return 1
+    [ -n "$pid" ] || return 1
+    started=$(LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null) || return 1
+    started=$(LC_ALL=C date -j -f "%a %b %d %T %Y" "$started" +%s 2>/dev/null) || return 1
+    installed=$(stat -f %c "${app}/Contents/MacOS/simple-voice" 2>/dev/null) || return 1
+    [ "$started" -lt "$installed" ]
+}
+
+# Right after a quit, LaunchServices can still count the old process as running and take `open`
+# as "activate", which does nothing; try again until the app is really up.
+reopen() {
+    local tries=0 waited
+    while [ "$tries" -lt 3 ]; do
+        tries=$((tries + 1))
+        open "$1" 2>/dev/null || true
+        waited=0
+        while [ "$waited" -lt 10 ]; do
+            if is_running; then
+                return 0
+            fi
+            waited=$((waited + 1))
+            sleep 0.5
+        done
+    done
+    say "could not reopen Simple Voice; open it from Spotlight or ${apps_dir}"
+}
+
 install_release() {
     version=$1
     case "$version" in
@@ -143,6 +176,10 @@ install_release() {
     esac
     if [ "$(installed_version)" = "$version" ]; then
         say "Simple Voice ${version} is already installed"
+        if running_old_build; then
+            say "restarting Simple Voice to finish the update"
+            quit_app
+        fi
         return 0
     fi
 
@@ -195,9 +232,9 @@ cleanup() {
     rm -rf "$work"
     # A failure after the app quit must not leave the user without it.
     if [ "$code" -ne 0 ] && $was_running && ! is_running; then
-        reopen=$(current_app)
-        if [ -n "$reopen" ]; then
-            open "$reopen" || true
+        previous=$(current_app)
+        if [ -n "$previous" ]; then
+            reopen "$previous"
         fi
     fi
 }
@@ -306,7 +343,7 @@ main() {
     install_release "$version"
 
     if $was_running && ! is_running; then
-        open "$app"
+        reopen "$app"
     elif ! is_running; then
         say "open Simple Voice from Spotlight or ${apps_dir}"
     fi

@@ -15,6 +15,8 @@ use crate::db::Db;
 
 const GROQ_API_KEY: &str = "groqApiKey";
 const CUSTOM_API_KEY: &str = "customApiKey";
+/// The app version that ran last; never part of `Settings`.
+const LAST_RUN_VERSION: &str = "lastRunVersion";
 const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
 /// Computed on every read; a stored row with one of these names is ignored.
 const DERIVED_FIELDS: [&str; 3] = ["groqApiKeyPresent", "customApiKeyPresent", "databaseDir"];
@@ -82,6 +84,15 @@ impl Db {
         let inner = self.read().await;
         store_key(&inner.pool, CUSTOM_API_KEY, key).await
     }
+
+    /// Stores `version` as the one that ran last and returns the one stored before, `None` on
+    /// the first launch that records it.
+    pub async fn record_run_version(&self, version: &str) -> AppResult<Option<String>> {
+        let inner = self.read().await;
+        let previous = stored_key(&inner.pool, LAST_RUN_VERSION).await?;
+        store_key(&inner.pool, LAST_RUN_VERSION, Some(version.to_owned())).await?;
+        Ok(previous)
+    }
 }
 
 async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Settings> {
@@ -93,7 +104,7 @@ async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Sett
 
     let mut fields = to_object(&Settings::default())?;
     for row in rows {
-        if row.key == GROQ_API_KEY || row.key == CUSTOM_API_KEY {
+        if [GROQ_API_KEY, CUSTOM_API_KEY, LAST_RUN_VERSION].contains(&row.key.as_str()) {
             continue;
         }
         if DERIVED_FIELDS.contains(&row.key.as_str()) || !fields.contains_key(&row.key) {
@@ -349,7 +360,7 @@ async fn stored_key(pool: &SqlitePool, name: &str) -> AppResult<Option<String>> 
     match serde_json::from_str::<String>(&stored) {
         Ok(key) => Ok(Some(key.trim().to_owned()).filter(|key| !key.is_empty())),
         Err(error) => {
-            tracing::warn!(key = name, %error, "ignoring unreadable API key");
+            tracing::warn!(key = name, %error, "ignoring an unreadable stored value");
             Ok(None)
         }
     }
@@ -614,5 +625,30 @@ mod tests {
         assert_eq!(db.custom_api_key().await.unwrap(), None);
         db.set_custom_api_key(Some("   ".to_owned())).await.unwrap();
         assert_eq!(db.custom_api_key().await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn run_version_returns_the_previous_launch_and_stays_out_of_settings() {
+        let (dir, db) = open().await;
+        let before = db.settings().await.unwrap();
+        assert_eq!(db.record_run_version("0.0.9").await.unwrap(), None);
+        let reopened = Db::open_at(dir.path()).await.unwrap();
+        assert_eq!(
+            reopened
+                .record_run_version("0.0.10")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("0.0.9")
+        );
+        assert_eq!(
+            reopened
+                .record_run_version("0.0.10")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("0.0.10")
+        );
+        assert_eq!(reopened.settings().await.unwrap(), before);
     }
 }

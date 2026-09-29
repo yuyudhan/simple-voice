@@ -70,6 +70,7 @@ pub fn run() -> tauri::Result<()> {
             features::updates::get_update_status,
             features::updates::check_for_updates,
             features::updates::install::install_update,
+            features::updates::restart::dismiss_update_notice,
             dictation::start_dictation,
             dictation::stop_dictation,
             dictation::cancel_dictation,

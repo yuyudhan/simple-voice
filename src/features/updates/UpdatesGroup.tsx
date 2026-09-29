@@ -21,6 +21,9 @@ function formatAgo(ms: number, now = Date.now()): string {
 }
 
 function describe(status: UpdateStatus | null, error: string | null): string {
+    if (status?.installedVersion) {
+        return `Version ${status.installedVersion} is installed; restart to finish updating.`;
+    }
     if (status?.checking) return "Checking for updates…";
     if (status?.updateAvailable && status.latest) {
         return `Version ${status.latest.version} is available.`;
@@ -35,14 +38,18 @@ function describe(status: UpdateStatus | null, error: string | null): string {
 export function UpdatesGroup() {
     const { settings, update } = useSettings();
     const { status, error, check } = useUpdates();
-    const latest = status?.updateAvailable ? status.latest : null;
+    const available = (status?.updateAvailable ? status.latest : null) ?? null;
+    const restart = typeof status?.installedVersion === "string";
+    const offer = restart || available !== null;
+    // Release notes describe the version the button installs or restarts into.
+    const notes = restart && available?.version !== status.installedVersion ? null : available;
 
     return (
         <SettingsGroup title="Updates">
             <SettingRow
                 title={`Simple Voice ${status?.currentVersion ?? ""}`}
                 description={
-                    <span className={error !== null && !latest ? "sv-update-error" : undefined}>
+                    <span className={error !== null && !offer ? "sv-update-error" : undefined}>
                         {describe(status, error)}
                     </span>
                 }
@@ -58,18 +65,24 @@ export function UpdatesGroup() {
                     Check now
                 </Button>
             </SettingRow>
-            {latest && status && (
+            {offer && status && (
                 <SettingRow
-                    title="Install update"
+                    title={restart ? "Restart to update" : "Install update"}
                     description={
                         status.installError !== null && !status.installing ? (
                             <span className="sv-update-error">{status.installError}</span>
+                        ) : restart ? (
+                            "The new version is already installed. Simple Voice quits and reopens on it."
                         ) : (
                             "Downloads the release from GitHub, checks its checksum and signature, and replaces the app. Simple Voice quits while it updates and reopens afterwards."
                         )
                     }
                 >
-                    <UpdateActions release={latest} installing={status.installing} />
+                    <UpdateActions
+                        release={notes}
+                        installing={status.installing}
+                        restart={restart}
+                    />
                 </SettingRow>
             )}
             <SettingRow

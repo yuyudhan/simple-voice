@@ -167,7 +167,8 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 // Theme = System (default) | Light | Dark, wire "system" | "light" | "dark"; Settings.theme and
 // SettingsPatch.theme, stored in the `settings` row keyed `theme` like every other field.
 // Settings.checkForUpdates (default true) and Settings.skippedUpdate (dismissed release version,
-// "" = none) drive the update notice.
+// "" = none) drive the update notice. The `settings` row `lastRunVersion` (never in Settings)
+// holds the version that ran last, so the first launch after an update can say so.
 // DictionarySort = NameAsc (default) | NameDesc | Newest | Oldest, wire "name_asc" | "name_desc"
 // | "newest" | "oldest"; Settings.dictionarySort remembers the Dictionary page order. Newest and
 // Oldest order by created_at, then id (an import shares one timestamp).
@@ -465,7 +466,8 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `app_info`                                                                     | —                                                   | `AppInfo`                                                                                                        |
 | `get_update_status`                                                            | —                                                   | `UpdateStatus` (cached; no network)                                                                              |
 | `check_for_updates`                                                            | —                                                   | `UpdateStatus` (checks now; a failure is reported in `error`, not as a command error)                            |
-| `install_update`                                                               | —                                                   | `UpdateStatus` with `installing: true` (starts the install script; fails when no update is available)           |
+| `install_update`                                                               | —                                                   | `UpdateStatus` with `installing: true` (starts the install script; fails when no update is available). When `installedVersion` is at least the latest release, or no release is known, it restarts the app onto that build instead |
+| `dismiss_update_notice`                                                        | —                                                   | `UpdateStatus` with `updatedFrom: null` (hides the "updated" banner)                                            |
 
 ## 4. Events (Rust → UI)
 
@@ -478,9 +480,9 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `model-progress`      | `{ id, fraction, status: "downloading" \| "ready" \| "failed", message? }`                                                                        |
 | `permissions-changed` | `Permissions`                                                                                                                                     |
 | `navigate`            | `"settings" \| "updates"` — sent to `main` by the tray / app menu; the main window shows Settings → Dictation, or Settings → App for `"updates"`  |
-| `update-status`       | `UpdateStatus` — when a check starts and ends, and when an install starts and ends without quitting the app                                      |
+| `update-status`       | `UpdateStatus` — when a check starts and ends, when an install starts and ends without quitting the app, and when the launch after an update is recorded or its notice dismissed |
 
-`UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null }`.
+`UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null, installedVersion: string | null, updatedFrom: string | null }`. `installedVersion` is the bundle's `CFBundleShortVersionString` when it is newer than the running build; `updatedFrom` is the older version that ran before this launch.
 
 `DictationState`: `{ phase: "idle" | "recording" | "transcribing" | "formatting" | "done" | "error" | "cancelled", sessionId: number, startedAt?: number, message?: string, text?: string, note?: string, edit?: boolean }`. `text` (done only) is `sv_text::preview` of the pasted text. `edit` is present (true) for every state of an edit session; the pill then shows a pen, "EDITING" for `formatting` and "Edited" for `done`.
 
@@ -643,3 +645,15 @@ it; it never needs an administrator password, removes a copy an older script lef
 it. If the script exits while the app still runs, the slice clears `installing` and, on
 failure, sets `installError` to the script's last `simple-voice:` line (else the last output
 line) plus the log path.
+
+The script restarts the app when the release is already installed but the running process
+started before the executable's inode change time (the install time; `ditto` keeps the build's
+modification times), which is where scripts before the `pgrep -a` fix left users: they replaced
+the bundle but could not see, quit or reopen the app that started them. Reopening retries `open`
+while LaunchServices still counts the quit app as running. The app covers the same case itself:
+after each check and after a script that exits without quitting it, it reads its bundle's
+`Info.plist`, and a newer version there sets `installedVersion`; the banner and Settings → App
+then offer "Restart now", which `install_update` handles by backgrounding a waiter (its own
+process group) that runs `open -n` on the bundle once the app has exited, then exiting. At
+launch the slice stores the running version as `lastRunVersion`; when the stored one was
+older it sets `updatedFrom`, and the banner says the update worked until dismissed.

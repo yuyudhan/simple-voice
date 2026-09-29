@@ -287,6 +287,10 @@ export interface UpdateStatus {
     installing: boolean;
     /** Why the last install failed; cleared when the next one starts. */
     installError: string | null;
+    /** A newer version is already on disk under the running app; a restart finishes the update. */
+    installedVersion: string | null;
+    /** The older version that ran before this launch: an update just finished. */
+    updatedFrom: string | null;
 }
 
 export type DictationPhase =
@@ -363,6 +367,7 @@ export const api = {
     getUpdateStatus: () => invoke<UpdateStatus>("get_update_status"),
     checkForUpdates: () => invoke<UpdateStatus>("check_for_updates"),
     installUpdate: () => invoke<UpdateStatus>("install_update"),
+    dismissUpdateNotice: () => invoke<UpdateStatus>("dismiss_update_notice"),
 };
 
 export const events = {
