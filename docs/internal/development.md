@@ -136,8 +136,8 @@ GROQ_API_KEY=... scripts/eval/transcription-eval.sh --clips ~/sv-clips \
     --models groq-whisper,whisper-hinglish,whisper-large-v3-turbo,parakeet-tdt-v3 --out eval.tsv
 ```
 
-Engine models are read from `~/.simplevoice/models` (`--models-dir` to change) and must be
-downloaded. The first run of a Whisper model includes its one-time Core ML compile.
+Engine models are read from `~/.simplevoice-dev/models`, where `just dev` downloads them
+(`--models-dir` to change). The first run of a Whisper model includes its one-time Core ML compile.
 
 The run that chose Smart Select's models used 36 macOS `say` clips (English, Hindi and Hinglish
 voices, some with white noise) plus two real dictations:
@@ -170,7 +170,13 @@ may forget a grant or show a stale entry that no longer matches:
   (helper), so it never shares an identity with the installed Simple Voice. Release builds
   (`just build`) keep "Simple Voice" and `dev.yuyudhan.simplevoice`. Debug builds also report
   `dev: true` from `app_info`, and the sidebar shows "(dev)" in place of the version,
-  so the two windows are distinguishable side by side. Both still share `~/.simplevoice`.
+  so the two windows are distinguishable side by side.
+- Debug builds keep their data in `~/.simplevoice-dev` instead of `~/.simplevoice`: database,
+  `location`, backups, audio, models and `update.log`. A migration added in development
+  therefore never upgrades the installed release's database past the schema that release can
+  open. A development run starts empty and downloads its own models; to reuse the release's,
+  `cp -c -R ~/.simplevoice/models ~/.simplevoice-dev/` clones them without extra disk on APFS.
+  The install script's `--purge` never touches `~/.simplevoice-dev`.
 - `just dev` runs the bare binary, not an app bundle, so macOS attributes its permissions to
   the terminal that started it (with tmux, the terminal that started the tmux server). Grant
   Accessibility and Microphone to that terminal, then restart `just dev`; a "Simple Voice" entry

@@ -19,7 +19,8 @@ clips=""
 models=""
 languages="en,hi"
 prompt="Haan, toh main ab yeh code check karta hoon."
-models_dir="${HOME}/.simplevoice/models"
+# The debug engine pairs with the development data directory, where `just dev` downloads models.
+models_dir="${HOME}/.simplevoice-dev/models"
 engine="engine/.build/debug/simple-voice-engine"
 out="/dev/stdout"
 

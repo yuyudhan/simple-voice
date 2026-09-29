@@ -31,6 +31,7 @@ source of truth for scope: a feature is done only when it satisfies the matching
 | S-6 | Every SQL statement is checked at compile time (sqlx query macros with a committed offline cache).                                                                                  |
 | S-7 | Opening a database written by a newer app version (a downgrade) is refused with a clear message rather than risking the data.                                                       |
 | S-8 | API keys (Groq, custom endpoint) are stored in the local database (file mode 0600) with the rest of the configuration; `GROQ_API_KEY` in the environment is honoured as a fallback. |
+| S-9 | Development builds (`just dev`) keep all their data in `~/.simplevoice-dev/`, so their migrations never change the installed release's database.                                     |
 
 ## 3. Dictation (parity with the Hammerspoon module)
 

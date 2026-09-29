@@ -52,7 +52,9 @@ keeps only the offered corrections via `sv_text::accept_learning`, and adds them
 
 ## 1. Storage
 
-- Data directory: `~/.simplevoice/` (created on launch, mode 0700).
+- Data directory: `~/.simplevoice/` (created on launch, mode 0700). Debug builds (`just dev`)
+  use `~/.simplevoice-dev/` with the same layout, so a development migration never touches the
+  installed release's database; everything below lives under whichever directory the build uses.
     - `update.log` — output of the last in-app update install (file mode 0600), replaced by each.
     - `simple-voice.db` — default database location (file mode 0600).
     - `location` — optional one-line file holding the absolute path of the directory that
@@ -198,7 +200,7 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
-    pub fn data_dir() -> AppResult<PathBuf>;      // ~/.simplevoice (created, 0700)
+    pub fn data_dir() -> AppResult<PathBuf>;      // ~/.simplevoice, debug ~/.simplevoice-dev (0700)
     pub fn models_dir() -> AppResult<PathBuf>;    // data_dir/models
     pub fn audio_dir() -> AppResult<PathBuf>;     // data_dir/audio
     pub fn backups_dir() -> AppResult<PathBuf>;   // data_dir/backups
@@ -259,16 +261,19 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
 //   custom → any OpenAI-compatible /chat/completions (Ollama, LM Studio, ...) — sv-cloud
 //   apple  → on-device Apple Intelligence via the engine helper `polish` command — app
 pub struct PolishPrompt { pub system: String, pub shots: Vec<(String, String)>, pub user: String }
-pub enum PolishTarget { Chat, OnDevice }                          // apple: OnDevice (no language shots, a self-correction shot, framed user turns)
+pub enum PolishTarget { Chat, OnDevice }                          // apple: OnDevice (no language shots, a self-correction shot)
 pub fn polish_prompt(text: &str, terms: &[String], style: Style, target: PolishTarget,
     languages: &[String]) -> PolishPrompt;
-    // system prompt: keep every word in the language and script it was spoken, never translate,
-    // plus one generated line from the selected tags ("Writing: Hinglish in Roman script; Hindi
-    // in Devanagari; English in Roman script.")
+    // system prompt: the transcript is someone else's speech, formatted and never answered;
+    // keep every word in the language and script it was spoken, never translate, plus one
+    // generated line from the selected tags ("Writing: Hinglish in Roman script; Hindi in
+    // Devanagari; English in Roman script."). Every user turn, for every target, is the
+    // transcript between <transcript> tags followed by a one-line "do not reply" reminder;
+    // shots include dictated questions and requests formatted as-is.
 pub fn polish_timeout(text: &str) -> Duration;                    // 2.5 s + 5 ms/word
 pub enum PolishOutcome { Polished(String), Skipped(String) }       // reason
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome>;    // Some(Skipped("too short")) < 3 words
-pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // empty / truncated / grew
+pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // strips echoed <transcript> tags; empty / truncated / grew
 // Edit mode (edit.rs): the same PolishPrompt shape for every backend; the selection sits between
 // <text> tags and is data, the instruction is carried out.
 pub const EDIT_MAX_CHARS: usize = 4_000;
