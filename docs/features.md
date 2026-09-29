@@ -56,7 +56,8 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   language, the picker shows which script each one is written in. The allowed languages are
   configurable.
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
-  your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file.
+  your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file,
+  or export yours to a text file you can import again on another Mac.
 - **Learns from your corrections.** Turn on _Learn from your corrections_ in Settings →
   Formatting and fix a misspelled name or term right in the text field after it is pasted: the
   corrected word joins your dictionary, marked _Learned_. Only the changed words, never the rest

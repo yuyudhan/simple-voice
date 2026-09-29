@@ -341,6 +341,7 @@ export const api = {
         invoke<DictionaryEntry>("update_dictionary_entry", { id, phrase, replacement }),
     deleteDictionaryEntry: (id: number) => invoke<null>("delete_dictionary_entry", { id }),
     importVocabulary: (path: string) => invoke<ImportSummary>("import_vocabulary", { path }),
+    exportVocabulary: (path: string) => invoke<null>("export_vocabulary", { path }),
     getInsights: () => invoke<Insights>("get_insights"),
     getModelInsights: () => invoke<ModelInsights>("get_model_insights"),
     listModels: () => invoke<ModelInfo[]>("list_models"),

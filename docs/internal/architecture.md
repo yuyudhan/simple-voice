@@ -233,6 +233,8 @@ impl Db {
         -> AppResult<DictionaryEntry>;
     pub async fn delete_dictionary_entry(&self, id: i64) -> AppResult<()>;  // learned → rejected
     pub async fn import_vocabulary(&self, text: &str) -> AppResult<ImportSummary>; // bare lines, `a -> b`, `#`
+    pub async fn export_vocabulary(&self, exported_on: NaiveDate) -> AppResult<String>;
+        // `#` header, words then `a -> b` rules, A to Z; import_vocabulary reads it back
     // Manual adds and imports lift a rejection; updating an entry makes it manual.
     pub async fn learn_words(&self, phrases: &[String]) -> AppResult<Vec<DictionaryEntry>>;
         // inserted rows only: skips existing (case-insensitive), rejected and invalid phrases
@@ -447,6 +449,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `update_dictionary_entry`                                                      | `id, phrase, replacement?`                          | `DictionaryEntry`                                                                                                |
 | `delete_dictionary_entry`                                                      | `id`                                                | `null` (a learned word is recorded as rejected)                                                                  |
 | `import_vocabulary`                                                            | `path: string`                                      | `ImportSummary`                                                                                                  |
+| `export_vocabulary`                                                            | `path: string`                                      | `null` (writes the dictionary as a vocabulary file `import_vocabulary` reads)                                    |
 | `get_insights`                                                                 | —                                                   | `Insights`                                                                                                       |
 | `get_model_insights`                                                           | —                                                   | `ModelInsights` (per-model transcription and formatting timings)                                                 |
 | `list_models`                                                                  | —                                                   | `ModelInfo[]` (transcription models + `apple-intelligence` post-processing availability)                         |

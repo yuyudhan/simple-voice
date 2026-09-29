@@ -57,6 +57,7 @@ pub fn run() -> tauri::Result<()> {
             features::dictionary::update_dictionary_entry,
             features::dictionary::delete_dictionary_entry,
             features::dictionary::import_vocabulary,
+            features::dictionary::export_vocabulary,
             features::insights::get_insights,
             features::insights::get_model_insights,
             features::models::list_models,

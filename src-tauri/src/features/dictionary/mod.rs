@@ -50,3 +50,13 @@ pub(crate) async fn import_vocabulary(
         .map_err(|error| AppError::io(format!("{path}: {error}")))?;
     state.db()?.import_vocabulary(&text).await
 }
+
+/// Writes the dictionary to `path` in the same format `import_vocabulary` reads.
+#[tauri::command]
+pub(crate) async fn export_vocabulary(state: State<'_, AppState>, path: String) -> AppResult<()> {
+    let today = chrono::Local::now().date_naive();
+    let text = state.db()?.export_vocabulary(today).await?;
+    tokio::fs::write(&path, text)
+        .await
+        .map_err(|error| AppError::io(format!("{path}: {error}")))
+}

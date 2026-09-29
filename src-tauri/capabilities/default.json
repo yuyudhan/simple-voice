@@ -13,6 +13,7 @@
         "core:window:allow-set-theme",
         "core:window:allow-start-dragging",
         "dialog:allow-open",
+        "dialog:allow-save",
         "opener:default"
     ]
 }
