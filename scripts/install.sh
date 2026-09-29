@@ -38,8 +38,9 @@ legacy_app="/Applications/Simple Voice.app"
 legacy_agent="${HOME}/Library/LaunchAgents/Simple Voice.plist"
 data_dir="${HOME}/.simplevoice"
 database_file="simple-voice.db"
-# Matches the bundle's executable wherever it is installed.
-executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice"
+# Matches the bundle's executable wherever it is installed, but not the engine helper beside it
+# (simple-voice-engine), which exits on its own once the app is gone.
+executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice( |$)"
 
 say() {
     printf 'simple-voice: %s\n' "$*"
@@ -89,8 +90,10 @@ installed_version() {
         "${app}/Contents/Info.plist" 2>/dev/null || true
 }
 
+# -a: BSD pgrep and pkill skip their own ancestors by default, and when the app's Install button
+# runs this script the app is one of them, so without it the app is never seen or quit.
 is_running() {
-    pgrep -f "$executable_pattern" >/dev/null 2>&1
+    pgrep -a -f "$executable_pattern" >/dev/null 2>&1
 }
 
 # The copy to reopen: the new one once it is in place, else the one an older script installed.
@@ -120,12 +123,12 @@ remove_legacy_app() {
 # closes, so TERM is a clean quit.
 quit_app() {
     say "quitting Simple Voice"
-    pkill -TERM -f "$executable_pattern" 2>/dev/null || true
+    pkill -TERM -a -f "$executable_pattern" 2>/dev/null || true
     waited=0
     while is_running; do
         waited=$((waited + 1))
         if [ "$waited" -eq 20 ]; then
-            pkill -KILL -f "$executable_pattern" 2>/dev/null || true
+            pkill -KILL -a -f "$executable_pattern" 2>/dev/null || true
         fi
         [ "$waited" -le 30 ] ||
             fail "Simple Voice did not quit; quit it from the menu bar and install again"
