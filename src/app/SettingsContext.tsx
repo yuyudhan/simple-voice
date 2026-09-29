@@ -10,7 +10,8 @@ import {
 } from "react";
 import { api, errorMessage, events, type Settings, type SettingsPatch } from "../lib/api";
 import { useTauriEvent } from "../lib/useTauriEvent";
-import { Button, Spinner, useToast } from "../ui";
+import { Spinner, useToast } from "../ui";
+import { BootError } from "./BootError";
 import "./SettingsContext.css";
 
 export interface SettingsContextValue {
@@ -82,19 +83,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
     if (state.kind === "error") {
         return (
-            <div className="sv-boot" role="alert">
-                <h1 className="sv-boot__title">Simple Voice could not start</h1>
-                <p className="sv-boot__message selectable">{state.message}</p>
-                <Button
-                    variant="primary"
-                    onClick={() => {
-                        setState({ kind: "loading" });
-                        void refresh();
-                    }}
-                >
-                    Try again
-                </Button>
-            </div>
+            <BootError
+                message={state.message}
+                onRetry={() => {
+                    setState({ kind: "loading" });
+                    void refresh();
+                }}
+            />
         );
     }
     return (

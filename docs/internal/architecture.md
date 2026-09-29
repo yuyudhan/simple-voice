@@ -621,7 +621,10 @@ retried on the next wake. `Settings.checkForUpdates = false` stops the automatic
 now", the tray item and the app-menu item still check on demand. When the release is newer than
 the running version (semver), the tray item reads "Update Available: X…", and the UI shows a
 banner above every page (hidden for `Settings.skippedUpdate`) and a row in Settings → App,
-both with an Install update button.
+both with an Install update button. The "could not start" screen, shown when settings cannot
+load (for example a database migrated by a newer build), offers "Update Simple Voice": it calls
+`check_for_updates`, then `install_update` when a newer release exists; neither needs the
+database.
 
 `install_update` runs `curl -fsSL <repo>/releases/latest/download/install.sh | bash` in its own
 process group with stdin closed and stdout and stderr in `~/.simplevoice/update.log`, so the

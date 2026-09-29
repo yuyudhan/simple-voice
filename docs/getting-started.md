@@ -43,6 +43,9 @@ output is in `~/.simplevoice/update.log`; running the command above in Terminal 
 update. Dismissing the banner skips that version only. Settings → App → Updates shows the
 running version, checks on demand, installs the update, and turns the daily check off.
 
+If Simple Voice cannot start because its database was created by a newer version, click
+**Update Simple Voice** on that screen to install the latest release.
+
 ## After an upgrade
 
 macOS ties permissions to the certificate the app is signed with, and every release uses the same

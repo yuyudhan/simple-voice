@@ -23,3 +23,14 @@
     max-width: 520px;
     line-height: 1.55;
 }
+
+.sv-boot__actions {
+    display: flex;
+    gap: 8px;
+}
+
+.sv-boot__notice {
+    max-width: 520px;
+    font-size: 12px;
+    line-height: 1.55;
+}
