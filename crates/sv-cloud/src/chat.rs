@@ -176,14 +176,17 @@ mod tests {
 
         let messages = body["messages"].as_array().cloned().unwrap_or_default();
         let roles: Vec<&str> = messages.iter().filter_map(|m| m["role"].as_str()).collect();
-        assert_eq!(
-            roles,
-            ["system", "user", "assistant", "user", "assistant", "user"]
-        );
+        let mut expected = vec!["system"];
+        expected.extend(prompt.shots.iter().flat_map(|_| ["user", "assistant"]));
+        expected.push("user");
+        assert_eq!(roles, expected);
         assert_eq!(messages[0]["content"], prompt.system.as_str());
         assert_eq!(messages[1]["content"], prompt.shots[0].0.as_str());
         assert_eq!(messages[2]["content"], prompt.shots[0].1.as_str());
-        assert_eq!(messages[5]["content"], "um so the thing works");
+        assert_eq!(
+            messages[messages.len() - 1]["content"],
+            prompt.user.as_str()
+        );
     }
 
     #[test]
