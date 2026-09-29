@@ -29,9 +29,10 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
     - **Whisper** on-device models: Hinglish Whisper (Hindi and Hinglish, written in Roman script)
       and Whisper Turbo (99 languages).
     - **Apple Speech**, on-device, on macOS 26 and later.
-- **Formatting that reads like you wrote it.** A deterministic pass fixes casing, punctuation
-  spacing and your personal replacements, then an optional language-model pass drops fillers
-  and false starts and lays out lists and steps. Choose the provider:
+- **Formatting that reads like you wrote it.** A deterministic pass removes hesitation sounds
+  (um, uhh, hmm), fixes casing, punctuation spacing and your personal replacements, then an
+  optional language-model pass drops other fillers and false starts and lays out lists and
+  steps. Choose the provider:
     - **Groq** (default), fast and remote;
     - **Apple Intelligence**, on-device, on macOS 26 and later (English and other languages
       Apple supports; not Hindi or Hinglish);

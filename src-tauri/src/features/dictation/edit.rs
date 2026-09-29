@@ -112,7 +112,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
         audio_path: None,
     };
     let heard = match heard {
-        Ok(heard) if heard.text.trim().is_empty() => {
+        Ok(heard) if sv_text::only_hesitations(&heard.text) => {
             let mut cancelled = edit_state(DictationPhase::Cancelled, id);
             cancelled.message = Some("No speech detected".to_owned());
             return publish(&app, cancelled);

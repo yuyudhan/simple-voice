@@ -9,6 +9,7 @@
 
 pub mod edit;
 pub mod formatting;
+mod hesitation;
 mod language_prompts;
 pub mod learning;
 pub mod polish;
@@ -17,6 +18,7 @@ pub mod vocabulary;
 
 pub use edit::{accept_edit, edit_max_tokens, edit_prompt, edit_timeout, EDIT_MAX_CHARS};
 pub use formatting::{format, Formatted};
+pub use hesitation::only_hesitations;
 pub use learning::{
     accept_learning, corrections, learning_prompt, without_invisible, Correction,
     LEARNING_MAX_TOKENS, LEARNING_TIMEOUT, MAX_CORRECTIONS,

@@ -30,7 +30,7 @@ into another language: mixed-language speech keeps the same words as the input, 
 script; only fillers are removed.\n";
 
 /// Fillers dropped whatever the selected languages; a selected language adds its own.
-const FILLERS: &str = "um, uh, like, you know, basically, actually, okay so";
+const FILLERS: &str = "um, uh, ah, er, hmm, like, you know, basically, actually, okay so";
 
 const LAYOUT_RULES: &str = "- Layout, your call: short or conversational text stays prose. \
 Use \"- \" bullets when the speaker lists 3+ parallel items or points, and \"1. \" numbering \
@@ -291,9 +291,9 @@ mod tests {
             PolishTarget::Chat,
             &tags(&["en", "hi-Latn"]),
         );
-        assert!(prompt.system.contains(
-            "Drop fillers (um, uh, like, you know, basically, actually, okay so, matlab, na)"
-        ));
+        assert!(prompt
+            .system
+            .contains("okay so, matlab, na) and false starts"));
         assert!(prompt
             .system
             .ends_with("\n- Writing: English in Roman script; Hinglish in Roman script."));

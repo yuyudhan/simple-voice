@@ -116,7 +116,7 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     };
     let heard = transcribe_fresh(&state, &settings, &vocabulary, id, &mut audio).await;
     let heard = match heard {
-        Ok(heard) if heard.text.trim().is_empty() => {
+        Ok(heard) if sv_text::only_hesitations(&heard.text) => {
             discard_audio(&audio).await;
             return publish_message(&app, id, DictationPhase::Cancelled, "No speech detected");
         }
@@ -262,7 +262,7 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
         path: Some(PathBuf::from(&path)),
     };
     let heard = match transcribe(&state, &settings, &vocabulary, &audio).await {
-        Ok(heard) if heard.text.trim().is_empty() => Err(Unheard {
+        Ok(heard) if sv_text::only_hesitations(&heard.text) => Err(Unheard {
             error: AppError::other("No speech was detected in the saved audio"),
             model: heard.model,
             first_model: heard.first_model,
