@@ -11,6 +11,8 @@ extend-exclude = [
     ".sqlx/",
     "src-tauri/icons/",
     "src-tauri/gen/",
+    "mobile/src-tauri/icons/",
+    "mobile/src-tauri/gen/",
     "target/",
     "node_modules/",
     "dist/",
