@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # FilePath: scripts/guard/workspace-deps.sh
-# Every dependency of a member crate (src-tauri/Cargo.toml, crates/*/Cargo.toml) is declared
-# once in the root [workspace.dependencies] table and consumed as `name.workspace = true` or
-# `name = { workspace = true, ... }`. A version or path pinned at the crate level is how a
-# workspace ends up with two copies of the same crate at different versions, so this guard
-# flags every key in a `[dependencies]`, `[dev-dependencies]`, `[build-dependencies]` or
-# `[target.<cfg>.*dependencies]` table that is not workspace-sourced, and every
-# `[dependencies.<name>]`-style table (which cannot be read line by line; use the inline form).
+# Every dependency of a member crate (src-tauri/Cargo.toml, mobile/src-tauri/Cargo.toml,
+# crates/*/Cargo.toml) is declared once in the root [workspace.dependencies] table and consumed
+# as `name.workspace = true` or `name = { workspace = true, ... }`. A version or path pinned at
+# the crate level is how a workspace ends up with two copies of the same crate at different
+# versions, so this guard flags every key in a `[dependencies]`, `[dev-dependencies]`,
+# `[build-dependencies]` or `[target.<cfg>.*dependencies]` table that is not workspace-sourced,
+# and every `[dependencies.<name>]`-style table (which cannot be read line by line; use the
+# inline form).
 # Continuation lines of a multi-line inline table (a `features = [` list) are not keys and are
 # skipped. Operates on `git ls-files -z` output only.
 set -euo pipefail
@@ -19,7 +20,7 @@ scanned=0
 files=()
 while IFS= read -r -d '' f; do
     [ -f "$f" ] && files+=("$f")
-done < <(git ls-files -z -- 'src-tauri/Cargo.toml' 'crates/*/Cargo.toml')
+done < <(git ls-files -z -- 'src-tauri/Cargo.toml' 'mobile/src-tauri/Cargo.toml' 'crates/*/Cargo.toml')
 
 if [ "${#files[@]}" -eq 0 ]; then
     echo "workspace-deps: internal error - no member Cargo.toml files are tracked" >&2

@@ -5,14 +5,19 @@
 # closing a way the rule could silently stop applying:
 #
 #   1. The root Cargo.toml declares `unsafe_code = "forbid"` under [workspace.lints.rust].
-#   2. Every member manifest (src-tauri/Cargo.toml, crates/*/Cargo.toml) carries a [lints]
-#      table that is exactly `workspace = true`; a crate without it opts out of the workspace
-#      lints and cargo does not warn.
-#   3. Every crate root (lib.rs, main.rs and bin/*.rs under src-tauri/src and crates/*/src)
-#      declares `#![forbid(unsafe_code)]` among its leading inner attributes, so the rule is
-#      visible in the file a reader opens first.
+#   2. Every member manifest (src-tauri/Cargo.toml, mobile/src-tauri/Cargo.toml,
+#      crates/*/Cargo.toml) carries a [lints] table that is exactly `workspace = true`; a
+#      crate without it opts out of the workspace lints and cargo does not warn.
+#   3. Every crate root (lib.rs, main.rs and bin/*.rs under src-tauri/src, mobile/src-tauri/src
+#      and crates/*/src) declares `#![forbid(unsafe_code)]` among its leading inner attributes,
+#      so the rule is visible in the file a reader opens first.
 #   4. No tracked `.rs` file contains the `unsafe` keyword outside a whole-line comment - a
 #      textual backstop for code the compiler never sees (a disabled cfg, a macro body).
+#
+# The single exception is crates/sv-ffi, the Android keyboard's JNI entry points: the JVM finds
+# them by unmangled name, and `#[no_mangle]` is an `unsafe_code` lint, so that crate keeps its
+# own lint table and cannot forbid the lint (checks 2 and 3). Check 4 still applies to it: it
+# may contain no `unsafe` block, function or impl.
 #
 # Operates on `git ls-files -z` output only; tracked paths missing from the working tree are
 # skipped.
@@ -22,6 +27,8 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
 fail=0
+ffi_manifest="crates/sv-ffi/Cargo.toml"
+ffi_root="crates/sv-ffi/src/lib.rs"
 
 # --- 1: [workspace.lints.rust] unsafe_code = "forbid" -----------------------------------------
 if ! awk '
@@ -37,7 +44,7 @@ fi
 manifests=()
 while IFS= read -r -d '' f; do
     [ -f "$f" ] && manifests+=("$f")
-done < <(git ls-files -z -- 'src-tauri/Cargo.toml' 'crates/*/Cargo.toml')
+done < <(git ls-files -z -- 'src-tauri/Cargo.toml' 'mobile/src-tauri/Cargo.toml' 'crates/*/Cargo.toml')
 
 if [ "${#manifests[@]}" -eq 0 ]; then
     echo "forbid-unsafe: internal error - no member Cargo.toml files are tracked" >&2
@@ -45,6 +52,7 @@ if [ "${#manifests[@]}" -eq 0 ]; then
 fi
 
 for manifest in "${manifests[@]}"; do
+    [ "$manifest" = "$ffi_manifest" ] && continue
     verdict=$(awk '
         /^[[:space:]]*\[/ {
             in_lints = ($0 ~ /^[[:space:]]*\[lints\][[:space:]]*$/)
@@ -82,6 +90,7 @@ while IFS= read -r -d '' f; do
     [ -f "$f" ] && roots+=("$f")
 done < <(git ls-files -z -- \
     'src-tauri/src/lib.rs' 'src-tauri/src/main.rs' 'src-tauri/src/bin/*.rs' \
+    'mobile/src-tauri/src/lib.rs' 'mobile/src-tauri/src/main.rs' 'mobile/src-tauri/src/bin/*.rs' \
     'crates/*/src/lib.rs' 'crates/*/src/main.rs' 'crates/*/src/bin/*.rs')
 
 if [ "${#roots[@]}" -eq 0 ]; then
@@ -90,6 +99,7 @@ if [ "${#roots[@]}" -eq 0 ]; then
 fi
 
 for file in "${roots[@]}"; do
+    [ "$file" = "$ffi_root" ] && continue
     # Scan the leading block of comments, blank lines and inner attributes; the first line
     # that is none of those ends the header, and the attribute must have appeared by then.
     if ! awk '

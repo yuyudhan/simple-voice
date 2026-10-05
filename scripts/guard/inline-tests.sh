@@ -14,9 +14,9 @@
 #     counting at the first `#[cfg(test)]`).
 #
 # Keeping the block last and unique is what lets scripts/guard/file-size.sh count production
-# lines by truncating at that attribute. Scoped to tracked `.rs` files under src-tauri/ and
-# crates/. Operates on `git ls-files -z` output only and drops any path tracked but missing
-# from the working tree before scanning.
+# lines by truncating at that attribute. Scoped to tracked `.rs` files under src-tauri/,
+# mobile/src-tauri/ and crates/. Operates on `git ls-files -z` output only and drops any path
+# tracked but missing from the working tree before scanning.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -27,7 +27,7 @@ files=()
 while IFS= read -r -d '' f; do
     [ -f "$f" ] || continue
     files+=("$f")
-done < <(git ls-files -z -- 'src-tauri/*.rs' 'crates/*.rs')
+done < <(git ls-files -z -- 'src-tauri/*.rs' 'mobile/src-tauri/*.rs' 'crates/*.rs')
 
 if [ "${#files[@]}" -eq 0 ]; then
     echo "inline-tests: internal error - no tracked .rs files under src-tauri/ or crates/; this guard measured nothing" >&2

@@ -4,7 +4,7 @@
 # after the shebang line where one exists, so a file is self-identifying when it is read out of
 # context (a diff hunk, a pasted snippet, a partial read):
 #
-#     // FilePath: <path>        .rs .ts .tsx .js .swift
+#     // FilePath: <path>        .rs .ts .tsx .js .swift .kt
 #     /* FilePath: <path> */     .css (CSS has no line-comment syntax)
 #     -- FilePath: <path>        .sql
 #     # FilePath: <path>         .toml .sh .just .yml .yaml .rb, the root justfile, the git hooks,
@@ -15,8 +15,10 @@
 # there the header is expected on line 2, exactly like a shebang.
 #
 # JSON has no comment syntax and is skipped, as are lockfiles, generated icons and the `.sqlx/`
-# offline query cache (JSON). A header naming the wrong path is a violation, not just a missing
-# one. Operates on `git ls-files` only; a tracked path missing from the working tree is skipped.
+# offline query cache (JSON). Tauri generates mobile/src-tauri/gen/; only the keyboard's Kotlin
+# package there is ours and checked. A header naming the wrong path is a violation, not just a
+# missing one. Operates on `git ls-files` only; a tracked path missing from the working tree is
+# skipped.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -27,7 +29,9 @@ scanned=0
 
 while IFS= read -r -d '' file; do
     case "$file" in
-        .sqlx/* | */.sqlx/* | src-tauri/icons/* | src-tauri/gen/* | node_modules/* | target/*)
+        mobile/src-tauri/gen/android/app/src/main/java/dev/yuyudhan/simplevoice/mobile/keyboard/*) ;;
+        .sqlx/* | */.sqlx/* | src-tauri/icons/* | src-tauri/gen/* | node_modules/* | target/* | \
+            mobile/src-tauri/icons/* | mobile/src-tauri/gen/*)
             continue
             ;;
     esac
@@ -35,7 +39,7 @@ while IFS= read -r -d '' file; do
     prefix=""
     suffix=""
     case "$file" in
-        *.rs | *.ts | *.tsx | *.js | *.swift) prefix="// FilePath: " ;;
+        *.rs | *.ts | *.tsx | *.js | *.swift | *.kt) prefix="// FilePath: " ;;
         *.css)
             prefix="/* FilePath: "
             suffix=" */"

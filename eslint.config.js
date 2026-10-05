@@ -21,6 +21,8 @@ export default defineConfig(
             "src-tauri/",
             "engine/",
             "crates/",
+            "mobile/dist/",
+            "mobile/src-tauri/",
             "eslint.config.js",
         ],
     },
@@ -41,9 +43,10 @@ export default defineConfig(
             globals: globals.browser,
             parserOptions: {
                 // vite.config.ts belongs to tsconfig.node.json, which no tsconfig.json
-                // references by directory, so the service opens it through that file.
+                // references by directory, so the service opens it through that file. The
+                // mobile app's Vite config is opened the same way.
                 projectService: {
-                    allowDefaultProject: ["vite.config.ts"],
+                    allowDefaultProject: ["vite.config.ts", "mobile/vite.config.ts"],
                     defaultProject: "tsconfig.node.json",
                 },
                 tsconfigRootDir: import.meta.dirname,
@@ -92,7 +95,7 @@ export default defineConfig(
         },
     },
     {
-        files: ["vite.config.ts"],
+        files: ["vite.config.ts", "mobile/vite.config.ts"],
         languageOptions: {
             globals: globals.node,
         },
