@@ -1,0 +1,28 @@
+# FilePath: crates/sv-mobile/Cargo.toml
+[package]
+name = "sv-mobile"
+description = "The phone dictation pipeline: Groq Whisper, formatting, history and Retry."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+sv-domain.workspace = true
+sv-storage.workspace = true
+sv-text.workspace = true
+sv-cloud.workspace = true
+reqwest.workspace = true
+webpki-root-certs.workspace = true
+serde.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

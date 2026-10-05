@@ -1,0 +1,93 @@
+/* FilePath: mobile/src/app/mobile.css */
+/* Phone shell: one scrolling content column above a fixed tab bar. The app draws edge to edge,
+   so content clears the status bar and the gesture bar: the safe-area insets on iPhone
+   (viewport-fit=cover in index.html), and a floor for Android WebViews, which report none. */
+.svm-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg);
+}
+
+.svm-shell__content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: calc(max(env(safe-area-inset-top), 28px) + 16px) 20px 32px;
+    animation: sv-fade-in 180ms var(--ease);
+}
+
+.svm-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+.svm-tabs__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 0 10px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: 500 10.5px var(--font-sans);
+    cursor: pointer;
+}
+
+.svm-tabs__tab svg {
+    width: 20px;
+    height: 20px;
+}
+
+.svm-tabs__tab[aria-current="page"] {
+    color: var(--accent-text);
+}
+
+.svm-tabs__tab:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Groups follow the Style page directly; give each the page-section gap. */
+.svm-settings__group {
+    margin-top: 28px;
+}
+
+/* Touch screens have no hover: keep the history row actions (copy, retry, delete) visible. */
+.svm-shell .history-row__actions {
+    opacity: 1;
+}
+
+.svm-shell .history-row__meta {
+    padding-right: 104px;
+}
+
+/* A phone row is too narrow for app, badge and model timings on one line: the timings wrap
+   below, starting at the left edge. */
+.svm-shell .history-row__meta {
+    flex-wrap: wrap;
+    row-gap: 2px;
+}
+
+.svm-shell .history-row__models {
+    flex-wrap: wrap;
+    margin-left: 0;
+    padding-left: 0;
+}
+
+/* Content scrolls under the status bar; a strip of page colour keeps the clock readable. */
+.svm-shell::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 10;
+    height: max(env(safe-area-inset-top), 28px);
+    background: var(--bg);
+}

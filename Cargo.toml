@@ -8,9 +8,11 @@
 #     ├── sv-audio    (microphone capture, WAV encoding, level meter, cue sounds)
 #     ├── sv-engine   (client for the Swift engine helper sidecar)
 #     └── sv-domain   (shared serde types and the error type; depends on nothing internal)
+#
+#   mobile/src-tauri (simple-voice-mobile: iPhone and Android app screens over sv-storage)
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/*"]
+members = ["src-tauri", "crates/*", "mobile/src-tauri"]
 
 [workspace.package]
 version = "0.0.7"
@@ -27,14 +29,21 @@ sv-text = { path = "crates/sv-text" }
 sv-cloud = { path = "crates/sv-cloud" }
 sv-audio = { path = "crates/sv-audio" }
 sv-engine = { path = "crates/sv-engine" }
+sv-ffi = { path = "crates/sv-ffi" }
+sv-mobile = { path = "crates/sv-mobile" }
 
-tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+# Desktop-only features (tray icon, macOS private API) are enabled in src-tauri/Cargo.toml, so
+# the mobile app crate, whose build script checks them against its config, does not inherit them.
+tauri = { version = "2", features = ["image-png"] }
 tauri-build = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-clipboard-manager = "2"
+jni = { version = "0.21", default-features = false }
+webpki-root-certs = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sqlx = { version = "0.9", default-features = false, features = [

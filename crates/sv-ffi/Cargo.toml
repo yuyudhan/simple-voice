@@ -1,0 +1,49 @@
+# FilePath: crates/sv-ffi/Cargo.toml
+[package]
+name = "sv-ffi"
+description = "JNI entry points for the Android keyboard, which runs while the Tauri app is closed."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+sv-domain.workspace = true
+sv-storage.workspace = true
+sv-mobile.workspace = true
+jni.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+# sv-ffi is the one crate that does not inherit [workspace.lints]: the JVM finds the keyboard's
+# native functions by their unmangled, Java-shaped names, so `#[no_mangle]` (an `unsafe_code`
+# lint) and non-snake-case names are required here. The crate still contains no `unsafe` block,
+# function or impl; scripts/guard/forbid-unsafe.sh enforces that. Every other rule mirrors the
+# root Cargo.toml; keep the two tables in step.
+[lints.rust]
+unsafe_code = "allow"
+non_snake_case = "allow"
+missing_debug_implementations = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+unreachable_pub = "deny"
+unused_qualifications = "deny"
+unused_import_braces = "deny"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unused_lifetimes = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+panic = "deny"
+unwrap_used = "deny"
+expect_used = "deny"

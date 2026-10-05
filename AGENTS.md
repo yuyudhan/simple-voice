@@ -4,7 +4,8 @@
 
 Tauri 2 dictation app for macOS on Apple Silicon, installed with a curl install script from GitHub releases. Rust workspace
 (`src-tauri/`, `crates/*`), React/TypeScript UI (`src/`), Swift engine helper (`engine/`) for
-everything that needs Apple frameworks.
+everything that needs Apple frameworks. `mobile/` is the iPhone and Android app (Tauri 2 mobile,
+reusing `src/` pages and the crates) with its own `justfile`.
 
 ## Read first
 
@@ -23,7 +24,9 @@ everything that needs Apple frameworks.
 ## Inviolable
 
 - Rust forbids `unsafe`: `#![forbid(unsafe_code)]` in every crate root, `[lints] workspace =
-true` in every member manifest. Objective-C or C APIs belong in the Swift helper.
+true` in every member manifest. Objective-C or C APIs belong in the Swift helper. The single
+exception is `crates/sv-ffi` (Android keyboard JNI exports need `#[no_mangle]`); it still has
+no `unsafe` block, function or impl.
 - No `unwrap`, `expect`, `panic!`, `todo!`, `unimplemented!` or `dbg!` outside `#[cfg(test)]`.
 - No suppressions: `#[allow]`, `#[expect]`, eslint-disable, `@ts-ignore`, `@ts-expect-error`,
   `swiftlint:disable`. Fix the code, or change lint configuration with a reason.
@@ -31,7 +34,7 @@ true` in every member manifest. Objective-C or C APIs belong in the Swift helper
   committed `.sqlx/` cache. No runtime `sqlx::query(`, `QueryBuilder`, or raw `.execute("...")`.
 - Migrations in `crates/sv-storage/migrations/` are forward-only and immutable once shipped.
 - Dependencies declared once in root `[workspace.dependencies]`; crates use `workspace = true`.
-- Every source file starts with its path: `// FilePath: <path>` (Rust, TS, JS, Swift),
+- Every source file starts with its path: `// FilePath: <path>` (Rust, TS, JS, Swift, Kotlin),
   `/* */` (CSS), `--` (SQL), `#` (TOML, shell, just, YAML, Ruby, hooks), `<!-- -->` (Markdown);
   after any shebang or `// swift-tools-version` line. JSON has none.
 - 4-space indentation; 100 columns for Rust and TypeScript, 120 for Swift.
@@ -57,6 +60,7 @@ true` in every member manifest. Objective-C or C APIs belong in the Swift helper
 - `just check`: full gate (fmt-check, guard, lint, test, sqlx-check); pre-push runs it.
 - `just sqlx-prepare` after changing any query macro; commit `.sqlx/`.
 - Iterate narrowly (`cargo test -p <crate>`, `just guard <name>`); full gate once at the end.
+- Mobile: `cd mobile && just` (`android`, `ios`, `check`); see `docs/internal/development.md`.
 
 ## Commits
 

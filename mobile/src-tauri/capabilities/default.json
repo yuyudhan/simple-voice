@@ -1,0 +1,7 @@
+{
+    "$schema": "../gen/schemas/mobile-schema.json",
+    "identifier": "default",
+    "description": "Main webview: app commands, events, vocabulary file picker, Groq console link",
+    "windows": ["main"],
+    "permissions": ["core:default", "core:event:default", "dialog:allow-open", "opener:default"]
+}

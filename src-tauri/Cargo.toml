@@ -24,7 +24,7 @@ sv-text.workspace = true
 sv-cloud.workspace = true
 sv-audio.workspace = true
 sv-engine.workspace = true
-tauri.workspace = true
+tauri = { workspace = true, features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-opener.workspace = true
 tauri-plugin-global-shortcut.workspace = true
 dirs.workspace = true

@@ -8,13 +8,14 @@ contract between the pieces is [architecture.md](architecture.md); releases are 
 
 ## Project layout
 
-| Path                  | What lives there                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `src-tauri/`          | The Tauri app: windows, tray, shortcuts, commands and the dictation pipeline.                                                           |
-| `crates/`             | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
-| `engine/`             | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
-| `src/`                | The React and TypeScript interface.                                                                                                     |
-| `docs/`               | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
+| Path         | What lives there                                                                                                                        |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `src-tauri/` | The Tauri app: windows, tray, shortcuts, commands and the dictation pipeline.                                                           |
+| `crates/`    | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
+| `engine/`    | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
+| `src/`       | The React and TypeScript interface.                                                                                                     |
+| `mobile/`    | The iPhone and Android app (Tauri 2 mobile) reusing `src/` pages, and the Android keyboard. Its own `justfile`; see below.              |
+| `docs/`      | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
 
 ## Setup
 
@@ -44,6 +45,43 @@ found for URL scheme sqlite":
 ```sh
 cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
 ```
+
+## Mobile app
+
+`mobile/` builds independently: the root `justfile`, `just check` and CI never run it, so a
+broken mobile build cannot block desktop work. Its crates are still workspace members, so
+`just lint` and `just test` compile them for the Mac.
+
+Prerequisites, on top of the desktop ones:
+
+- Rust targets: `rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-linux-android
+armv7-linux-androideabi i686-linux-android x86_64-linux-android`
+- Android: Android Studio (its bundled JDK is used), or the SDK command-line tools with
+  `platform-tools`, an NDK and an `arm64-v8a` system image; create the emulator with
+  `avdmanager create avd -n sv-pixel -k "system-images;android-36;google_apis;arm64-v8a"`.
+  `mobile/justfile` defaults `JAVA_HOME` and `ANDROID_HOME` to the standard locations and picks
+  the newest NDK.
+- iPhone: full Xcode (the Command Line Tools are not enough) and an Apple account set as the
+  signing team. A free Apple ID installs for 7 days and cannot enable App Groups, which the
+  keyboard needs to share data with the app; the Apple Developer Program has neither limit.
+- The Rust-built Tauri CLI: `cargo install tauri-cli --version "^2" --locked`. Gradle calls back
+  into the CLI that started the build, and the bun-launched one crashes there, so
+  `mobile/justfile` and `gen/android/buildSrc/.../BuildTask.kt` use `cargo tauri`.
+
+```sh
+cd mobile
+just emulator        # start the sv-pixel emulator
+just android         # hot reload on the emulator or a USB phone
+just android-build   # debug APK
+just ios             # iPhone simulator (Xcode)
+just check           # tsc, eslint, prettier, clippy for the mobile crates
+```
+
+On Android the keyboard is enabled under Settings → System → Keyboard → On-screen keyboard
+(or `adb shell ime enable dev.yuyudhan.simplevoice.mobile/.keyboard.KeyboardService`). Dictating
+needs a Groq key (Settings tab) and the microphone, which the keyboard asks for by opening the
+app. The emulator's microphone hears silence unless host audio is enabled
+(`adb emu avd hostmicon`), and Whisper may invent a word for silence.
 
 ## Quality gates
 

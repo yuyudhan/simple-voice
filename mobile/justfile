@@ -1,0 +1,54 @@
+# FilePath: mobile/justfile
+# Simple Voice mobile (iPhone + Android). Separate from the root justfile on purpose, so a broken
+# mobile recipe can never break the desktop gates. Run from mobile/: `just <recipe>`, or from the
+# repo root: `just -f mobile/justfile <recipe>`.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+# Android Studio's bundled JDK and the default SDK location; export your own to override.
+export JAVA_HOME := env("JAVA_HOME", "/Applications/Android Studio.app/Contents/jbr/Contents/Home")
+export ANDROID_HOME := env("ANDROID_HOME", env("HOME") / "Library/Android/sdk")
+export SQLX_OFFLINE := "true"
+
+# The Rust-built Tauri CLI (`cargo install tauri-cli --version "^2" --locked`): Gradle calls back
+# into whichever CLI started the build, and the bun-launched one crashes in that callback.
+tauri := "cargo tauri"
+avd := "sv-pixel"
+
+# List every recipe.
+default:
+    @just --list --unsorted
+
+# Run on the Android emulator or a USB phone with hot reload.
+[group('android')]
+android:
+    NDK_HOME="$(just _ndk)" {{tauri}} android dev
+
+# Build a debug APK for arm64 phones and the Apple Silicon emulator.
+[group('android')]
+android-build:
+    NDK_HOME="$(just _ndk)" {{tauri}} android build --debug --apk --target aarch64
+
+# Start the Android emulator in the background.
+[group('android')]
+emulator:
+    "$ANDROID_HOME/emulator/emulator" -avd {{avd}} -no-snapshot-save >/dev/null 2>&1 &
+
+# Run in the iPhone simulator, or on a connected iPhone named DEVICE, with hot reload. Needs
+# Xcode (not just its command line tools) and, for a phone, a signing team.
+[group('ios')]
+ios DEVICE='':
+    {{tauri}} ios dev {{DEVICE}}
+
+# Mobile gates: TypeScript, ESLint, Prettier, clippy for the mobile crate and sv-ffi.
+[group('quality')]
+check:
+    cd .. && bunx tsc --noEmit -p mobile/tsconfig.json
+    cd .. && bunx eslint --max-warnings 0 mobile
+    cd .. && bunx prettier --check mobile/src mobile/vite.config.ts
+    cd .. && cargo clippy -p simple-voice-mobile -p sv-ffi --all-targets -- -D warnings
+
+# The newest NDK installed under $ANDROID_HOME/ndk.
+[private]
+_ndk:
+    @ls -1d "$ANDROID_HOME"/ndk/* | tail -n 1

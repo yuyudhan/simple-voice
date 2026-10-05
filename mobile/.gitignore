@@ -1,0 +1,3 @@
+# FilePath: mobile/.gitignore
+# Tauri rewrites the capability schemas on every build.
+/src-tauri/gen/schemas/

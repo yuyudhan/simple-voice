@@ -1,0 +1,41 @@
+# FilePath: mobile/src-tauri/Cargo.toml
+[package]
+name = "simple-voice-mobile"
+description = "Simple Voice for iPhone and Android: history, dictionary, insights and settings."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lib]
+# Tauri's mobile build links this library into the iOS and Android apps.
+name = "simple_voice_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+sv-domain.workspace = true
+sv-mobile.workspace = true
+sv-cloud.workspace = true
+reqwest.workspace = true
+tauri-plugin-opener.workspace = true
+sv-storage.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-clipboard-manager.workspace = true
+serde.workspace = true
+chrono.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# The Android keyboard's JNI functions ship inside this library (see crates/sv-ffi).
+[target.'cfg(target_os = "android")'.dependencies]
+sv-ffi.workspace = true
+
+[lints]
+workspace = true
