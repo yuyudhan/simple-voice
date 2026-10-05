@@ -217,6 +217,26 @@ impl Db {
         Ok(())
     }
 
+    /// Records that a finished dictation never reached its field (the phone keyboard lost the
+    /// field before inserting), keeping the text in history as not pasted with the reason (D-15).
+    pub async fn mark_history_not_pasted(&self, id: i64, reason: &str) -> AppResult<()> {
+        let inner = self.read().await;
+        let status = HistoryStatus::NotPasted.as_str();
+        let updated = sqlx::query!(
+            "UPDATE history SET status = ?1, error = ?2 WHERE id = ?3",
+            status,
+            reason,
+            id
+        )
+        .execute(&inner.pool)
+        .await
+        .map_err(AppError::database)?;
+        if updated.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("Dictation {id}")));
+        }
+        Ok(())
+    }
+
     pub async fn history_audio_path(&self, id: i64) -> AppResult<Option<String>> {
         let inner = self.read().await;
         let path = sqlx::query_scalar!(
@@ -666,6 +686,23 @@ mod tests {
         assert_eq!(db.list_history(None, 10, None).await.unwrap(), vec![found]);
 
         let missing = db.set_history_edited_text(stored.id + 1, "x").await;
+        assert!(matches!(missing, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn an_entry_that_never_reached_its_field_keeps_its_text_as_not_pasted() {
+        let (_dir, db) = open().await;
+        let stored = db.insert_history(entry("Ship it today")).await.unwrap();
+
+        db.mark_history_not_pasted(stored.id, "The text field closed")
+            .await
+            .unwrap();
+        let found = db.history_entry(stored.id).await.unwrap().unwrap();
+        assert_eq!(found.status, HistoryStatus::NotPasted);
+        assert_eq!(found.error.as_deref(), Some("The text field closed"));
+        assert_eq!(found.text, "Ship it today");
+
+        let missing = db.mark_history_not_pasted(stored.id + 1, "x").await;
         assert!(matches!(missing, Err(AppError::NotFound(_))));
     }
 }

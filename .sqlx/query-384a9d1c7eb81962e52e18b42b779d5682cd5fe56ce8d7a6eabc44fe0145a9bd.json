@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE history SET status = ?1, error = ?2 WHERE id = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "384a9d1c7eb81962e52e18b42b779d5682cd5fe56ce8d7a6eabc44fe0145a9bd"
+}
