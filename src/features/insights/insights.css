@@ -431,3 +431,37 @@
     color: var(--muted);
     font-size: 12px;
 }
+
+/* Narrow screens (phones; the desktop window never gets this narrow): every row stacks into one
+   column, long model and app names truncate, and the streak readouts tighten so nothing is
+   cut off at the card's edge. */
+@media (max-width: 640px) {
+    .insights-row--three,
+    .insights-row--pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .usage-row__label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .usage-row__count {
+        flex: none;
+    }
+
+    .top-apps__item {
+        grid-template-columns: 20px minmax(0, 1fr) minmax(0, 1fr) 72px;
+        gap: 8px;
+    }
+
+    .streak-card__figures > div {
+        padding: 0 12px;
+    }
+
+    .streak-card__figures > div:first-child {
+        padding-left: 0;
+    }
+}
