@@ -4,6 +4,7 @@ import { Mic, Search, SearchX } from "lucide-react";
 import { api, errorMessage, type HistoryEntry } from "../../lib/api";
 import { dayKey, dayLabel } from "../../lib/format";
 import { useSettings } from "../../app/SettingsContext";
+import { useDeviceName, usePlatform } from "../../app/PlatformContext";
 import {
     Button,
     EmptyState,
@@ -28,9 +29,12 @@ interface DayGroup {
 
 const EMPTY_DESCRIPTION =
     "Put the cursor in any text field, speak, and Simple Voice pastes the words for you.";
+const EMPTY_DESCRIPTION_MOBILE = "Dictations you make with the Simple Voice keyboard appear here.";
 
 export function HistoryPage() {
     const { settings } = useSettings();
+    const platform = usePlatform();
+    const device = useDeviceName();
     const { toast } = useToast();
     const [query, setQuery] = useState("");
     const history = useHistory(query);
@@ -115,7 +119,10 @@ export function HistoryPage() {
 
     return (
         <>
-            <PageHeader title="History" description="Every dictation on this Mac, newest first." />
+            <PageHeader
+                title="History"
+                description={`Every dictation on this ${device}, newest first.`}
+            />
 
             <StatsStrip />
 
@@ -148,6 +155,12 @@ export function HistoryPage() {
                         icon={<SearchX />}
                         title="No matches"
                         description={`Nothing you dictated contains “${query.trim()}”.`}
+                    />
+                ) : platform === "mobile" ? (
+                    <EmptyState
+                        icon={<Mic />}
+                        title="Nothing dictated yet"
+                        description={EMPTY_DESCRIPTION_MOBILE}
                     />
                 ) : (
                     <EmptyState
@@ -228,7 +241,8 @@ export function HistoryPage() {
                 }
             >
                 <p className="history-confirm">
-                    The text and any saved audio are removed from this Mac. This cannot be undone.
+                    The text and any saved audio are removed from this {device}. This cannot be
+                    undone.
                 </p>
                 {pendingDelete && (
                     <blockquote className="history-confirm__quote">

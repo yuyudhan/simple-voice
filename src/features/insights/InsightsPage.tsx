@@ -1,5 +1,6 @@
 // FilePath: src/features/insights/InsightsPage.tsx
 import { useState } from "react";
+import { useDeviceName } from "../../app/PlatformContext";
 import { PageHeader, Tabs } from "../../ui";
 import { ModelInsightsPanel } from "./ModelInsightsPanel";
 import { PersonalInsights } from "./PersonalInsights";
@@ -18,12 +19,13 @@ function isInsightsTab(id: string): id is InsightsTab {
 
 export function InsightsPage() {
     const [tab, setTab] = useState<InsightsTab>("personal");
+    const device = useDeviceName();
 
     return (
         <>
             <PageHeader
                 title="Insights"
-                description="How you dictate and how fast each model works, measured on this Mac."
+                description={`How you dictate and how fast each model works, measured on this ${device}.`}
             />
             <div className="insights-tabs">
                 <Tabs
