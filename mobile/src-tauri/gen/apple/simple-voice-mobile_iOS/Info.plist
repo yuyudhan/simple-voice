@@ -37,6 +37,8 @@
 	<string>Without internet, Simple Voice transcribes on this iPhone with Apple Speech.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>SVKeychainGroup</key>
+	<string>$(AppIdentifierPrefix)dev.yuyudhan.simplevoice.shared</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,5 +1,5 @@
 // FilePath: mobile/plugins/sv-native/ios/Sources/SvShared/Bridge.swift
-// What the iPhone keyboard and the app share through their App Group: a status file the app
+// What the iPhone keyboard and the app share (App Group, else keychain): a status the app
 // keeps current, a queue of keyboard requests, the app's latest reply and the microphone level.
 // Each side writes, then posts a Darwin notification so the other reads at once. Compiled into
 // the sv-native plugin (module SvShared) and directly into the keyboard and widget targets.
@@ -19,7 +19,6 @@ public enum Bridge {
         public static let endSession = "dev.yuyudhan.simplevoice.endSession"
     }
 
-    static let levelKey = "level"
     /// A session whose heartbeat is older than this is gone (the app was closed or killed).
     public static let aliveWindow: TimeInterval = 15
 }
@@ -119,71 +118,68 @@ public struct KeyboardReply: Codable, Equatable {
     }
 }
 
-/// The App Group folder. `nil` when the App Group is missing (no entitlement, or a keyboard
-/// without Full Access); callers then report that instead of failing silently.
+/// The shared values (see SharedStore.swift). `nil` when neither the App Group nor the shared
+/// keychain group is reachable (a keyboard without Full Access); callers then report that
+/// instead of failing silently.
 public final class SharedFiles {
-    public let root: URL
-    private let defaults: UserDefaults?
+    private let store: SharedStore
 
+    /// The App Group when it is provisioned, else the shared keychain group (free Apple IDs).
     public init?() {
-        let manager = FileManager.default
-        guard let container = manager.containerURL(forSecurityApplicationGroupIdentifier: Bridge.appGroup)
-        else { return nil }
-        root = container.appendingPathComponent("SimpleVoice", isDirectory: true)
-        defaults = UserDefaults(suiteName: Bridge.appGroup)
-        try? manager.createDirectory(at: requestsDir, withIntermediateDirectories: true)
+        guard let store: SharedStore = AppGroupStore() ?? KeychainStore() else { return nil }
+        self.store = store
     }
 
-    var statusFile: URL { root.appendingPathComponent("status.json") }
-    var replyFile: URL { root.appendingPathComponent("reply.json") }
-    var requestsDir: URL { root.appendingPathComponent("requests", isDirectory: true) }
+    private static let status = "status.json"
+    private static let reply = "reply.json"
+    private static let level = "level"
+    private static let requestPrefix = "request-"
 
-    public func readStatus() -> SharedStatus? { read(SharedStatus.self, from: statusFile) }
+    public func readStatus() -> SharedStatus? { read(SharedStatus.self, Self.status) }
 
     public func writeStatus(_ status: SharedStatus) {
-        write(status, to: statusFile)
+        write(status, Self.status)
         DarwinNote.post(Bridge.Note.status)
     }
 
-    public func readReply() -> KeyboardReply? { read(KeyboardReply.self, from: replyFile) }
+    public func readReply() -> KeyboardReply? { read(KeyboardReply.self, Self.reply) }
 
     public func writeReply(_ reply: KeyboardReply) {
-        write(reply, to: replyFile)
+        write(reply, Self.reply)
         DarwinNote.post(Bridge.Note.reply)
     }
 
     public func enqueue(_ request: KeyboardRequest) {
-        let name = String(format: "%013.0f-%@.json", request.at, request.id)
-        write(request, to: requestsDir.appendingPathComponent(name))
+        let name = String(format: "%@%013.0f-%@.json", Self.requestPrefix, request.at, request.id)
+        write(request, name)
         DarwinNote.post(Bridge.Note.request)
     }
 
     /// Every queued request, oldest first; each is removed as it is read.
     public func takeRequests() -> [KeyboardRequest] {
-        let manager = FileManager.default
-        let files = (try? manager.contentsOfDirectory(at: requestsDir, includingPropertiesForKeys: nil)) ?? []
-        return files
-            .filter { $0.pathExtension == "json" }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-            .compactMap { file in
-                defer { try? manager.removeItem(at: file) }
-                return read(KeyboardRequest.self, from: file)
-            }
+        store.names(prefix: Self.requestPrefix).compactMap { name in
+            defer { store.remove(name) }
+            return read(KeyboardRequest.self, name)
+        }
     }
 
+    /// The microphone level, 0 to 1, written about 12 times a second while recording.
     public var level: Float {
-        get { defaults?.float(forKey: Bridge.levelKey) ?? 0 }
-        set { defaults?.set(newValue, forKey: Bridge.levelKey) }
+        get {
+            guard let data = store.read(Self.level), let text = String(data: data, encoding: .utf8) else { return 0 }
+            return Float(text) ?? 0
+        }
+        set { store.write(Self.level, Data(String(newValue).utf8)) }
     }
 
-    private func read<T: Decodable>(_ type: T.Type, from file: URL) -> T? {
-        guard let data = try? Data(contentsOf: file) else { return nil }
+    private func read<T: Decodable>(_ type: T.Type, _ name: String) -> T? {
+        guard let data = store.read(name) else { return nil }
         return try? JSONDecoder().decode(type, from: data)
     }
 
-    private func write<T: Encodable>(_ value: T, to file: URL) {
+    private func write<T: Encodable>(_ value: T, _ name: String) {
         guard let data = try? JSONEncoder().encode(value) else { return }
-        try? data.write(to: file, options: .atomic)
+        store.write(name, data)
     }
 }
 

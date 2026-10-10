@@ -756,5 +756,11 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
     - _Live Activity_: "Simple Voice · ready · m:ss left" or "Recording · model · m:ss"; Stop is an
       `EndSessionIntent` (`LiveActivityIntent`, compiled into the app and the widget) that posts
       `endSession`.
-    - _Signing_: the App Group needs a paid Apple Developer account on a real iPhone; a free
-      Personal Team cannot provision it. The simulator does not check it.
+    - _Signing_: a free Personal Team cannot provision the App Group, so the shared values fall
+      back to a shared keychain access group (`$(AppIdentifierPrefix)dev.yuyudhan.simplevoice.shared`,
+      named in each target's `SVKeychainGroup` Info.plist key; `SvShared/SharedStore.swift`).
+      The keyboard reaches either store only with Full Access.
+    - _Keyboard height_: the controller's own view gets one height constraint (Apple's documented
+      way); the content is pinned to its bottom at a fixed height and fades in once iOS settles,
+      because iOS opens custom keyboards briefly too tall. Replacing the input view or making it
+      self-sizing made iOS grow it on every layout pass.

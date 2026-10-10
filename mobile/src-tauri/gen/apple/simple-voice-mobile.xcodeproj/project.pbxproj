@@ -29,6 +29,7 @@
 		7761C7727C09C038E6295CD2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 205BE797F13FD7B3F10F641D /* Assets.xcassets */; };
 		82016F0477EB01478A561FE7 /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8160265973FE410D70B6855D /* DictationController.swift */; };
 		8996694DFD93CCBAFD43F3D6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61A7F94255C8284CD18168EB /* WidgetKit.framework */; };
+		8D61E82A997FE4262A470FA6 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58150DF03D0468B1AD42F270 /* SharedStore.swift */; };
 		902E959CB110C4B7FB0D0869 /* EndSessionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */; };
 		95B9711E1D0CDBBEBF57B2E6 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 445F92F88378F4C0B565D39A /* QuartzCore.framework */; };
 		95FBBCCEBDF6B2D36FBC30C5 /* Speech.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B48AD0850918755B6A4FC27 /* Speech.framework */; };
@@ -37,6 +38,7 @@
 		99A19972232277B036AE10B8 /* KeyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87EEE291604996E094321A9 /* KeyLayout.swift */; };
 		9EF41966D1F70E70C07326F7 /* EndSessionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */; };
 		A42692D5EF822DEC55FB673D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7336241C16227413F53C2C /* KeyboardViewController.swift */; };
+		B0E419C89018F24A247E315D /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58150DF03D0468B1AD42F270 /* SharedStore.swift */; };
 		C07AF7D3AAED6456910AD0F7 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B0D744A7B571100142371EC /* AppIntents.framework */; };
 		C4671FD9ACE314BA30FC76DD /* KeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAED94FAC2A6F07152069918 /* KeyButton.swift */; };
 		DD1242730E66D18A6220110E /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82333BF40DB6FDBAD6B4A175 /* WebKit.framework */; };
@@ -97,6 +99,7 @@
 		445F92F88378F4C0B565D39A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		4BA080979B8B5C7F6DEE73B9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		531109D8C56C16A3303958F4 /* SessionLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLiveActivity.swift; sourceTree = "<group>"; };
+		58150DF03D0468B1AD42F270 /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedStore.swift; sourceTree = "<group>"; };
 		5A7D7012A00388E65EEEE311 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		61A7F94255C8284CD18168EB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		645C9FECC0CDA7960EEC3B9B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -238,6 +241,7 @@
 			children = (
 				A72B6A275461AC8F49E78AF5 /* Bridge.swift */,
 				2DEF758AE56668B1D5B09468 /* SessionActivity.swift */,
+				58150DF03D0468B1AD42F270 /* SharedStore.swift */,
 			);
 			name = SvShared;
 			path = "../../../plugins/sv-native/ios/Sources/SvShared";
@@ -356,14 +360,14 @@
 			path = SimpleVoiceKeyboard;
 			sourceTree = "<group>";
 		};
-		"TEMP_16E06D51-FF95-4134-B9DC-99B5062C1849" /* x86_64 */ = {
+		"TEMP_36BEEA12-B2A2-4D26-AF2C-FFA89E18F634" /* x86_64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = x86_64;
 			sourceTree = "<group>";
 		};
-		"TEMP_47304417-725F-4B4B-AB61-CDDF993DA3F7" /* arm64 */ = {
+		"TEMP_FAB3E9B8-60F3-419E-89F8-49E9D6DF738E" /* arm64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -518,6 +522,7 @@
 				902E959CB110C4B7FB0D0869 /* EndSessionIntent.swift in Sources */,
 				E20E926AB9E35C789D2B0174 /* SessionActivity.swift in Sources */,
 				98DBCB2A5BA91146409636FE /* SessionLiveActivity.swift in Sources */,
+				8D61E82A997FE4262A470FA6 /* SharedStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -535,6 +540,7 @@
 				F3499E5BFDDBAD8B6F15C966 /* LevelBars.swift in Sources */,
 				29F273759A554766BE2ADE05 /* Palette.swift in Sources */,
 				76ADEFA10F09128D73D336BE /* SessionActivity.swift in Sources */,
+				B0E419C89018F24A247E315D /* SharedStore.swift in Sources */,
 				1149F6A35B4E483128564724 /* TopBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

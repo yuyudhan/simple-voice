@@ -78,10 +78,13 @@ targets:
         NSSupportsLiveActivities: true
         # A session keeps the microphone running while you type in other apps.
         UIBackgroundModes: [audio]
+        SVKeychainGroup: $(AppIdentifierPrefix)dev.yuyudhan.simplevoice.shared
     entitlements:
       path: simple-voice-mobile_iOS/simple-voice-mobile_iOS.entitlements
       properties:
         com.apple.security.application-groups: [group.dev.yuyudhan.simplevoice.mobile]
+        # The fallback for free Apple IDs, which cannot provision App Groups (SharedStore.swift).
+        keychain-access-groups: ["$(AppIdentifierPrefix)dev.yuyudhan.simplevoice.shared"]
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
