@@ -44,11 +44,13 @@ pub(crate) fn init(data_dir: &Path) -> AppResult<()> {
 
 pub(crate) fn status(online: bool) -> String {
     match CORE.get() {
-        Some(core) => json(
-            &core
-                .runtime
-                .block_on(sv_mobile::keyboard_status(&core.db, online)),
-        ),
+        Some(core) => json(&core.runtime.block_on(sv_mobile::keyboard_status(
+            &core.db,
+            sv_mobile::Reach {
+                online,
+                on_device_speech: false,
+            },
+        ))),
         None => json(&KeyboardStatus {
             line: STARTING.to_owned(),
             ready: false,

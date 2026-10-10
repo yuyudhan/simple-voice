@@ -330,7 +330,7 @@ async fn groq_key(db: &Db) -> AppResult<Option<String>> {
         .filter(|key| !key.trim().is_empty()))
 }
 
-async fn vocabulary(db: &Db) -> Vocabulary {
+pub(crate) async fn vocabulary(db: &Db) -> Vocabulary {
     let entries = db.dictionary().await.unwrap_or_else(|error| {
         tracing::warn!(%error, "could not read the dictionary");
         Vec::new()
@@ -347,7 +347,7 @@ async fn read_wav(path: &Path) -> AppResult<Vec<u8>> {
 }
 
 /// Removes a recording. A file that is already gone is the desired end state.
-async fn remove_audio(path: &Path) {
+pub(crate) async fn remove_audio(path: &Path) {
     match tokio::fs::remove_file(path).await {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -363,7 +363,7 @@ fn failed(id: Option<i64>, error: AppError) -> Dictation {
 }
 
 /// Appends a space unless the text already ends in whitespace (D-16).
-fn with_separator(text: &str) -> String {
+pub(crate) fn with_separator(text: &str) -> String {
     if text.is_empty() || text.ends_with(char::is_whitespace) {
         return text.to_owned();
     }

@@ -5,9 +5,11 @@
 #![forbid(unsafe_code)]
 
 mod http;
+mod local;
 mod pipeline;
 mod status;
 
 pub use http::http_client;
+pub use local::{dictate_local, discard, LocalTranscript};
 pub use pipeline::{dictate, retry, Delivery, Dictation, Recording};
-pub use status::{keyboard_status, KeyboardStatus};
+pub use status::{keyboard_status, KeyboardStatus, Reach};

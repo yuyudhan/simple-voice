@@ -45,6 +45,10 @@ export interface Settings {
     dictionarySort: DictionarySort;
     /** Learn dictionary words from corrections made to pasted text; needs post-processing. */
     learnFromEdits: boolean;
+    /** iPhone: transcribe with Apple Speech on the device while offline. */
+    appleSpeechOffline: boolean;
+    /** iPhone: minutes a recording session stays available in the background. */
+    sessionMinutes: number;
     databaseDir: string;
 }
 

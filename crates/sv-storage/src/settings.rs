@@ -19,6 +19,8 @@ const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
 const DERIVED_FIELDS: [&str; 3] = ["groqApiKeyPresent", "customApiKeyPresent", "databaseDir"];
 const MIN_RECORDING_SECONDS: u32 = 10;
 const MAX_RECORDING_SECONDS: u32 = 1800;
+const MIN_SESSION_MINUTES: u32 = 5;
+const MAX_SESSION_MINUTES: u32 = 60;
 
 impl Db {
     pub async fn settings(&self) -> AppResult<Settings> {
@@ -186,6 +188,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         skipped_update,
         dictionary_sort,
         learn_from_edits,
+        apple_speech_offline,
+        session_minutes,
     } = patch;
 
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
@@ -224,6 +228,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set_trimmed(&mut settings.skipped_update, skipped_update);
     set(&mut settings.dictionary_sort, dictionary_sort);
     set(&mut settings.learn_from_edits, learn_from_edits);
+    set(&mut settings.apple_speech_offline, apple_speech_offline);
+    set(&mut settings.session_minutes, session_minutes);
 }
 
 fn set<T>(field: &mut T, value: Option<T>) {
@@ -254,6 +260,11 @@ fn validate(settings: &Settings) -> AppResult<()> {
     if !(MIN_RECORDING_SECONDS..=MAX_RECORDING_SECONDS).contains(&settings.max_recording_seconds) {
         return Err(AppError::invalid(
             "Maximum recording length must be between 10 seconds and 30 minutes",
+        ));
+    }
+    if !(MIN_SESSION_MINUTES..=MAX_SESSION_MINUTES).contains(&settings.session_minutes) {
+        return Err(AppError::invalid(
+            "Session length must be between 5 and 60 minutes",
         ));
     }
     if settings.languages.is_empty() {

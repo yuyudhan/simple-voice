@@ -115,6 +115,10 @@ pub struct Settings {
     pub dictionary_sort: DictionarySort,
     /// Watch the text field after a paste and add the words the user corrects to the dictionary.
     pub learn_from_edits: bool,
+    /// iPhone: transcribe on the device with Apple Speech while offline (MB-4).
+    pub apple_speech_offline: bool,
+    /// iPhone: how long a recording session stays available in the background (MB-7).
+    pub session_minutes: u32,
     /// Derived: directory currently holding the database.
     pub database_dir: String,
 }
@@ -154,6 +158,8 @@ impl Default for Settings {
             dictionary_sort: DictionarySort::NameAsc,
             // Off by default: learning reads the focused text field after every paste.
             learn_from_edits: false,
+            apple_speech_offline: true,
+            session_minutes: 15,
             database_dir: String::new(),
         }
     }
@@ -192,6 +198,8 @@ pub struct SettingsPatch {
     pub skipped_update: Option<String>,
     pub dictionary_sort: Option<DictionarySort>,
     pub learn_from_edits: Option<bool>,
+    pub apple_speech_offline: Option<bool>,
+    pub session_minutes: Option<u32>,
 }
 
 /// Distinguishes an absent key (`None`) from an explicit `null` (`Some(None)`).
