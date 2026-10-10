@@ -1,11 +1,13 @@
 // FilePath: mobile/src-tauri/gen/apple/SimpleVoiceKeyboard/KeyboardView.swift
-// The keyboard's root view: the top bar over the key rows. It is the controller's input view so
-// that it can adopt UIInputViewAudioFeedback; the system plays key clicks only for input views
-// that ask for them (and only with Full Access).
+// The keyboard's content: the top bar over the key rows. It sits inside the input view iOS gives
+// the controller, pinned to its edges; the controller sizes that view with one height constraint
+// (Apple's documented way). Replacing the input view itself, or letting it size itself, makes
+// iOS re-measure and grow the keyboard on every layout pass.
+// It still adopts UIInputViewAudioFeedback, so key clicks play where the system allows them.
 
 import UIKit
 
-final class KeyboardView: UIInputView, UIInputViewAudioFeedback {
+final class KeyboardView: UIView, UIInputViewAudioFeedback {
     private var topBar: TopBar?
     private var keys: KeysView?
 
@@ -33,13 +35,11 @@ final class KeyboardView: UIInputView, UIInputViewAudioFeedback {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        // Rows keep their fixed height under the top bar even when the system hands the view
+        // more room than it asked for (part of it sits behind the system's globe and mic bar),
+        // so keys never stretch.
         let bar = CGRect(x: 0, y: Self.padding, width: bounds.width, height: barHeight)
         topBar?.frame = bar
-        keys?.frame = CGRect(
-            x: 0,
-            y: bar.maxY,
-            width: bounds.width,
-            height: max(bounds.height - bar.maxY - Self.padding, 0)
-        )
+        keys?.frame = CGRect(x: 0, y: bar.maxY, width: bounds.width, height: rowHeight * 4)
     }
 }

@@ -12,6 +12,8 @@ final class KeyboardViewController: UIInputViewController {
     private var keys: KeysView?
     private var dictation: DictationController?
     private var heightConstraint: NSLayoutConstraint?
+    /// The keys' own height, so they never stretch with a briefly taller keyboard.
+    private var contentHeight: NSLayoutConstraint?
     private lazy var checker = UITextChecker()
 
     private var layer = Layer.letters
@@ -28,15 +30,24 @@ final class KeyboardViewController: UIInputViewController {
     private static let wordLookback = 48
     private static let closingPunctuation: Set<String> = [".", ",", "?", "!", ":", ";"]
 
-    override func loadView() {
-        let root = KeyboardView(frame: .zero, inputViewStyle: .default)
-        self.root = root
-        view = root
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
-        guard let root else { return }
+        // The keyboard has its own mic; this hides the system's dictation button beside the globe.
+        hasDictationKey = true
+        let root = KeyboardView()
+        self.root = root
+        root.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(root)
+        // Pinned to the bottom with its own height: while iOS briefly presents the keyboard too
+        // tall, the keys stay put at the bottom instead of stretching with it.
+        let rootHeight = root.heightAnchor.constraint(equalToConstant: root.preferredHeight)
+        NSLayoutConstraint.activate([
+            root.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            root.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            root.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            rootHeight,
+        ])
+        contentHeight = rootHeight
         let palette = Palette.of(traitCollection)
         let topBar = TopBar(palette: palette, delegate: self)
         let keys = KeysView(palette: palette, delegate: self, inputController: self)
@@ -46,8 +57,10 @@ final class KeyboardViewController: UIInputViewController {
         self.keys = keys
         dictation = DictationController(host: self)
 
-        let height = root.heightAnchor.constraint(equalToConstant: root.preferredHeight)
-        // Below required so the system's own sizing wins during rotation instead of logging conflicts.
+        // Apple's documented way to size a custom keyboard: one height constraint on the
+        // controller's own view. Below required, so the system's sizing during rotation and
+        // presentation wins for a moment instead of breaking the layout.
+        let height = view.heightAnchor.constraint(equalToConstant: root.preferredHeight)
         height.priority = UILayoutPriority(999)
         height.isActive = true
         heightConstraint = height
@@ -60,12 +73,34 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        // Hidden until iOS settles on the height; viewDidLayoutSubviews fades it in.
+        root?.alpha = 0
         layer = .letters
         shift = .off
         lastWasSpace = false
         autoSpace = false
         refreshField()
         dictation?.appear()
+    }
+
+    /// iOS opens a custom keyboard at a wrong, taller height and then shrinks it to the
+    /// constraint within a few frames (Apple Developer Forums 813579). Showing the keys only once
+    /// the height is right turns that visible jump into a short fade.
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard abs(view.bounds.height - (root?.preferredHeight ?? 0)) < 1 else { return }
+        reveal()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // If iOS settles on another height (an unusual host), the keys still show.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.reveal() }
+    }
+
+    private func reveal() {
+        guard let root, root.alpha == 0 else { return }
+        UIView.animate(withDuration: 0.12) { root.alpha = 1 }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -97,7 +132,10 @@ final class KeyboardViewController: UIInputViewController {
         root?.apply(palette)
         topBar?.apply(palette)
         keys?.apply(palette)
-        if let root { heightConstraint?.constant = root.preferredHeight }
+        if let root {
+            heightConstraint?.constant = root.preferredHeight
+            contentHeight?.constant = root.preferredHeight
+        }
     }
 
     // MARK: Typing
