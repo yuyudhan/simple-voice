@@ -2,29 +2,26 @@
 package dev.yuyudhan.simplevoice.mobile.keyboard
 
 import android.content.Context
-import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.StateListDrawable
-import android.os.Handler
-import android.os.Looper
+import android.text.TextUtils
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsCompat
 import dev.yuyudhan.simplevoice.mobile.R
-import kotlin.math.abs
 
 /** What the top bar's dot and text say. */
 internal enum class Tone { READY, BLOCKED, RECORDING, WORKING, RETRY }
-
-/** The mic button: tap to start, tap to stop (MB-3), or unavailable. */
-internal enum class MicState { IDLE, DISABLED, RECORDING, BUSY }
 
 /** What the return key does in this field, and the icon that says so. */
 internal enum class ReturnAction(val icon: Int, val description: String) {
@@ -50,22 +47,27 @@ internal interface KeyboardListener {
 }
 
 /**
- * The Simple Voice keyboard's views: a top bar (status and mic), a suggestion strip and the key
- * rows. It draws whatever state [KeyboardService] gives it and reports taps back.
+ * The Simple Voice keyboard's views: a top bar (status or suggestions, and the mic), the key
+ * rows, and the key preview floating over both. It draws whatever state [KeyboardService] gives
+ * it and reports taps back.
  */
 internal class KeyboardView(
     context: Context,
-    private val palette: Palette,
+    override val palette: Palette,
     private val listener: KeyboardListener,
-) : LinearLayout(context) {
-    private val main = Handler(Looper.getMainLooper())
+) : FrameLayout(context), KeyHost {
+    override val feedback = KeyFeedback(context)
+    private val preview = KeyPreview(context, palette)
     private val statusDot = View(context)
     private val levels = LevelBars(context, palette.accent)
     private val statusText = TextView(context)
-    private val mic = ImageView(context)
+    private val mic = MicButton(context, palette, feedback)
     private val status = LinearLayout(context)
     private val suggestions = LinearLayout(context)
     private val rows = LinearLayout(context)
+    private val keys = mutableListOf<KeyView>()
+    private val icons = mutableMapOf<Int, Drawable?>()
+    private val landscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     private var layer = Layer.LETTERS
     private var shift = ShiftState.OFF
     private var returnAction = ReturnAction.NEWLINE
@@ -74,26 +76,40 @@ internal class KeyboardView(
     private var statusPinned = false
 
     init {
-        orientation = VERTICAL
         setBackgroundColor(palette.background)
-        setPadding(dp(4), dp(6), dp(4), dp(6))
-        addView(topBar(), LayoutParams(LayoutParams.MATCH_PARENT, dp(44)))
-        rows.orientation = VERTICAL
-        addView(rows, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(SIDE_DP), 0, dp(SIDE_DP), dp(BOTTOM_DP))
+            addView(topBar(), LinearLayout.LayoutParams(MATCH, dp(BAR_DP)))
+            addView(rows, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+        rows.orientation = LinearLayout.VERTICAL
+        addView(content, LayoutParams(MATCH, WRAP))
+        addView(preview, LayoutParams(MATCH, MATCH))
+        // Android draws the keyboard behind the navigation bar; keep the keys above it.
+        setOnApplyWindowInsetsListener { target, insets ->
+            val bottom = WindowInsetsCompat.toWindowInsetsCompat(insets, target)
+                .getInsets(WindowInsetsCompat.Type.navigationBars())
+                .bottom
+            target.setPadding(0, 0, 0, bottom)
+            insets
+        }
         render()
     }
 
     fun setLayer(layer: Layer, shift: ShiftState) {
         if (this.layer == layer && this.shift == shift) return
+        val rebuild = this.layer != layer
         this.layer = layer
         this.shift = shift
-        render()
+        // Shift only changes faces; rebuilding would cut short a key's press fade.
+        if (rebuild) render() else refresh()
     }
 
     fun setReturnAction(action: ReturnAction) {
         if (returnAction == action) return
         returnAction = action
-        render()
+        refresh()
     }
 
     fun setStatus(line: String, tone: Tone) {
@@ -106,6 +122,8 @@ internal class KeyboardView(
             Tone.RETRY -> palette.warning
         }
         (statusDot.background as? GradientDrawable)?.setColor(colour)
+        // A live recording and a waiting Retry are read at a glance; the rest is background.
+        statusText.setTextColor(if (tone == Tone.RECORDING || tone == Tone.RETRY) palette.text else palette.muted)
         // While recording, the meter replaces the dot and shows the voice being heard.
         val recording = tone == Tone.RECORDING
         statusDot.visibility = if (recording) GONE else VISIBLE
@@ -118,40 +136,38 @@ internal class KeyboardView(
     }
 
     /** The microphone's latest level, from 0 to 1. */
-    fun setLevel(level: Float) = levels.push(level)
+    fun setLevel(level: Float) {
+        levels.push(level)
+        mic.setLevel(level)
+    }
 
     fun setMic(state: MicState) {
-        mic.setImageResource(if (state == MicState.RECORDING) R.drawable.sv_stop else R.drawable.sv_mic)
-        val background = mic.background as? GradientDrawable
-        background?.setColor(if (state == MicState.DISABLED) palette.functionKey else palette.accent)
-        mic.imageTintList = ColorStateList.valueOf(
-            if (state == MicState.DISABLED) palette.muted else palette.onAccent,
-        )
-        mic.alpha = if (state == MicState.BUSY) 0.5f else 1f
-        mic.contentDescription = if (state == MicState.RECORDING) "Stop dictating" else "Dictate"
+        mic.state = state
     }
 
     fun setSuggestions(words: List<String>) {
         suggestions.removeAllViews()
-        words.take(3).forEachIndexed { index, word ->
-            if (index > 0) suggestions.addView(divider(), LayoutParams(dp(1), dp(18)))
-            val cell = TextView(context).apply {
-                text = word
-                gravity = Gravity.CENTER
-                maxLines = 1
-                setTextColor(palette.text)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                if (index == 0) setTypeface(typeface, Typeface.BOLD)
-                background = pressable(palette.background, palette.functionKey, stroke = false)
-                setOnClickListener {
-                    it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    listener.onSuggestion(word)
-                }
-            }
-            suggestions.addView(cell, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
+        val shown = words.take(SUGGESTIONS)
+        // The best guess sits in the middle, where the eye already is, as on Gboard and iOS.
+        val order = if (shown.size == SUGGESTIONS) listOf(shown[1], shown[0], shown[2]) else shown
+        val best = if (shown.size == SUGGESTIONS) 1 else 0
+        order.forEachIndexed { index, word ->
+            if (index > 0) suggestions.addView(divider(), LinearLayout.LayoutParams(dp(1), dp(DIVIDER_DP)))
+            suggestions.addView(suggestion(word, index == best), LinearLayout.LayoutParams(0, MATCH, 1f))
         }
         showBar()
     }
+
+    override fun onKey(key: Key) = listener.onKey(key)
+
+    override fun onCapsLock() = listener.onCapsLock()
+
+    override fun onCursor(offset: Int) = listener.onCursor(offset)
+
+    override fun showPreview(anchor: KeyView, text: String, alternate: Boolean) =
+        preview.show(anchor, text, alternate)
+
+    override fun hidePreview(anchor: KeyView) = preview.hide(anchor)
 
     /** One bar beside the mic: suggestions while a word is being typed, the status otherwise. */
     private fun showBar() {
@@ -160,242 +176,142 @@ internal class KeyboardView(
         status.visibility = if (words) GONE else VISIBLE
     }
 
-    private fun divider(): View = View(context).apply { setBackgroundColor(palette.border) }
+    private fun suggestion(word: String, best: Boolean): View = TextView(context).apply {
+        text = word
+        gravity = Gravity.CENTER
+        maxLines = 1
+        ellipsize = TextUtils.TruncateAt.END
+        setPadding(dp(6), 0, dp(6), 0)
+        setTextColor(if (best) palette.text else palette.muted)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, SUGGESTION_SP)
+        typeface = Typeface.create(if (best) "sans-serif-medium" else "sans-serif", Typeface.NORMAL)
+        background = pressedPill()
+        isFocusable = false
+        isSoundEffectsEnabled = false
+        setOnTouchListener { view, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) feedback.press(view, null)
+            false
+        }
+        setOnClickListener { listener.onSuggestion(word) }
+    }
+
+    /** Clear at rest, a rounded function-key fill under the finger. */
+    private fun pressedPill(): StateListDrawable {
+        val pressed = GradientDrawable().apply {
+            cornerRadius = dp(KeyView.RADIUS_DP.toInt()).toFloat()
+            setColor(palette.functionKey)
+        }
+        return StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), InsetDrawable(pressed, 0, dp(6), 0, dp(6)))
+        }
+    }
+
+    private fun divider(): View = View(context).apply { setBackgroundColor(palette.divider) }
 
     private fun topBar(): View {
         statusDot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL }
         levels.visibility = GONE
         statusText.apply {
             setTextColor(palette.muted)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, STATUS_SP)
             maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            // Centres the line on the dot; font padding would sit it a pixel or two low.
+            includeFontPadding = false
+            // The recording timer ticks every second; tabular figures keep it from jittering.
+            fontFeatureSettings = "tnum"
         }
-        mic.apply {
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL }
-            scaleType = ImageView.ScaleType.CENTER
-            setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                listener.onMic()
-            }
-        }
-        setMic(MicState.DISABLED)
         status.apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            addView(statusDot, LayoutParams(dp(7), dp(7)).apply { marginEnd = dp(8) })
-            addView(levels, LayoutParams(dp(22), dp(16)).apply { marginEnd = dp(8) })
-            addView(statusText, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+            setPadding(dp(8), 0, dp(8), 0)
+            addView(statusDot, LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginEnd = dp(10) })
+            addView(levels, LinearLayout.LayoutParams(dp(20), dp(16)).apply { marginEnd = dp(10) })
+            addView(statusText, LinearLayout.LayoutParams(0, WRAP, 1f))
+            isFocusable = false
             setOnClickListener { listener.onStatusTap() }
         }
         suggestions.apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             visibility = GONE
         }
+        mic.setOnClickListener { listener.onMic() }
         return LinearLayout(context).apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(4), 0)
-            addView(status, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f))
-            addView(suggestions, LayoutParams(0, LayoutParams.MATCH_PARENT, 1f).apply { marginEnd = dp(8) })
-            addView(mic, LayoutParams(dp(38), dp(38)))
+            addView(status, LinearLayout.LayoutParams(0, MATCH, 1f))
+            addView(suggestions, LinearLayout.LayoutParams(0, MATCH, 1f).apply { marginEnd = dp(4) })
+            addView(mic, LinearLayout.LayoutParams(dp(BAR_DP), dp(BAR_DP)))
         }
     }
 
     private fun render() {
         rows.removeAllViews()
+        keys.clear()
+        val height = dp(if (landscape) ROW_LANDSCAPE_DP else ROW_DP)
         for (row in KeyLayout.rows(layer)) {
-            val line = LinearLayout(context).apply {
-                orientation = HORIZONTAL
-                gravity = Gravity.CENTER_HORIZONTAL
+            val line = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            // The middle letter row is half a key in from each side, as on every phone keyboard;
+            // its end keys take that space as touch area so a tap there still types.
+            val short = layer == Layer.LETTERS && row.size == 9
+            row.forEachIndexed { index, key ->
+                val leading = if (short && index == 0) 0.5f else 0f
+                val trailing = if (short && index == row.lastIndex) 0.5f else 0f
+                val view = KeyView(context, this, key, leading, trailing)
+                keys.add(view)
+                line.addView(view, LinearLayout.LayoutParams(0, height, weight(key) + leading + trailing))
             }
-            // The middle letter row is narrower, as on every phone keyboard.
-            val inset = if (layer == Layer.LETTERS && row.size == 9) 0.5f else 0f
-            if (inset > 0f) line.addView(View(context), LayoutParams(0, 1, inset))
-            for (key in row) line.addView(keyView(key), LayoutParams(0, dp(48), weight(key)))
-            if (inset > 0f) line.addView(View(context), LayoutParams(0, 1, inset))
-            rows.addView(line, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+            rows.addView(line, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+        refresh()
+    }
+
+    /** Updates every key's face for the current shift and return action. */
+    private fun refresh() {
+        for (view in keys) {
+            view.face = face(view.key)
+            view.contentDescription = description(view.key)
         }
     }
 
+    /** The bottom row adds up to the same width in every layer, so its keys do not jump. */
     private fun weight(key: Key): Float = when (key) {
         is Key.Text -> 1f
-        Key.Space -> 4f
+        Key.Space -> if (layer == Layer.LETTERS) 4f else 6f
         Key.Return -> 1.8f
         Key.Shift, Key.Backspace -> 1.5f
         Key.NextKeyboard -> 1.1f
         is Key.SwitchLayer -> 1.4f
     }
 
-    private fun keyView(key: Key): View {
-        val function = key !is Key.Text && key != Key.Space
-        // Only caps lock fills the key with the accent; one-letter shift just fills the arrow.
-        val shiftOn = key == Key.Shift && shift == ShiftState.LOCKED
-        val idle = when {
-            shiftOn -> palette.accent
-            function -> palette.functionKey
-            else -> palette.key
-        }
-        val icon = icon(key)
-        val cap: View = if (icon != null) {
-            // Every symbol key is a drawn icon in one stroke style (docs/internal/design.md); font
-            // arrows render small and the emoji globe in colour.
-            ImageView(context).apply {
-                setImageResource(icon)
-                scaleType = ImageView.ScaleType.CENTER
-                imageTintList = ColorStateList.valueOf(if (shiftOn) palette.onAccent else palette.text)
-            }
-        } else {
-            TextView(context).apply {
-                gravity = Gravity.CENTER
-                text = label(key)
-                setTextColor(palette.text)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, if (key is Key.Text) 21f else 14f)
-            }
-        }
-        cap.background = pressable(idle, if (function) palette.key else palette.functionKey)
-        cap.contentDescription = description(key)
-        val holder = FrameLayout(context).apply {
-            setPadding(dp(2), dp(3), dp(2), dp(3))
-            addView(cap, FrameLayout.LayoutParams(MATCH, MATCH))
-        }
-        val alt = (key as? Key.Text)?.alt
-        if (alt != null) holder.addView(hint(alt), FrameLayout.LayoutParams(WRAP, WRAP, Gravity.TOP or Gravity.END))
-        when {
-            key == Key.Backspace -> cap.setOnTouchListener { view, event -> repeatBackspace(view, event) }
-            key == Key.Space -> cap.setOnTouchListener(SpaceDrag())
-            else -> cap.setOnClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                listener.onKey(key)
-            }
-        }
-        if (alt != null) {
-            cap.setOnLongClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                listener.onKey(Key.Text(alt))
-                true
-            }
-        }
-        if (key == Key.Shift) {
-            cap.setOnLongClickListener {
-                it.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                listener.onCapsLock()
-                true
-            }
-        }
-        return holder
-    }
-
-    /** The long-press character, small in the key's top-right corner. */
-    private fun hint(alt: String): View = TextView(context).apply {
-        text = alt
-        setTextColor(palette.muted)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
-        setPadding(0, dp(4), dp(6), 0)
-        // Taps go to the key underneath.
-        isClickable = false
-        isFocusable = false
-    }
-
-    /** A key face that darkens (or lightens, on function keys) while pressed. */
-    private fun pressable(idle: Int, pressed: Int, stroke: Boolean = true): StateListDrawable {
-        fun face(colour: Int) = GradientDrawable().apply {
-            cornerRadius = dp(6).toFloat()
-            setColor(colour)
-            if (stroke) setStroke(dp(1), palette.border)
-        }
-        return StateListDrawable().apply {
-            addState(intArrayOf(android.R.attr.state_pressed), face(pressed))
-            addState(intArrayOf(), face(idle))
-        }
-    }
-
-    private val repeat = object : Runnable {
-        override fun run() {
-            listener.onKey(Key.Backspace)
-            main.postDelayed(this, REPEAT_INTERVAL_MS)
-        }
-    }
-
-    /** One delete on touch, then a steady repeat while the key is held. */
-    private fun repeatBackspace(view: View, event: MotionEvent): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                view.isPressed = true
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                listener.onKey(Key.Backspace)
-                main.postDelayed(repeat, REPEAT_DELAY_MS)
-            }
-            MotionEvent.ACTION_UP -> {
-                view.isPressed = false
-                main.removeCallbacks(repeat)
-                // Lets accessibility services see the press as a click.
-                view.performClick()
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                view.isPressed = false
-                main.removeCallbacks(repeat)
-            }
-        }
-        return true
-    }
-
-    /** A tap types a space; a drag left or right moves the cursor, one step per [STEP_DP]. */
-    private inner class SpaceDrag : OnTouchListener {
-        private var startX = 0f
-        private var moved = 0
-        private var dragging = false
-
-        override fun onTouch(view: View, event: MotionEvent): Boolean {
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    view.isPressed = true
-                    startX = event.x
-                    moved = 0
-                    dragging = false
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val steps = ((event.x - startX) / dp(STEP_DP)).toInt()
-                    if (!dragging && abs(event.x - startX) > dp(DRAG_START_DP)) dragging = true
-                    if (dragging && steps != moved) {
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                        listener.onCursor(steps - moved)
-                        moved = steps
-                    }
-                }
-                MotionEvent.ACTION_UP -> {
-                    view.isPressed = false
-                    if (!dragging) {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        listener.onKey(Key.Space)
-                    }
-                    view.performClick()
-                }
-                MotionEvent.ACTION_CANCEL -> view.isPressed = false
-            }
-            return true
-        }
-    }
-
-    /** Shift: outline when off, filled for one letter, filled with a bar under it when locked. */
-    private fun icon(key: Key): Int? = when (key) {
+    /**
+     * Letter keys are bright and labelled large; function keys sit a step darker with quiet
+     * icons. Shift lifts to a letter key while on, with an accent arrow when locked (Signal's
+     * "selected" marker); return takes the accent only when it sends, searches or goes.
+     */
+    private fun face(key: Key): KeyFace = when (key) {
+        is Key.Text -> KeyFace(KeyStyle.LETTER, label(key), LETTER_SP, palette.text, hint = key.alt)
+        Key.Space -> KeyFace(KeyStyle.LETTER, "space", SPACE_SP, palette.muted)
+        is Key.SwitchLayer -> KeyFace(KeyStyle.FUNCTION, key.label, FUNCTION_SP, palette.text, medium = true)
         Key.Shift -> when (shift) {
-            ShiftState.OFF -> R.drawable.sv_shift
-            ShiftState.ONCE -> R.drawable.sv_shift_once
-            ShiftState.LOCKED -> R.drawable.sv_caps_lock
+            ShiftState.OFF -> iconFace(KeyStyle.FUNCTION, R.drawable.sv_shift, palette.text)
+            ShiftState.ONCE -> iconFace(KeyStyle.LETTER, R.drawable.sv_shift_once, palette.text)
+            ShiftState.LOCKED -> iconFace(KeyStyle.LETTER, R.drawable.sv_caps_lock, palette.accent)
         }
-        Key.NextKeyboard -> R.drawable.sv_globe
-        Key.Backspace -> R.drawable.sv_backspace
-        Key.Return -> returnAction.icon
-        else -> null
+        Key.Backspace -> iconFace(KeyStyle.FUNCTION, R.drawable.sv_backspace, palette.text)
+        Key.NextKeyboard -> iconFace(KeyStyle.FUNCTION, R.drawable.sv_globe, palette.text)
+        Key.Return -> if (returnAction == ReturnAction.NEWLINE) {
+            iconFace(KeyStyle.FUNCTION, returnAction.icon, palette.text)
+        } else {
+            iconFace(KeyStyle.ACTION, returnAction.icon, palette.onAccent)
+        }
     }
 
-    private fun label(key: Key): String = when (key) {
-        is Key.Text -> if (shift != ShiftState.OFF) key.text.uppercase() else key.text
-        Key.Space -> "space"
-        is Key.SwitchLayer -> key.label
-        Key.Shift, Key.NextKeyboard, Key.Backspace, Key.Return -> ""
-    }
+    private fun iconFace(style: KeyStyle, icon: Int, colour: Int) =
+        KeyFace(style, icon = icons.getOrPut(icon) { ContextCompat.getDrawable(context, icon)?.mutate() }, iconColour = colour)
+
+    private fun label(key: Key.Text): String = if (shift != ShiftState.OFF) key.text.uppercase() else key.text
 
     private fun description(key: Key): String = when (key) {
         is Key.Text -> key.text
@@ -418,11 +334,19 @@ internal class KeyboardView(
     ).toInt()
 
     private companion object {
-        const val MATCH = FrameLayout.LayoutParams.MATCH_PARENT
-        const val WRAP = FrameLayout.LayoutParams.WRAP_CONTENT
-        const val REPEAT_DELAY_MS = 400L
-        const val REPEAT_INTERVAL_MS = 60L
-        const val STEP_DP = 12
-        const val DRAG_START_DP = 10
+        const val MATCH = LayoutParams.MATCH_PARENT
+        const val WRAP = LayoutParams.WRAP_CONTENT
+        const val SIDE_DP = 3
+        const val BOTTOM_DP = 6
+        const val BAR_DP = 48
+        const val ROW_DP = 54
+        const val ROW_LANDSCAPE_DP = 44
+        const val DIVIDER_DP = 20
+        const val SUGGESTIONS = 3
+        const val LETTER_SP = 22f
+        const val SPACE_SP = 14f
+        const val FUNCTION_SP = 15f
+        const val STATUS_SP = 13f
+        const val SUGGESTION_SP = 16f
     }
 }

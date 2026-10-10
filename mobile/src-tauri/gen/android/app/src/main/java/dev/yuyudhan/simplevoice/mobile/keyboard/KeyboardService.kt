@@ -22,7 +22,6 @@ import android.view.textservice.SpellCheckerSession
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
-import androidx.core.view.WindowInsetsCompat
 import dev.yuyudhan.simplevoice.mobile.MainActivity
 import org.json.JSONObject
 import java.io.File
@@ -120,14 +119,6 @@ class KeyboardService :
 
     override fun onCreateInputView(): View {
         val keyboard = KeyboardView(this, Palette.of(resources.configuration), listener)
-        // Android draws the keyboard behind the navigation bar; keep the keys above it.
-        keyboard.setOnApplyWindowInsetsListener { target, insets ->
-            val bottom = WindowInsetsCompat.toWindowInsetsCompat(insets, target)
-                .getInsets(WindowInsetsCompat.Type.navigationBars())
-                .bottom
-            target.setPadding(target.paddingLeft, target.paddingTop, target.paddingRight, bottom)
-            insets
-        }
         view = keyboard
         refreshStatus()
         return keyboard
@@ -370,7 +361,10 @@ class KeyboardService :
 
     /** A field that went away while Groq worked gets the clipboard instead (D-15). */
     private fun insert(text: String, id: Long) {
-        if (currentInputConnection?.commitText(text, 1) == true) {
+        // Dictations never run into the word before the cursor (D-16 covers the word after).
+        val before = currentInputConnection?.getTextBeforeCursor(1, 0)?.toString() ?: ""
+        val joins = before.isNotEmpty() && !before.last().isWhitespace()
+        if (currentInputConnection?.commitText(if (joins) " $text" else text, 1) == true) {
             // Dictated text ends with a space (D-16); a comma typed next joins the last word.
             autoSpace = text.endsWith(" ")
             lastWasSpace = false

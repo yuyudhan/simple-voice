@@ -89,6 +89,10 @@ Symbols.
 - **Toggle.** Pill track; on = `--accent`.
 - **Focus.** `--focus-ring`: a 2px signal ring offset by 1px of panel.
 - **Empty states.** A meter-bar or line icon in a hairline square, a short title, one sentence.
+- **Phone keyboard** (Android, `Palette.kt`). Keys are lifted out of a neutral well by a step in
+  value and a 1 dp `--backdrop` edge, not outlines: letter keys are the brightest step, function
+  keys a quieter one. The key preview is the one floating thing, so the one shadow. The accent
+  marks the mic, caps lock, a long-press character and a return key that sends or searches.
 
 ## Themes
 
