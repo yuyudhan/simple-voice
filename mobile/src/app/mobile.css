@@ -58,6 +58,62 @@
     margin-top: 28px;
 }
 
+/* Phone widths: a row whose control is wide (a select or segmented picker) puts the control on
+   its own full-width line below the text, instead of squeezing the description into a column.
+   Narrow controls (toggles, buttons) stay beside the text. */
+.sv-setting-row {
+    flex-wrap: wrap;
+    row-gap: 10px;
+}
+
+.sv-setting-row__text {
+    flex: 1 1 180px;
+}
+
+.sv-setting-row__control:has(.sv-select, .sv-segmented) {
+    flex: 1 1 100%;
+}
+
+.sv-setting-row__control:has(.sv-select, .sv-segmented) > * {
+    flex: 1;
+}
+
+/* Page headers with actions (Dictionary: Import, Export, Add word): the actions move to their
+   own row under the title and description, sharing the width, so the description keeps its
+   full line length. */
+.sv-page-header__row {
+    flex-wrap: wrap;
+    row-gap: 14px;
+}
+
+.sv-page-header__text {
+    flex: 1 1 100%;
+}
+
+.sv-page-header__actions {
+    flex: 1 1 100%;
+}
+
+.sv-page-header__actions > * {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* A full-width segmented picker shares its width evenly between the options. */
+.sv-setting-row__control .sv-segmented__item {
+    flex: 1 1 0;
+    justify-content: center;
+    height: 34px;
+}
+
+/* iOS zooms the whole page into any focused field whose text is under 16 px, which shifts the
+   page sideways (the Dictionary filter). Phone fields use 16 px text. */
+.svm-shell input,
+.svm-shell textarea,
+.svm-shell select {
+    font-size: 16px;
+}
+
 /* Touch screens have no hover: keep the history row actions (copy, retry, delete) visible. */
 .svm-shell .history-row__actions {
     opacity: 1;
