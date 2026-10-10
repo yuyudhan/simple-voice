@@ -19,6 +19,8 @@ export interface ModelsState {
     download: (id: string) => Promise<void>;
     remove: (id: string) => Promise<void>;
     use: (model: ModelInfo) => Promise<void>;
+    /** Forget the pending choice; its download keeps running but no longer switches models. */
+    cancelPendingUse: () => void;
 }
 
 export function useModels(): ModelsState {
@@ -117,5 +119,21 @@ export function useModels(): ModelsState {
         [download, update],
     );
 
-    return { models, loadError, progress, failures, pendingUse, refresh, download, remove, use };
+    const cancelPendingUse = useCallback(() => {
+        pendingRef.current = null;
+        setPendingUse(null);
+    }, []);
+
+    return {
+        models,
+        loadError,
+        progress,
+        failures,
+        pendingUse,
+        refresh,
+        download,
+        remove,
+        use,
+        cancelPendingUse,
+    };
 }

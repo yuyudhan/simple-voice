@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import { CircleCheck, Keyboard, Mic } from "lucide-react";
 import { Button, Spinner } from "../../ui";
-import { StatusBadge } from "../settings/permissions/PermissionsSection";
+import { StatusBadge } from "../settings/permissions/PermissionsGroup";
 import { usePermissions } from "../settings/permissions/usePermissions";
 import { StepFooter } from "./StepFooter";
 

@@ -13,5 +13,5 @@ pub use client::{EngineClient, ProgressCallback, Transport};
 pub use event::{EngineEvent, EventHandler, FnKeyAction};
 pub use protocol::{
     EditWatch, EngineTranscript, FrontmostApp, LoginItemStatus, ModelStatusResult, PingResult,
-    PolishReply,
+    PolishReply, TranscribeOptions,
 };

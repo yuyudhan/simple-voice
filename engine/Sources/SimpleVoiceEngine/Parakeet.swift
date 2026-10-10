@@ -43,11 +43,15 @@ actor ParakeetEngine {
         let code = LanguageCode.primary(language)
         switch model {
         case .tdt(let manager, let version):
-            let text = try await gate.run {
+            let (text, confidence) = try await gate.run {
                 try await Self.transcribeTdt(manager: manager, version: version, samples: samples, code: code)
             }
             // v2 is English only; v3 detects the language itself and only reports what was asked.
-            return TranscriptResult(text: text, language: version == .v2 ? "en" : code)
+            return TranscriptResult(
+                text: text,
+                language: version == .v2 ? "en" : code,
+                quality: confidence.map { TranscriptQuality(confidence: $0) }
+            )
         case .flash(let flash):
             let text = try await gate.run { try await flash.transcribe(samples) }
             return TranscriptResult(text: text, language: "en")
@@ -92,20 +96,22 @@ actor ParakeetEngine {
             model = .tdt(manager, version)
         case .parakeetFlash:
             model = .flash(try await FlashTranscriber.load(from: directory))
-        case .appleSpeech, .appleIntelligence:
+        case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence:
             throw EngineError("\(id.rawValue) is not a Parakeet model")
         }
         Log.info("loaded \(id.rawValue) in \(ContinuousClock.now - started)")
         return model
     }
 
+    /// The transcript and FluidAudio's confidence for it (absent for an empty clip, and when not
+    /// a finite number, which JSON cannot carry).
     private static func transcribeTdt(
         manager: AsrManager,
         version: AsrModelVersion,
         samples: [Float],
         code: String?
-    ) async throws -> String {
-        guard !samples.isEmpty else { return "" }
+    ) async throws -> (String, Float?) {
+        guard !samples.isEmpty else { return ("", nil) }
         // The model rejects clips under its minimum length; a short word padded with silence
         // still transcribes.
         let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
@@ -114,7 +120,8 @@ actor ParakeetEngine {
         // The language hint filters tokens by script, which only the v3 joint supports.
         let hint = version == .v3 ? code.flatMap { Language(rawValue: $0) } : nil
         let result = try await manager.transcribe(audio, decoderState: &state, language: hint)
-        return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let confidence = result.confidence.isFinite ? result.confidence : nil
+        return (result.text.trimmingCharacters(in: .whitespacesAndNewlines), confidence)
     }
 }
 

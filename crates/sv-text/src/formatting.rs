@@ -7,6 +7,7 @@
 
 use sv_domain::Style;
 
+use crate::hesitation::strip_hesitations;
 use crate::vocabulary::{Rule, Vocabulary};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,7 +18,7 @@ pub struct Formatted {
 }
 
 pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
-    let collapsed = collapse_whitespace(text);
+    let collapsed = strip_hesitations(&collapse_whitespace(text));
     if collapsed.is_empty() {
         return Formatted {
             text: collapsed,
@@ -399,6 +400,15 @@ mod tests {
             "Hello world\nAgain"
         );
         assert_eq!(formal("   ", &v).text, "");
+    }
+
+    #[test]
+    fn hesitations_go_before_capitalisation() {
+        let v = Vocabulary::default();
+        assert_eq!(
+            formal("Um, so ummm i think, uh, we ship it, hmm.", &v).text,
+            "So I think, we ship it."
+        );
     }
 
     #[test]

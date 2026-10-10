@@ -11,8 +11,10 @@ pub mod dictionary;
 pub mod error;
 pub mod history;
 pub mod insights;
+pub mod languages;
 pub mod models;
 pub mod permissions;
+pub mod quality;
 pub mod settings;
 pub mod text_stats;
 pub mod updates;
@@ -21,13 +23,15 @@ pub use apps::{categorize, AppCategory};
 pub use dictation::{DictationPhase, DictationState, ModelProgress, ModelProgressStatus};
 pub use dictionary::{DictionaryEntry, DictionarySource, ImportSummary};
 pub use error::{AppError, AppResult};
-pub use history::{HistoryEntry, HistoryStatus, NewHistory};
+pub use history::{HistoryEntry, HistoryStatus, NewHistory, RetryReason};
 pub use insights::{
     AppUsage, CategoryUsage, DayActivity, HourActivity, Insights, ModelInsights, ModelTiming,
     PersonalBests,
 };
-pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus};
+pub use languages::{Language, LanguageInfo, Script};
+pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus, SmartSelectPlan};
 pub use permissions::{PermissionKind, PermissionStatus, Permissions};
+pub use quality::TranscriptQuality;
 pub use settings::{
     DictionarySort, PostProcessing, Settings, SettingsPatch, SoundTheme, Style, Theme,
 };

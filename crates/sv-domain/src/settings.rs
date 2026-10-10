@@ -67,9 +67,10 @@ pub enum DictionarySort {
 pub const FN_KEY_ACCELERATOR: &str = "Fn";
 pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
-/// Hold-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
+/// Toggle-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = "groq-whisper";
+/// Runs on the Mac, so a new install needs no account; onboarding prompts for its download.
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::PARAKEET_TDT_V3;
 pub const DEFAULT_GROQ_FORMATTING_MODEL: &str = "qwen/qwen3.8-27b";
 pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 
@@ -78,15 +79,22 @@ pub const DEFAULT_CUSTOM_BASE_URL: &str = "http://localhost:11434/v1";
 pub struct Settings {
     pub hold_shortcut: String,
     pub toggle_shortcut: String,
-    /// Hold to edit the selected text by voice; empty = edit mode off. Never `Fn`.
+    /// Toggle to edit the selected text by voice; empty = edit mode off. Never `Fn`.
     pub edit_shortcut: String,
+    /// Esc cancels a recording in progress. Registering Esc globally takes it from every app
+    /// while recording, so it is opt-in.
+    pub escape_cancels: bool,
     /// Input device name; `None` = automatic (built-in microphone preferred).
     pub microphone: Option<String>,
-    /// Allowed dictation languages, ISO 639-1.
+    /// Allowed dictation languages: tags of [`crate::languages::LANGUAGES`].
     pub languages: Vec<String>,
-    /// Language a transcription is re-run in when detection lands outside `languages`.
+    /// Language a transcription is re-run in when detection lands outside `languages`. Always
+    /// a registry tag models know as is, never a script variant such as `hi-Latn`.
     pub fallback_language: String,
     pub transcription_model: String,
+    /// Smart Select double-checks a low-confidence result with a second model; when off, only
+    /// an error makes it try another model.
+    pub smart_retry: bool,
     pub style: Style,
     /// Derived: a Groq key is stored (or `GROQ_API_KEY` is set). Never deserialized from rows.
     pub groq_api_key_present: bool,
@@ -97,6 +105,8 @@ pub struct Settings {
     pub mute_while_dictating: bool,
     pub launch_at_login: bool,
     pub show_bar_always: bool,
+    /// How long the pill shows the start of the pasted text after a dictation.
+    pub pasted_text_seconds: u32,
     pub post_processing: PostProcessing,
     pub groq_formatting_model: String,
     pub custom_base_url: String,
@@ -129,10 +139,13 @@ impl Default for Settings {
             hold_shortcut: DEFAULT_HOLD_SHORTCUT.to_owned(),
             toggle_shortcut: DEFAULT_TOGGLE_SHORTCUT.to_owned(),
             edit_shortcut: DEFAULT_EDIT_SHORTCUT.to_owned(),
+            // Off by default: Esc belongs to the focused app (Vim, dialogs) unless the user opts in.
+            escape_cancels: false,
             microphone: None,
-            languages: vec!["en".to_owned(), "hi".to_owned()],
+            languages: vec!["en".to_owned(), "hi".to_owned(), "hi-Latn".to_owned()],
             fallback_language: "hi".to_owned(),
             transcription_model: DEFAULT_TRANSCRIPTION_MODEL.to_owned(),
+            smart_retry: true,
             style: Style::Formal,
             groq_api_key_present: false,
             sounds: true,
@@ -141,6 +154,7 @@ impl Default for Settings {
             mute_while_dictating: false,
             launch_at_login: false,
             show_bar_always: false,
+            pasted_text_seconds: 2,
             post_processing: PostProcessing::Groq,
             groq_formatting_model: DEFAULT_GROQ_FORMATTING_MODEL.to_owned(),
             custom_base_url: DEFAULT_CUSTOM_BASE_URL.to_owned(),
@@ -173,11 +187,13 @@ pub struct SettingsPatch {
     pub hold_shortcut: Option<String>,
     pub toggle_shortcut: Option<String>,
     pub edit_shortcut: Option<String>,
+    pub escape_cancels: Option<bool>,
     #[serde(with = "double_option")]
     pub microphone: Option<Option<String>>,
     pub languages: Option<Vec<String>>,
     pub fallback_language: Option<String>,
     pub transcription_model: Option<String>,
+    pub smart_retry: Option<bool>,
     pub style: Option<Style>,
     pub sounds: Option<bool>,
     pub sound_theme: Option<SoundTheme>,
@@ -185,6 +201,7 @@ pub struct SettingsPatch {
     pub mute_while_dictating: Option<bool>,
     pub launch_at_login: Option<bool>,
     pub show_bar_always: Option<bool>,
+    pub pasted_text_seconds: Option<u32>,
     pub post_processing: Option<PostProcessing>,
     pub groq_formatting_model: Option<String>,
     pub custom_base_url: Option<String>,

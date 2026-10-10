@@ -72,7 +72,7 @@ pub(crate) fn observe(app: &AppHandle, permissions: Permissions) -> bool {
 }
 
 /// Permissions are granted in System Settings, outside the app, so they are polled while the
-/// user is looking at the main window (onboarding, Settings → Permissions).
+/// user is looking at the main window (onboarding, Settings → Privacy & data).
 pub(crate) fn spawn_poller(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {

@@ -1,5 +1,5 @@
 // FilePath: src-tauri/src/platform/shortcuts.rs
-//! Global shortcuts: hold-to-talk, toggle, hold-to-edit (edit mode), and Esc (cancel) while
+//! Global shortcuts: hold-to-talk, toggle, toggle-to-edit (edit mode), and Esc (cancel) while
 //! recording.
 //!
 //! Key combinations go through the global-shortcut plugin (Carbon hot keys). Carbon cannot
@@ -28,7 +28,7 @@ pub(crate) enum Binding {
     Toggle,
     /// Hold and toggle share one accelerator: a tap toggles, a long press is push-to-talk.
     Both,
-    /// Hold to record an instruction that edits the selected text.
+    /// Press to start recording an instruction that edits the selected text, again to apply it.
     Edit,
     Escape,
 }
@@ -318,13 +318,14 @@ pub(crate) fn suspend(app: &AppHandle, suspended: bool) -> AppResult<()> {
     }
     register_all(app, &bindings).map_err(|_| {
         AppError::invalid(
-            "A dictation shortcut is already used by another app; choose another in Settings",
+            "A dictation shortcut is already used by another app; choose another in Settings → \
+             Dictation",
         )
     })
 }
 
-/// Esc cancels only while recording, so it is registered for exactly that span and every other
-/// app keeps its Escape key the rest of the time.
+/// Esc cancels only while recording and only when `Settings.escape_cancels` is on, so it is
+/// registered for exactly that span and every other app keeps its Escape key the rest of the time.
 pub(crate) fn set_escape(app: &AppHandle, active: bool) {
     let registry = app.state::<ShortcutRegistry>();
     let mut registered = lock(&registry.inner);

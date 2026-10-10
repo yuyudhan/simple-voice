@@ -55,7 +55,7 @@ export function ShortcutStep({ onBack, onNext }: Props) {
             <h1 className="sv-onb__title">Your shortcuts</h1>
             <p className="sv-onb__lead">
                 Hold the first to talk and let go to paste. Use the second for longer thoughts:
-                press once to start and again to stop. Esc cancels.
+                press once to start and again to stop.
             </p>
             <div className="sv-onb__wide">
                 <div className="sv-onb__shortcuts">

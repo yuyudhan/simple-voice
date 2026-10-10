@@ -91,6 +91,9 @@ pub async fn dictate(db: &Db, http: &reqwest::Client, recording: Recording) -> D
         app_name: recording.app_name,
         bundle_id: recording.app_id,
         audio_path: None,
+        // Phones run Groq Whisper only, so Smart Select never retries on a second model.
+        first_model: None,
+        retry_reason: None,
     };
 
     let vocabulary = vocabulary(db).await;
@@ -204,6 +207,8 @@ pub async fn retry(
         app_name: entry.app_name,
         bundle_id: entry.bundle_id,
         audio_path: Some(path.clone()),
+        first_model: None,
+        retry_reason: None,
     };
 
     let heard = match transcribe(db, http, &settings, &vocabulary, wav).await {
@@ -268,12 +273,14 @@ async fn transcribe(
         .await?
         .ok_or_else(|| AppError::invalid(NO_GROQ_KEY))?;
     let started = Instant::now();
+    // Models know only spoken languages: script variants go as their base (as on the desktop).
+    let languages = sv_domain::languages::model_languages(&settings.languages);
     let transcript = sv_cloud::groq_transcribe(
         http,
         &key,
         wav,
-        &vocabulary.prompt,
-        &settings.languages,
+        &sv_text::whisper_prompt(&settings.languages, vocabulary),
+        &languages,
         &settings.fallback_language,
     )
     .await?;
@@ -303,7 +310,13 @@ async fn post_process(
         Ok(None) => return Polish::Unformatted("no Groq API key".to_owned()),
         Err(error) => return Polish::Unformatted(error.to_string()),
     };
-    let prompt = sv_text::polish_prompt(text, terms, settings.style, PolishTarget::Chat);
+    let prompt = sv_text::polish_prompt(
+        text,
+        terms,
+        settings.style,
+        PolishTarget::Chat,
+        &settings.languages,
+    );
     let endpoint = ChatEndpoint {
         url: sv_cloud::GROQ_CHAT_URL.to_owned(),
         key: Some(&key),

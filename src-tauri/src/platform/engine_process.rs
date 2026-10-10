@@ -162,9 +162,9 @@ async fn on_connected(app: AppHandle) {
         tracing::debug!(%error, "permission check after engine start failed");
     }
     settings::follow_login_item(&app).await;
-    let model = match state.db() {
+    let settings = match state.db() {
         Ok(db) => match db.settings().await {
-            Ok(settings) => settings.transcription_model,
+            Ok(settings) => settings,
             Err(error) => {
                 tracing::warn!(%error, "could not read the selected model");
                 return;
@@ -172,5 +172,5 @@ async fn on_connected(app: AppHandle) {
         },
         Err(_) => return,
     };
-    models::preload(&app, &model).await;
+    models::preload_selected(&app, &settings).await;
 }

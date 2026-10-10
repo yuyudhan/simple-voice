@@ -1,9 +1,11 @@
 // FilePath: src-tauri/src/features/updates/mod.rs
 //! Update notices and installs. The app asks GitHub for the latest release, compares it with its
 //! own version, and tells the UI (`update-status`) and the tray; `install` runs the published
-//! install script when the user asks for the update.
+//! install script when the user asks for the update, and `restart` finishes an update whose
+//! build is already on disk.
 
 pub(crate) mod install;
+pub(crate) mod restart;
 
 use std::time::Duration;
 
@@ -48,10 +50,12 @@ pub(crate) fn open(app: &AppHandle) {
     }
 }
 
-/// Checks shortly after launch, then once a day while automatic checks are on. A failed check
-/// leaves `checked_at` alone, so it is retried on the next tick.
+/// Records this launch's version, then checks shortly after launch and once a day while
+/// automatic checks are on. A failed check leaves `checked_at` alone, so it is retried on the
+/// next tick.
 pub(crate) fn spawn_checker(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
+        restart::record_launch(&app).await;
         tokio::time::sleep(FIRST_CHECK_DELAY).await;
         loop {
             if automatic_check_due(&app).await {
@@ -93,6 +97,7 @@ async fn check(app: &AppHandle) -> UpdateStatus {
 
     let current = app.package_info().version.clone();
     let result = fetch(&state.http, &current).await;
+    restart::refresh_installed(app);
     let status = {
         let mut status = lock(&state.updates);
         status.checking = false;

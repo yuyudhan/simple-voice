@@ -173,6 +173,12 @@ impl Db {
         Ok(summary)
     }
 
+    /// The whole dictionary as a vocabulary file `import_vocabulary` reads back: words, then
+    /// rules, each A to Z. Dates added and learned marks are not part of the format.
+    pub async fn export_vocabulary(&self, exported_on: chrono::NaiveDate) -> AppResult<String> {
+        Ok(vocabulary_text(&self.dictionary().await?, exported_on))
+    }
+
     /// Adds words learned from corrections as plain `learned` words. Invalid phrases, phrases
     /// already in the dictionary and phrases the user rejected are skipped; returns the rows
     /// actually added.
@@ -268,6 +274,37 @@ fn parse_line(line: &str) -> Option<(String, Option<String>)> {
         None => (line, None),
     };
     clean(phrase, replacement).ok()
+}
+
+fn vocabulary_text(entries: &[DictionaryEntry], exported_on: chrono::NaiveDate) -> String {
+    let (rules, words): (Vec<&DictionaryEntry>, Vec<&DictionaryEntry>) = entries
+        .iter()
+        .partition(|entry| entry.replacement.is_some());
+    let word_noun = if words.len() == 1 { "word" } else { "words" };
+    let rule_noun = if rules.len() == 1 { "rule" } else { "rules" };
+    let mut text = format!(
+        "# Simple Voice dictionary\n\
+         # Exported {exported_on}: {} {word_noun}, {} {rule_noun}\n\
+         # Import this file from Dictionary → Import… to restore.\n",
+        words.len(),
+        rules.len()
+    );
+    // Words carry no replacement, so the same loop writes both groups.
+    for group in [words, rules] {
+        if group.is_empty() {
+            continue;
+        }
+        text.push('\n');
+        for entry in group {
+            text.push_str(&entry.phrase);
+            if let Some(replacement) = &entry.replacement {
+                text.push_str(" -> ");
+                text.push_str(replacement);
+            }
+            text.push('\n');
+        }
+    }
+    text
 }
 
 fn duplicate_or_database(error: sqlx::Error, phrase: &str) -> AppError {
@@ -406,6 +443,64 @@ mod tests {
 
     fn phrases(words: &[&str]) -> Vec<String> {
         words.iter().map(|word| (*word).to_owned()).collect()
+    }
+
+    #[tokio::test]
+    async fn export_lists_words_then_rules_and_imports_back_unchanged() {
+        let (_dir, db) = open().await;
+        db.import_vocabulary("tauri\nghostty -> Ghostty\nOpenSpec\nargo cd -> ArgoCD\n")
+            .await
+            .unwrap();
+        db.learn_words(&phrases(&["Kubernetes"])).await.unwrap();
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 9, 29).unwrap();
+
+        let text = db.export_vocabulary(day).await.unwrap();
+        assert_eq!(
+            text,
+            "# Simple Voice dictionary\n\
+             # Exported 2026-09-29: 3 words, 2 rules\n\
+             # Import this file from Dictionary → Import… to restore.\n\
+             \n\
+             Kubernetes\n\
+             OpenSpec\n\
+             tauri\n\
+             \n\
+             argo cd -> ArgoCD\n\
+             ghostty -> Ghostty\n"
+        );
+
+        let (_other_dir, other) = open().await;
+        let summary = other.import_vocabulary(&text).await.unwrap();
+        assert_eq!(
+            summary,
+            ImportSummary {
+                added: 5,
+                skipped: 0
+            }
+        );
+        let pairs = |entries: Vec<DictionaryEntry>| -> Vec<(String, Option<String>)> {
+            entries
+                .into_iter()
+                .map(|entry| (entry.phrase, entry.replacement))
+                .collect()
+        };
+        assert_eq!(
+            pairs(other.dictionary().await.unwrap()),
+            pairs(db.dictionary().await.unwrap())
+        );
+    }
+
+    #[tokio::test]
+    async fn export_of_an_empty_dictionary_is_only_the_header() {
+        let (_dir, db) = open().await;
+        let day = chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
+        let text = db.export_vocabulary(day).await.unwrap();
+        assert_eq!(
+            text,
+            "# Simple Voice dictionary\n\
+             # Exported 2026-01-02: 0 words, 0 rules\n\
+             # Import this file from Dictionary → Import… to restore.\n"
+        );
     }
 
     #[tokio::test]

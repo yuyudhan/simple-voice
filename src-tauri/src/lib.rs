@@ -44,6 +44,7 @@ pub fn run() -> tauri::Result<()> {
             features::settings::set_database_dir,
             features::settings::suspend_shortcuts,
             features::settings::list_microphones,
+            features::settings::list_languages,
             features::settings::preview_sound,
             features::settings::app_info,
             features::history::list_history,
@@ -56,17 +57,20 @@ pub fn run() -> tauri::Result<()> {
             features::dictionary::update_dictionary_entry,
             features::dictionary::delete_dictionary_entry,
             features::dictionary::import_vocabulary,
+            features::dictionary::export_vocabulary,
             features::insights::get_insights,
             features::insights::get_model_insights,
             features::models::list_models,
             features::models::download_model,
             features::models::delete_model,
+            features::models::smart_select_plan,
             features::permissions::get_permissions,
             features::permissions::request_permission,
             features::permissions::open_permission_settings,
             features::updates::get_update_status,
             features::updates::check_for_updates,
             features::updates::install::install_update,
+            features::updates::restart::dismiss_update_notice,
             dictation::start_dictation,
             dictation::stop_dictation,
             dictation::cancel_dictation,
@@ -112,7 +116,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let version = app.package_info().version.to_string();
     app.manage(AppState::new(db, handle, version));
     app.manage(shortcuts::ShortcutRegistry::default());
-    app.manage(overlay::OverlayState::default());
+    app.manage(overlay::OverlayState::new(settings.pasted_text_seconds));
     app.manage(engine_process::EngineProcess::default());
     app.manage(dock::DockSetting::default());
     let events_app = app.clone();

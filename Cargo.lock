@@ -4287,7 +4287,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simple-voice"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "arboard",
  "chrono",
@@ -4316,7 +4316,7 @@ dependencies = [
 
 [[package]]
 name = "simple-voice-mobile"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "chrono",
  "reqwest",
@@ -4650,7 +4650,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "sv-audio"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "cpal 0.18.2",
  "parking_lot",
@@ -4662,7 +4662,7 @@ dependencies = [
 
 [[package]]
 name = "sv-cloud"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "bytes",
  "reqwest",
@@ -4677,7 +4677,7 @@ dependencies = [
 
 [[package]]
 name = "sv-domain"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -4686,7 +4686,7 @@ dependencies = [
 
 [[package]]
 name = "sv-engine"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "parking_lot",
  "serde",
@@ -4698,7 +4698,7 @@ dependencies = [
 
 [[package]]
 name = "sv-ffi"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "jni 0.21.1",
  "reqwest",
@@ -4713,7 +4713,7 @@ dependencies = [
 
 [[package]]
 name = "sv-mobile"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "chrono",
  "reqwest",
@@ -4730,7 +4730,7 @@ dependencies = [
 
 [[package]]
 name = "sv-storage"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "chrono",
  "dirs 7.0.0",
@@ -4744,7 +4744,7 @@ dependencies = [
 
 [[package]]
 name = "sv-text"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "sv-domain",
 ]
@@ -5145,7 +5145,7 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-sv-native"
-version = "0.0.7"
+version = "0.0.9"
 dependencies = [
  "serde",
  "serde_json",

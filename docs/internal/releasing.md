@@ -55,19 +55,28 @@ by `ditto`, which preserves the bundle's signature.
 `releases/latest/download/install.sh` always serves the newest one. It downloads the release
 zip, checks it against the `.sha256` and the bundle's code signature, and replaces
 `~/Applications/Simple Voice.app` (quitting and reopening the app if it was running, and
-clearing the quarantine flag). Installing into the user's own Applications folder means no
-administrator password, so standard users can install and update. A copy an older script put in
-`/Applications` is removed when the user may delete it; otherwise the script says it remains.
+clearing the quarantine flag). When the release is already installed but the running app
+started before it was, the script only restarts the app. Installing into the user's own
+Applications folder means no administrator password, so standard users can install and update.
+A copy an older script put in `/Applications` is removed when the user may delete it; otherwise
+the script says it remains.
 `--version X.Y.Z` installs a specific release; it goes after `bash -s --` in the piped command.
+`--uninstall` quits and deletes the app, its `~/Library` caches, WebKit data and preferences,
+the legacy launch agent, and resets its TCC grants (`tccutil reset All`) for the app and the
+engine identifiers; the `.dev` identifiers of development builds are left alone.
+`--uninstall --purge` also deletes `~/.simplevoice` and the database files (never the folder)
+where `~/.simplevoice/location` points.
 Piping is safe because the script does all its work in `main`, called on its last line, so bash
 has read the whole file before anything runs.
 
 To change the script without cutting a release, upload it to the latest release:
-`gh release upload vX.Y.Z scripts/install.sh --clobber`.
+`gh release upload vX.Y.Z scripts/install.sh --clobber`. Every installed app runs the script
+served there when the user clicks Install update, so a script fix reaches existing users this
+way, with no new app version.
 
-Running apps notice the release on their own: within a day (or at once with Settings → System →
-Check now) they read the same latest GitHub release, show an update banner and a menu bar item,
-and install it with the latest `install.sh` when the user clicks Install update (see
+Running apps notice the release on their own: within a day (or at once with Settings → App →
+Updates → Check now) they read the same latest GitHub release, show an update banner and a menu
+bar item, and install it with the latest `install.sh` when the user clicks Install update (see
 [architecture.md § 8](architecture.md#8-update-notices)). Pre-releases
 (`gh release edit --prerelease`) are never announced.
 

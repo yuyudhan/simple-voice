@@ -1,7 +1,17 @@
 // FilePath: src/features/dictionary/DictionaryPage.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { ArrowRight, BookA, Pencil, Plus, Search, SearchX, Trash2, Upload } from "lucide-react";
+import { open as openFileDialog, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
+import {
+    ArrowRight,
+    BookA,
+    Download,
+    Pencil,
+    Plus,
+    Search,
+    SearchX,
+    Trash2,
+    Upload,
+} from "lucide-react";
 import { api, errorMessage, events, type DictionaryEntry } from "../../lib/api";
 import { useTauriEvent } from "../../lib/useTauriEvent";
 import { dayLabel, formatLongDate, formatNumber, pluralize } from "../../lib/format";
@@ -40,6 +50,7 @@ export function DictionaryPage() {
     const [pendingDelete, setPendingDelete] = useState<DictionaryEntry | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [importing, setImporting] = useState(false);
+    const [exporting, setExporting] = useState(false);
 
     const load = useCallback(
         () =>
@@ -101,6 +112,27 @@ export function DictionaryPage() {
         }
     }
 
+    async function exportFile() {
+        try {
+            const path = await saveFileDialog({
+                defaultPath: "simple-voice-dictionary.txt",
+                filters: [{ name: "Text", extensions: ["txt"] }],
+            });
+            if (path === null) return;
+            setExporting(true);
+            await api.exportVocabulary(path);
+            const count = entries?.length ?? 0;
+            toast(
+                `Exported ${formatNumber(count)} ${pluralize(count, "entry", "entries")}`,
+                "success",
+            );
+        } catch (error) {
+            toast(errorMessage(error), "danger");
+        } finally {
+            setExporting(false);
+        }
+    }
+
     async function confirmDelete() {
         if (!pendingDelete) return;
         setDeleting(true);
@@ -133,6 +165,17 @@ export function DictionaryPage() {
                             }}
                         >
                             Import…
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            icon={<Download />}
+                            loading={exporting}
+                            disabled={entries === null || entries.length === 0}
+                            onClick={() => {
+                                void exportFile();
+                            }}
+                        >
+                            Export…
                         </Button>
                         <Button
                             variant="primary"

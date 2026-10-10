@@ -2,7 +2,7 @@
 // The settings pages in sidebar order. The sidebar lists them and SettingsPage titles itself from
 // the same entry, so a label or description lives in one place.
 import type { ReactNode } from "react";
-import { Cpu, Database, Monitor, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { AppWindow, AudioWaveform, Mic, ShieldCheck, WandSparkles } from "lucide-react";
 import type { SettingsSection } from "../../app/ShellContext";
 
 export interface SettingsPageInfo {
@@ -14,33 +14,33 @@ export interface SettingsPageInfo {
 
 export const SETTINGS_PAGES: readonly SettingsPageInfo[] = [
     {
-        id: "general",
-        label: "General",
-        description: "Appearance, shortcuts, microphone and dictation languages.",
-        icon: <SlidersHorizontal />,
+        id: "dictation",
+        label: "Dictation",
+        description: "How a recording starts, what it records and how the text arrives.",
+        icon: <Mic />,
     },
     {
-        id: "system",
-        label: "System",
-        description: "Startup, sound cues and how dictated text is delivered.",
-        icon: <Monitor />,
+        id: "transcription",
+        label: "Transcription",
+        description: "The voice model that turns speech into text, and its languages.",
+        icon: <AudioWaveform />,
     },
     {
-        id: "models",
-        label: "Models",
-        description: "The voice model that transcribes and the provider that formats.",
-        icon: <Cpu />,
+        id: "formatting",
+        label: "Formatting",
+        description: "The AI that cleans up your text, and what it may learn.",
+        icon: <WandSparkles />,
     },
     {
-        id: "permissions",
-        label: "Permissions",
-        description: "What macOS allows Simple Voice to do.",
+        id: "app",
+        label: "App",
+        description: "Appearance, startup and updates.",
+        icon: <AppWindow />,
+    },
+    {
+        id: "privacy",
+        label: "Privacy & data",
+        description: "What macOS allows, where your data lives, and how to clear it.",
         icon: <ShieldCheck />,
-    },
-    {
-        id: "data",
-        label: "Data",
-        description: "Where your history is stored, and how to clear it.",
-        icon: <Database />,
     },
 ];

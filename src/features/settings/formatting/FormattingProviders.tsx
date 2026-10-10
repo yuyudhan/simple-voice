@@ -1,4 +1,4 @@
-// FilePath: src/features/settings/models/FormattingProviders.tsx
+// FilePath: src/features/settings/formatting/FormattingProviders.tsx
 // Post-processing provider choice plus the fields each provider needs and a live test that
 // formats a fixed sample through the configured provider.
 import { useState, type SyntheticEvent, type ReactNode } from "react";
@@ -14,7 +14,7 @@ import { useSettings } from "../../../app/SettingsContext";
 import { Button, IconButton, TextField } from "../../../ui";
 import { SettingTextField } from "../SettingTextField";
 import "../common.css";
-import "./models.css";
+import "../models/models.css";
 
 interface ProviderOption {
     id: PostProcessing;

@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
+use sv_domain::languages::language;
 use sv_domain::settings::FN_KEY_ACCELERATOR;
 use sv_domain::{AppError, AppResult, Settings, SettingsPatch};
 
@@ -14,6 +15,8 @@ use crate::db::Db;
 
 const GROQ_API_KEY: &str = "groqApiKey";
 const CUSTOM_API_KEY: &str = "customApiKey";
+/// The app version that ran last; never part of `Settings`.
+const LAST_RUN_VERSION: &str = "lastRunVersion";
 const GROQ_API_KEY_ENV: &str = "GROQ_API_KEY";
 /// Computed on every read; a stored row with one of these names is ignored.
 const DERIVED_FIELDS: [&str; 3] = ["groqApiKeyPresent", "customApiKeyPresent", "databaseDir"];
@@ -21,6 +24,8 @@ const MIN_RECORDING_SECONDS: u32 = 10;
 const MAX_RECORDING_SECONDS: u32 = 1800;
 const MIN_SESSION_MINUTES: u32 = 5;
 const MAX_SESSION_MINUTES: u32 = 60;
+const MIN_PASTED_TEXT_SECONDS: u32 = 1;
+const MAX_PASTED_TEXT_SECONDS: u32 = 10;
 
 impl Db {
     pub async fn settings(&self) -> AppResult<Settings> {
@@ -81,6 +86,15 @@ impl Db {
         let inner = self.read().await;
         store_key(&inner.pool, CUSTOM_API_KEY, key).await
     }
+
+    /// Stores `version` as the one that ran last and returns the one stored before, `None` on
+    /// the first launch that records it.
+    pub async fn record_run_version(&self, version: &str) -> AppResult<Option<String>> {
+        let inner = self.read().await;
+        let previous = stored_key(&inner.pool, LAST_RUN_VERSION).await?;
+        store_key(&inner.pool, LAST_RUN_VERSION, Some(version.to_owned())).await?;
+        Ok(previous)
+    }
 }
 
 async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Settings> {
@@ -92,7 +106,7 @@ async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Sett
 
     let mut fields = to_object(&Settings::default())?;
     for row in rows {
-        if row.key == GROQ_API_KEY || row.key == CUSTOM_API_KEY {
+        if [GROQ_API_KEY, CUSTOM_API_KEY, LAST_RUN_VERSION].contains(&row.key.as_str()) {
             continue;
         }
         if DERIVED_FIELDS.contains(&row.key.as_str()) || !fields.contains_key(&row.key) {
@@ -164,10 +178,12 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         hold_shortcut,
         toggle_shortcut,
         edit_shortcut,
+        escape_cancels,
         microphone,
         languages,
         fallback_language,
         transcription_model,
+        smart_retry,
         style,
         sounds,
         sound_theme,
@@ -175,6 +191,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         mute_while_dictating,
         launch_at_login,
         show_bar_always,
+        pasted_text_seconds,
         post_processing,
         groq_formatting_model,
         custom_base_url,
@@ -195,19 +212,21 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set_trimmed(&mut settings.hold_shortcut, hold_shortcut);
     set_trimmed(&mut settings.toggle_shortcut, toggle_shortcut);
     set_trimmed(&mut settings.edit_shortcut, edit_shortcut);
+    set(&mut settings.escape_cancels, escape_cancels);
     if let Some(microphone) = microphone {
         settings.microphone = microphone
             .map(|name| name.trim().to_owned())
             .filter(|name| !name.is_empty());
     }
+    // Stored as the registry's canonical tag so every reader can compare tags exactly.
     if let Some(languages) = languages {
-        settings.languages = languages
-            .iter()
-            .map(|code| code.trim().to_owned())
-            .collect();
+        settings.languages = languages.iter().map(|tag| canonical_tag(tag)).collect();
     }
-    set_trimmed(&mut settings.fallback_language, fallback_language);
+    if let Some(fallback) = fallback_language {
+        settings.fallback_language = canonical_tag(&fallback);
+    }
     set_trimmed(&mut settings.transcription_model, transcription_model);
+    set(&mut settings.smart_retry, smart_retry);
     set(&mut settings.style, style);
     set(&mut settings.sounds, sounds);
     set(&mut settings.sound_theme, sound_theme);
@@ -215,6 +234,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.mute_while_dictating, mute_while_dictating);
     set(&mut settings.launch_at_login, launch_at_login);
     set(&mut settings.show_bar_always, show_bar_always);
+    set(&mut settings.pasted_text_seconds, pasted_text_seconds);
     set(&mut settings.post_processing, post_processing);
     set_trimmed(&mut settings.groq_formatting_model, groq_formatting_model);
     set_trimmed(&mut settings.custom_base_url, custom_base_url);
@@ -267,21 +287,29 @@ fn validate(settings: &Settings) -> AppResult<()> {
             "Session length must be between 5 and 60 minutes",
         ));
     }
+    if !(MIN_PASTED_TEXT_SECONDS..=MAX_PASTED_TEXT_SECONDS).contains(&settings.pasted_text_seconds)
+    {
+        return Err(AppError::invalid(
+            "The pasted text must show for between 1 and 10 seconds",
+        ));
+    }
     if settings.languages.is_empty() {
         return Err(AppError::invalid("Choose at least one dictation language"));
     }
     if let Some(bad) = settings
         .languages
         .iter()
-        .find(|code| !is_language_code(code))
+        .find(|tag| language(tag).is_none())
     {
         return Err(AppError::invalid(format!(
-            "“{bad}” is not a two-letter language code"
+            "“{bad}” is not a supported language"
         )));
     }
-    if !is_language_code(&settings.fallback_language) {
+    // Recognition is pinned to the fallback, and models only know base languages.
+    let fallback_ok = language(&settings.fallback_language).is_some_and(|lang| !lang.is_variant());
+    if !fallback_ok {
         return Err(AppError::invalid(format!(
-            "“{}” is not a two-letter language code",
+            "“{}” can't be the fallback language",
             settings.fallback_language
         )));
     }
@@ -294,7 +322,7 @@ fn validate(settings: &Settings) -> AppResult<()> {
     Ok(())
 }
 
-/// Edit mode is hold-only on its own key combination: the Fn key is taken by dictation's watch,
+/// Edit mode toggles on its own key combination: the Fn key is taken by dictation's watch,
 /// and a combination shared with a dictation shortcut could never tell the two apart.
 fn validate_edit_shortcut(settings: &Settings) -> AppResult<()> {
     let edit = settings.edit_shortcut.as_str();
@@ -317,8 +345,9 @@ fn validate_edit_shortcut(settings: &Settings) -> AppResult<()> {
     Ok(())
 }
 
-fn is_language_code(code: &str) -> bool {
-    code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_lowercase())
+/// The registry's spelling of `tag`; unknown tags are kept (trimmed) for validation to reject.
+fn canonical_tag(tag: &str) -> String {
+    language(tag).map_or_else(|| tag.trim().to_owned(), |known| known.tag.to_owned())
 }
 
 fn env_groq_key() -> Option<String> {
@@ -342,7 +371,7 @@ async fn stored_key(pool: &SqlitePool, name: &str) -> AppResult<Option<String>> 
     match serde_json::from_str::<String>(&stored) {
         Ok(key) => Ok(Some(key.trim().to_owned()).filter(|key| !key.is_empty())),
         Err(error) => {
-            tracing::warn!(key = name, %error, "ignoring unreadable API key");
+            tracing::warn!(key = name, %error, "ignoring an unreadable stored value");
             Ok(None)
         }
     }
@@ -408,9 +437,14 @@ mod tests {
             theme: Some(Theme::Dark),
             sound_volume: Some(0.55),
             microphone: Some(Some("MacBook Pro Microphone".to_owned())),
-            languages: Some(vec!["en".to_owned()]),
+            languages: Some(vec!["en".to_owned(), " HI-latn".to_owned()]),
+            fallback_language: Some("EN".to_owned()),
             max_recording_seconds: Some(600),
+            pasted_text_seconds: Some(5),
             learn_from_edits: Some(true),
+            escape_cancels: Some(true),
+            smart_retry: Some(false),
+            transcription_model: Some(sv_domain::models::WHISPER_HINGLISH.to_owned()),
             ..SettingsPatch::default()
         };
         let returned = db.update_settings(patch).await.unwrap();
@@ -424,9 +458,14 @@ mod tests {
         assert_eq!(stored.theme, Theme::Dark);
         assert!((stored.sound_volume - 0.55).abs() < f32::EPSILON);
         assert_eq!(stored.microphone.as_deref(), Some("MacBook Pro Microphone"));
-        assert_eq!(stored.languages, vec!["en"]);
+        assert_eq!(stored.languages, vec!["en", "hi-Latn"]);
+        assert_eq!(stored.fallback_language, "en");
         assert_eq!(stored.max_recording_seconds, 600);
+        assert_eq!(stored.pasted_text_seconds, 5);
         assert!(stored.learn_from_edits);
+        assert!(stored.escape_cancels);
+        assert!(!stored.smart_retry);
+        assert_eq!(stored.transcription_model, "whisper-hinglish");
 
         let reset = SettingsPatch {
             microphone: Some(None),
@@ -453,15 +492,31 @@ mod tests {
                 ..SettingsPatch::default()
             },
             SettingsPatch {
+                pasted_text_seconds: Some(0),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                pasted_text_seconds: Some(11),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
                 languages: Some(Vec::new()),
                 ..SettingsPatch::default()
             },
             SettingsPatch {
-                languages: Some(vec!["EN".to_owned()]),
+                languages: Some(vec!["english".to_owned()]),
                 ..SettingsPatch::default()
             },
             SettingsPatch {
                 fallback_language: Some("hin".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                fallback_language: Some("hi-Latn".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                languages: Some(vec!["en".to_owned(), "hinglish".to_owned()]),
                 ..SettingsPatch::default()
             },
             SettingsPatch {
@@ -581,5 +636,30 @@ mod tests {
         assert_eq!(db.custom_api_key().await.unwrap(), None);
         db.set_custom_api_key(Some("   ".to_owned())).await.unwrap();
         assert_eq!(db.custom_api_key().await.unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn run_version_returns_the_previous_launch_and_stays_out_of_settings() {
+        let (dir, db) = open().await;
+        let before = db.settings().await.unwrap();
+        assert_eq!(db.record_run_version("0.0.9").await.unwrap(), None);
+        let reopened = Db::open_at(dir.path()).await.unwrap();
+        assert_eq!(
+            reopened
+                .record_run_version("0.0.10")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("0.0.9")
+        );
+        assert_eq!(
+            reopened
+                .record_run_version("0.0.10")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("0.0.10")
+        );
+        assert_eq!(reopened.settings().await.unwrap(), before);
     }
 }

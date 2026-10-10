@@ -199,7 +199,7 @@ fn open_stream(
         other => {
             return Err(AppError::Audio(format!(
                 "The microphone \"{name}\" delivers {other} samples, which Simple Voice cannot \
-                 read. Pick another microphone in Settings."
+                 read. Pick another microphone in Settings → Dictation."
             )))
         }
     }

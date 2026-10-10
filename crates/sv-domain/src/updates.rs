@@ -32,6 +32,12 @@ pub struct UpdateStatus {
     pub installing: bool,
     /// Why the last install failed; cleared when the next one starts.
     pub install_error: Option<String>,
+    /// A newer version already replaced this app on disk while it kept running the old build;
+    /// restarting the app finishes the update.
+    pub installed_version: Option<String>,
+    /// The older version that ran before this launch: an update just finished. Cleared when the
+    /// user dismisses the notice.
+    pub updated_from: Option<String>,
 }
 
 impl UpdateStatus {
@@ -45,6 +51,8 @@ impl UpdateStatus {
             error: None,
             installing: false,
             install_error: None,
+            installed_version: None,
+            updated_from: None,
         }
     }
 }

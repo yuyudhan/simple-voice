@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # FilePath: scripts/install.sh
-# Installs or updates Simple Voice. Published with every GitHub release as
+# Installs, updates or uninstalls Simple Voice. Published with every GitHub release as
 # releases/latest/download/install.sh; README.md#install has the one-line curl command that
 # pipes it into bash.
 #
@@ -9,7 +9,8 @@
 #
 # It installs from the GitHub release: it checks the zip against the release's .sha256 and the
 # bundle's code signature before it replaces ~/Applications/Simple Voice.app, quitting the app
-# first and reopening it afterwards when it was running.
+# first and reopening it afterwards when it was running. When that release is already installed
+# but the running app started before it was, the app is only restarted.
 #
 # The app goes in the user's own Applications folder, so installing and updating never need an
 # administrator password; Spotlight and Launchpad index that folder like /Applications. A copy
@@ -19,8 +20,14 @@
 # The app's Install button runs this same pipe without a terminal; a failure after the app quit
 # reopens the old app.
 #
+# Uninstalling quits the app, deletes it and what macOS keeps for it under ~/Library, and
+# resets its privacy permissions. The user's data in ~/.simplevoice stays unless --purge is
+# given, so a later reinstall picks up history, dictionary and settings again.
+#
 # Options:
 #   --version X.Y.Z    Install that release instead of the latest.
+#   --uninstall        Remove the app and its permissions; keep the data in ~/.simplevoice.
+#   --purge            With --uninstall, also delete ~/.simplevoice and a moved database.
 set -euo pipefail
 
 repo="yuyudhan/simple-voice"
@@ -28,8 +35,13 @@ bundle_id="dev.yuyudhan.simplevoice"
 apps_dir="${HOME}/Applications"
 app="${apps_dir}/Simple Voice.app"
 legacy_app="/Applications/Simple Voice.app"
-# Matches the bundle's executable wherever it is installed.
-executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice"
+# What tauri-plugin-autostart wrote before the app switched to SMAppService.
+legacy_agent="${HOME}/Library/LaunchAgents/Simple Voice.plist"
+data_dir="${HOME}/.simplevoice"
+database_file="simple-voice.db"
+# Matches the bundle's executable wherever it is installed, but not the engine helper beside it
+# (simple-voice-engine), which exits on its own once the app is gone.
+executable_pattern="Simple Voice\.app/Contents/MacOS/simple-voice( |$)"
 
 say() {
     printf 'simple-voice: %s\n' "$*"
@@ -42,16 +54,23 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Install or update Simple Voice.
+Install, update or uninstall Simple Voice.
 
-usage: bash -s -- [--version X.Y.Z]   (piped), or bash install.sh [options]
+usage: bash -s -- [options]   (piped), or bash install.sh [options]
 
   --version X.Y.Z    Install that release instead of the latest.
+  --uninstall        Remove the app and its permissions; keep the data in ~/.simplevoice.
+  --purge            With --uninstall, also delete ~/.simplevoice (history, dictionary,
+                     settings, models) and the database in a folder it was moved to.
 EOF
 }
 
-check_platform() {
+check_macos() {
     [ "$(uname -s)" = "Darwin" ] || fail "Simple Voice runs on macOS only"
+}
+
+check_platform() {
+    check_macos
     # `uname -m` reports x86_64 under Rosetta, so ask the hardware instead.
     [ "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = "1" ] ||
         fail "Simple Voice needs an Apple Silicon Mac"
@@ -72,8 +91,10 @@ installed_version() {
         "${app}/Contents/Info.plist" 2>/dev/null || true
 }
 
+# -a: BSD pgrep and pkill skip their own ancestors by default, and when the app's Install button
+# runs this script the app is one of them, so without it the app is never seen or quit.
 is_running() {
-    pgrep -f "$executable_pattern" >/dev/null 2>&1
+    pgrep -a -f "$executable_pattern" >/dev/null 2>&1
 }
 
 # The copy to reopen: the new one once it is in place, else the one an older script installed.
@@ -96,15 +117,56 @@ remove_legacy_app() {
     fi
 }
 
+# A signal, not `osascript -e 'quit app ...'`: an Apple Event needs Automation permission, and
+# when the app's own Install button runs this script macOS attributes the event to the app,
+# whose hardened runtime lacks the apple-events entitlement, so the quit is silently refused.
+# The app keeps nothing unsaved, and its engine helper exits when the app's end of its stdin
+# closes, so TERM is a clean quit.
 quit_app() {
     say "quitting Simple Voice"
-    osascript -e "quit app id \"${bundle_id}\"" >/dev/null 2>&1 || true
+    pkill -TERM -a -f "$executable_pattern" 2>/dev/null || true
     waited=0
     while is_running; do
         waited=$((waited + 1))
-        [ "$waited" -le 20 ] || fail "Simple Voice did not quit; quit it from the menu bar and rerun"
+        if [ "$waited" -eq 20 ]; then
+            pkill -KILL -a -f "$executable_pattern" 2>/dev/null || true
+        fi
+        [ "$waited" -le 30 ] ||
+            fail "Simple Voice did not quit; quit it from the menu bar and install again"
         sleep 0.5
     done
+}
+
+# An older script replaced the bundle without quitting the app, which keeps running the old build
+# until it restarts. ditto keeps the build's modification times, so the executable's inode change
+# time is what records when this copy was installed.
+running_old_build() {
+    local pid started installed
+    pid=$(pgrep -a -f "$executable_pattern" 2>/dev/null | head -n 1) || return 1
+    [ -n "$pid" ] || return 1
+    started=$(LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null) || return 1
+    started=$(LC_ALL=C date -j -f "%a %b %d %T %Y" "$started" +%s 2>/dev/null) || return 1
+    installed=$(stat -f %c "${app}/Contents/MacOS/simple-voice" 2>/dev/null) || return 1
+    [ "$started" -lt "$installed" ]
+}
+
+# Right after a quit, LaunchServices can still count the old process as running and take `open`
+# as "activate", which does nothing; try again until the app is really up.
+reopen() {
+    local tries=0 waited
+    while [ "$tries" -lt 3 ]; do
+        tries=$((tries + 1))
+        open "$1" 2>/dev/null || true
+        waited=0
+        while [ "$waited" -lt 10 ]; do
+            if is_running; then
+                return 0
+            fi
+            waited=$((waited + 1))
+            sleep 0.5
+        done
+    done
+    say "could not reopen Simple Voice; open it from Spotlight or ${apps_dir}"
 }
 
 install_release() {
@@ -114,6 +176,10 @@ install_release() {
     esac
     if [ "$(installed_version)" = "$version" ]; then
         say "Simple Voice ${version} is already installed"
+        if running_old_build; then
+            say "restarting Simple Voice to finish the update"
+            quit_app
+        fi
         return 0
     fi
 
@@ -123,7 +189,13 @@ install_release() {
     asset="Simple-Voice_${version}_aarch64.zip"
     base="https://github.com/${repo}/releases/download/v${version}"
     say "downloading Simple Voice ${version}"
-    curl -fL --progress-bar -o "${tmp}/${asset}" "${base}/${asset}" ||
+    # The bar redraws with carriage returns, which fill the app's update.log with noise.
+    if [ -t 2 ]; then
+        progress=--progress-bar
+    else
+        progress=--silent
+    fi
+    curl -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
         fail "download failed: ${base}/${asset}"
     curl -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
         fail "download failed: ${base}/${asset}.sha256"
@@ -160,15 +232,71 @@ cleanup() {
     rm -rf "$work"
     # A failure after the app quit must not leave the user without it.
     if [ "$code" -ne 0 ] && $was_running && ! is_running; then
-        reopen=$(current_app)
-        if [ -n "$reopen" ]; then
-            open "$reopen" || true
+        previous=$(current_app)
+        if [ -n "$previous" ]; then
+            reopen "$previous"
         fi
     fi
 }
 
+# A database moved in Settings > Privacy & data sits in a folder the user chose, which may hold
+# their own files, so only the database files go and the folder stays.
+remove_moved_database() {
+    local pointer="${data_dir}/location" dir suffix
+    [ -f "$pointer" ] || return 0
+    dir=$(<"$pointer")
+    case "$dir" in
+        /*) ;;
+        *) return 0 ;;
+    esac
+    if [ ! -d "$dir" ]; then
+        say "the moved database folder ${dir} is not available; delete ${database_file} there yourself"
+        return 0
+    fi
+    for suffix in "" "-wal" "-shm"; do
+        rm -f "${dir}/${database_file}${suffix}"
+    done
+    say "deleted the database in ${dir}"
+}
+
+uninstall() {
+    local purge=$1 id
+    if is_running; then
+        quit_app
+    fi
+
+    if [ -e "$app" ]; then
+        rm -rf "$app"
+        say "removed ${app}"
+    fi
+    remove_legacy_app
+
+    # Development builds use ".dev" identifiers and are deliberately left alone.
+    for id in "$bundle_id" "${bundle_id}.engine"; do
+        rm -rf "${HOME}/Library/Caches/${id}" "${HOME}/Library/HTTPStorages/${id}" \
+            "${HOME}/Library/WebKit/${id}" "${HOME}/Library/Saved Application State/${id}.savedState"
+        # Through cfprefsd, which would otherwise write a cached copy back.
+        defaults delete "$id" >/dev/null 2>&1 || true
+        # Fails when macOS holds no grant for the identifier, which is fine.
+        tccutil reset All "$id" >/dev/null 2>&1 || true
+    done
+    rm -f "$legacy_agent"
+    say "reset the Microphone, Accessibility and Speech Recognition permissions"
+
+    if $purge; then
+        remove_moved_database
+        rm -rf "$data_dir"
+        say "deleted ${data_dir}"
+    elif [ -d "$data_dir" ]; then
+        say "kept your data in ${data_dir}; rerun with --uninstall --purge to delete it"
+    fi
+    say "Simple Voice is uninstalled"
+}
+
 main() {
     version=""
+    action="install"
+    purge=false
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --version)
@@ -176,6 +304,8 @@ main() {
                 version=${2#v}
                 shift
                 ;;
+            --uninstall) action="uninstall" ;;
+            --purge) purge=true ;;
             -h | --help)
                 usage
                 return 0
@@ -184,6 +314,16 @@ main() {
         esac
         shift
     done
+
+    if [ "$action" = "uninstall" ]; then
+        [ -z "$version" ] || fail "--version and --uninstall cannot be combined"
+        check_macos
+        uninstall "$purge"
+        return 0
+    fi
+    if $purge; then
+        fail "--purge only goes with --uninstall"
+    fi
 
     check_platform
 
@@ -203,7 +343,7 @@ main() {
     install_release "$version"
 
     if $was_running && ! is_running; then
-        open "$app"
+        reopen "$app"
     elif ! is_running; then
         say "open Simple Voice from Spotlight or ${apps_dir}"
     fi
@@ -213,7 +353,7 @@ main() {
 macOS ties the Microphone, Accessibility and Speech Recognition permissions to the app's
 signature. If dictation stops recording or pasting after an update, open System Settings >
 Privacy & Security, remove Simple Voice from the affected list, and grant it again from the
-app's Settings > Permissions.
+app's Settings > Privacy & data.
 EOF
 }
 

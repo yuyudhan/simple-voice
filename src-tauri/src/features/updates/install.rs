@@ -2,7 +2,8 @@
 //! Installs an available update by running the published install script (`scripts/install.sh`)
 //! exactly as the README's curl command does. The script quits the app, replaces it and reopens
 //! it, so it has to outlive the app: it runs in its own process group and writes to a log file,
-//! never to a pipe that the app's exit would close under it.
+//! never to a pipe that the app's exit would close under it. When the update is already on disk,
+//! restarting the app is all it takes.
 
 use std::fs::OpenOptions;
 use std::os::unix::fs::OpenOptionsExt;
@@ -13,7 +14,7 @@ use std::process::{Child, Command, Stdio};
 use sv_domain::{AppError, AppResult, UpdateStatus};
 use tauri::{AppHandle, Manager};
 
-use super::REPOSITORY;
+use super::{restart, REPOSITORY};
 use crate::events;
 use crate::state::{lock, AppState};
 
@@ -28,6 +29,12 @@ const SCRIPT_PREFIX: &str = "simple-voice:";
 #[tauri::command]
 pub(crate) async fn install_update(app: AppHandle) -> AppResult<UpdateStatus> {
     let state = app.state::<AppState>();
+    if restart::restart_finishes_update(&lock(&state.updates)) {
+        if let Some(bundle) = restart::bundle_path() {
+            restart::relaunch(&app, &bundle)?;
+            return Ok(lock(&state.updates).clone());
+        }
+    }
     {
         let mut status = lock(&state.updates);
         if status.installing {
@@ -101,6 +108,10 @@ fn finish(app: &AppHandle, mut child: Child, log: &Path) {
         None => tracing::info!("update install finished without quitting the app"),
     }
 
+    // An older script replaces the bundle without quitting the app; the UI then offers a restart.
+    if error.is_none() {
+        restart::refresh_installed(app);
+    }
     let state = app.state::<AppState>();
     let status = {
         let mut status = lock(&state.updates);

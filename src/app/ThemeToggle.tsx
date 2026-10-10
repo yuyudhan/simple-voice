@@ -8,7 +8,7 @@ import "./ThemeToggle.css";
 /**
  * One-click switch between light and dark in the window's top-right corner. It flips what is
  * showing, so from "system" it pins the opposite of the current macOS appearance; Settings →
- * General → Appearance returns to "system".
+ * App → Appearance returns to "system".
  */
 export function ThemeToggle({ resolved }: { resolved: ResolvedTheme }) {
     const { update } = useSettings();

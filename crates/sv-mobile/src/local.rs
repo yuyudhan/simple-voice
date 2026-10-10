@@ -55,6 +55,8 @@ pub async fn dictate_local(db: &Db, heard: LocalTranscript, recording: Recording
         app_name: recording.app_name,
         bundle_id: recording.app_id,
         audio_path: None,
+        first_model: None,
+        retry_reason: None,
     };
     let id = match db.insert_history(row).await {
         Ok(entry) => entry.id,

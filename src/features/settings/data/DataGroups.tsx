@@ -1,4 +1,4 @@
-// FilePath: src/features/settings/data/DataSection.tsx
+// FilePath: src/features/settings/data/DataGroups.tsx
 import { useCallback, useEffect, useState } from "react";
 import { FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -40,7 +40,7 @@ function PathRow({ title, description, path }: PathRowProps) {
     );
 }
 
-export function DataSection() {
+export function DataGroups() {
     const { settings, refresh } = useSettings();
     const { toast } = useToast();
     const [info, setInfo] = useState<AppInfo | null>(null);

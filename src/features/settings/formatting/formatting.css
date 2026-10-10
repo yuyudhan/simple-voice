@@ -1,0 +1,6 @@
+/* FilePath: src/features/settings/formatting/formatting.css */
+
+/* Separates the requirement from the description it follows inside the same row text. */
+.sv-learning__note {
+    margin-top: 6px;
+}

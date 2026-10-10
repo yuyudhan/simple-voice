@@ -1,5 +1,5 @@
 // FilePath: crates/sv-storage/src/paths.rs
-//! Filesystem layout under `~/.simplevoice/`.
+//! Filesystem layout under `~/.simplevoice/` (`~/.simplevoice-dev/` for debug builds).
 //!
 //! The public functions resolve the real data directory. The `*_in` variants take the data
 //! directory explicitly so tests (and `Db::open_at`) never touch the user's home.
@@ -12,13 +12,19 @@ use std::path::{Path, PathBuf};
 use sv_domain::{AppError, AppResult};
 
 pub(crate) const DATABASE_FILE: &str = "simple-voice.db";
-const DATA_DIR_NAME: &str = ".simplevoice";
+// Debug builds (`just dev`) get their own directory so a migration that has not shipped yet never
+// upgrades the installed release's database past what that release can open.
+const DATA_DIR_NAME: &str = if cfg!(debug_assertions) {
+    ".simplevoice-dev"
+} else {
+    ".simplevoice"
+};
 pub(crate) const LOCATION_FILE: &str = "location";
 const MODELS_DIR: &str = "models";
 const AUDIO_DIR: &str = "audio";
 const BACKUPS_DIR: &str = "backups";
 
-/// `~/.simplevoice`, created with mode 0700.
+/// `~/.simplevoice` (`~/.simplevoice-dev` in debug builds), created with mode 0700.
 pub fn data_dir() -> AppResult<PathBuf> {
     let home = dirs::home_dir()
         .ok_or_else(|| AppError::Io("Could not find your home directory".to_owned()))?;

@@ -297,6 +297,8 @@ mod tests {
             source_text: None,
             error: None,
             model: "groq-whisper".to_owned(),
+            first_model: None,
+            retry_reason: None,
             format_model: None,
             language: Some("en".to_owned()),
             style: Style::Formal,

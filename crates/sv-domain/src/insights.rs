@@ -100,6 +100,8 @@ pub struct ModelTiming {
     pub total_ms: i64,
     pub audio_ms: i64,
     pub words: i64,
+    /// Dictations where Smart Select tried this model first and then ran a second one.
+    pub retries: i64,
 }
 
 /// Per-model speed for the Insights "Models" tab, each list sorted by runs, descending.
