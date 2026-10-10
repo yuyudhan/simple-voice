@@ -40,13 +40,19 @@ emulator:
 ios DEVICE='':
     {{tauri}} ios dev {{DEVICE}}
 
-# Mobile gates: TypeScript, ESLint, Prettier, clippy for the mobile crate and sv-ffi.
+# Regenerate the Xcode project from gen/apple/project.yml (never re-run `tauri ios init`: it
+# would overwrite the keyboard and widget targets).
+[group('ios')]
+xcodegen:
+    cd src-tauri/gen/apple && xcodegen generate
+
+# Mobile gates: TypeScript, ESLint, Prettier, clippy for the mobile crates.
 [group('quality')]
 check:
     cd .. && bunx tsc --noEmit -p mobile/tsconfig.json
     cd .. && bunx eslint --max-warnings 0 mobile
     cd .. && bunx prettier --check mobile/src mobile/vite.config.ts
-    cd .. && cargo clippy -p simple-voice-mobile -p sv-ffi --all-targets -- -D warnings
+    cd .. && cargo clippy -p simple-voice-mobile -p sv-ffi -p tauri-plugin-sv-native --all-targets -- -D warnings
 
 # The newest NDK installed under $ANDROID_HOME/ndk.
 [private]

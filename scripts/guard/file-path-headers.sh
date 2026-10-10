@@ -15,10 +15,10 @@
 # there the header is expected on line 2, exactly like a shebang.
 #
 # JSON has no comment syntax and is skipped, as are lockfiles, generated icons and the `.sqlx/`
-# offline query cache (JSON). Tauri generates mobile/src-tauri/gen/; only the keyboard's Kotlin
-# package there is ours and checked. A header naming the wrong path is a violation, not just a
-# missing one. Operates on `git ls-files` only; a tracked path missing from the working tree is
-# skipped.
+# offline query cache (JSON). Tauri generates mobile/src-tauri/gen/; only our code there is
+# checked: the Android keyboard's Kotlin package and the iPhone keyboard and widget folders. A
+# header naming the wrong path is a violation, not just a missing one. Operates on
+# `git ls-files` only; a tracked path missing from the working tree is skipped.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -29,7 +29,8 @@ scanned=0
 
 while IFS= read -r -d '' file; do
     case "$file" in
-        mobile/src-tauri/gen/android/app/src/main/java/dev/yuyudhan/simplevoice/mobile/keyboard/*) ;;
+        mobile/src-tauri/gen/android/app/src/main/java/dev/yuyudhan/simplevoice/mobile/keyboard/* | \
+            mobile/src-tauri/gen/apple/SimpleVoiceKeyboard/* | mobile/src-tauri/gen/apple/SimpleVoiceWidget/*) ;;
         .sqlx/* | */.sqlx/* | src-tauri/icons/* | src-tauri/gen/* | node_modules/* | target/* | \
             mobile/src-tauri/icons/* | mobile/src-tauri/gen/*)
             continue

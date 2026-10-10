@@ -10,9 +10,10 @@
 #     └── sv-domain   (shared serde types and the error type; depends on nothing internal)
 #
 #   mobile/src-tauri (simple-voice-mobile: iPhone and Android app screens over sv-storage)
+#   └── mobile/plugins/sv-native (tauri-plugin-sv-native: Swift session ↔ Rust bridge, iPhone)
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/*", "mobile/src-tauri"]
+members = ["src-tauri", "crates/*", "mobile/src-tauri", "mobile/plugins/sv-native"]
 
 [workspace.package]
 version = "0.0.7"
@@ -31,11 +32,13 @@ sv-audio = { path = "crates/sv-audio" }
 sv-engine = { path = "crates/sv-engine" }
 sv-ffi = { path = "crates/sv-ffi" }
 sv-mobile = { path = "crates/sv-mobile" }
+tauri-plugin-sv-native = { path = "mobile/plugins/sv-native" }
 
 # Desktop-only features (tray icon, macOS private API) are enabled in src-tauri/Cargo.toml, so
 # the mobile app crate, whose build script checks them against its config, does not inherit them.
 tauri = { version = "2", features = ["image-png"] }
 tauri-build = { version = "2", features = [] }
+tauri-plugin = { version = "2", features = ["build"] }
 tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-shell = "2"

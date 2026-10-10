@@ -1,0 +1,3 @@
+# FilePath: mobile/plugins/sv-native/ios/.gitignore
+# SwiftPM build output.
+.build

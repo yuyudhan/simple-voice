@@ -25,6 +25,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_sv_native::init())
         .setup(|app| {
             setup(app.handle());
             Ok(())
@@ -71,4 +72,5 @@ fn setup(app: &AppHandle) {
         tracing::error!(%error, "could not open the database");
     }
     app.manage(AppState::new(db, sv_mobile::http_client()));
+    features::session::listen(app);
 }

@@ -6,6 +6,7 @@ use sv_domain::{AppError, AppResult, Settings, SettingsPatch};
 use tauri::{AppHandle, State};
 
 use crate::events;
+use crate::features::session;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -21,6 +22,7 @@ pub(crate) async fn update_settings(
 ) -> AppResult<Settings> {
     let settings = state.db()?.update_settings(patch).await?;
     events::emit(&app, events::SETTINGS_CHANGED, settings.clone());
+    session::refresh(&app);
     Ok(settings)
 }
 
@@ -38,6 +40,7 @@ pub(crate) async fn set_groq_api_key(
     db.set_groq_api_key(key).await?;
     let settings = db.settings().await?;
     events::emit(&app, events::SETTINGS_CHANGED, settings.clone());
+    session::refresh(&app);
     Ok(settings)
 }
 

@@ -7,53 +7,151 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0465310E09108A81E765413E /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 73234935B17BBFA56F50B906 /* Network.framework */; };
+		087DB702F4ACCCAB96C675FE /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3CA8F590A72BAD95E4C9B3EE /* AVFoundation.framework */; };
 		09B56A3DB9222C0CD1BCF2AD /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3997118B4B3723977E13DA0A /* CoreGraphics.framework */; };
+		1149F6A35B4E483128564724 /* TopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D625B059DEF8A4780A18B9 /* TopBar.swift */; };
+		1450AB28BD6C20A4A633840E /* SimpleVoiceWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1B6D2493CDE73F4369FC306B /* SimpleVoiceWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		15692E07F108AB06E939E474 /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D6BEFEE557E801BE2166CC89 /* ActivityKit.framework */; };
 		1B6E70DD668BAC511B6C909B /* assets in Resources */ = {isa = PBXBuildFile; fileRef = DB0B5A01C521E4D11060C51A /* assets */; };
 		1C705284EAF98C94B86C219B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8D002335E6EADA6A54FC5080 /* Security.framework */; };
+		29F273759A554766BE2ADE05 /* Palette.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F80F98ACA459347608574F /* Palette.swift */; };
 		2A99C4A993BAEA4B40FA517A /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F253A148A0620BB9F852F2F3 /* UIKit.framework */; };
 		3995753C267A3B8CE2801A97 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = BB2F6AFECB002D511D73EB34 /* main.mm */; };
+		515C5A90D3870310FE39D4F1 /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72B6A275461AC8F49E78AF5 /* Bridge.swift */; };
+		51DECCF143D0392D39BBCBB0 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4BA080979B8B5C7F6DEE73B9 /* SwiftUI.framework */; };
+		53672AA08B3B2C689C5D8F77 /* SimpleVoiceKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C05E627429728094994D7E63 /* SimpleVoiceKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		57548711A2419729F9146AE2 /* KeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798CE097445E8FAE43F7E884 /* KeyboardView.swift */; };
 		5E89BCF2783F9137F3E83DFE /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C3A167993DEFB2F55E65120A /* MetalKit.framework */; };
 		6ED30639B5DDE688EBE23E19 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ACD9CE59E9601D2AB8450C1C /* Metal.framework */; };
+		76ADEFA10F09128D73D336BE /* SessionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEF758AE56668B1D5B09468 /* SessionActivity.swift */; };
 		76FCA9731528AA2A8C660FC1 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 645C9FECC0CDA7960EEC3B9B /* LaunchScreen.storyboard */; };
 		7761C7727C09C038E6295CD2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 205BE797F13FD7B3F10F641D /* Assets.xcassets */; };
+		82016F0477EB01478A561FE7 /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8160265973FE410D70B6855D /* DictationController.swift */; };
+		8996694DFD93CCBAFD43F3D6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61A7F94255C8284CD18168EB /* WidgetKit.framework */; };
+		902E959CB110C4B7FB0D0869 /* EndSessionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */; };
 		95B9711E1D0CDBBEBF57B2E6 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 445F92F88378F4C0B565D39A /* QuartzCore.framework */; };
+		95FBBCCEBDF6B2D36FBC30C5 /* Speech.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8B48AD0850918755B6A4FC27 /* Speech.framework */; };
+		97FC6823F2F337ED272F1E41 /* KeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA400BD983A6FC3C4A51CE0 /* KeysView.swift */; };
+		98DBCB2A5BA91146409636FE /* SessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 531109D8C56C16A3303958F4 /* SessionLiveActivity.swift */; };
+		99A19972232277B036AE10B8 /* KeyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87EEE291604996E094321A9 /* KeyLayout.swift */; };
+		9EF41966D1F70E70C07326F7 /* EndSessionIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */; };
+		A42692D5EF822DEC55FB673D /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B7336241C16227413F53C2C /* KeyboardViewController.swift */; };
+		C07AF7D3AAED6456910AD0F7 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B0D744A7B571100142371EC /* AppIntents.framework */; };
+		C4671FD9ACE314BA30FC76DD /* KeyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAED94FAC2A6F07152069918 /* KeyButton.swift */; };
 		DD1242730E66D18A6220110E /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 82333BF40DB6FDBAD6B4A175 /* WebKit.framework */; };
+		E20E926AB9E35C789D2B0174 /* SessionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DEF758AE56668B1D5B09468 /* SessionActivity.swift */; };
+		E9A93CFD27B174A727CC87C2 /* ActivityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D6BEFEE557E801BE2166CC89 /* ActivityKit.framework */; };
+		F3499E5BFDDBAD8B6F15C966 /* LevelBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F4A23430BFF2E8582CD539 /* LevelBars.swift */; };
+		F52AAEDD3B8A2015148CD1FF /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0B0D744A7B571100142371EC /* AppIntents.framework */; };
+		F90ED6B3197BAB388B94958C /* Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72B6A275461AC8F49E78AF5 /* Bridge.swift */; };
 		FDBE8A50F34BC6B0218CE0FF /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = BC512461318F14E1EC6C0821 /* libapp.a */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CD30617DE2649E4A8199AFD2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C99F9CA4B628422C11C75050 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CEB9E8E2EFBE90084B80C0F8;
+			remoteInfo = SimpleVoiceWidget;
+		};
+		CFB71164D81230615FBEE871 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C99F9CA4B628422C11C75050 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2B0D9CFD245B5FF7C1FA53E7;
+			remoteInfo = SimpleVoiceKeyboard;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A05820DBE70E46FCB9C2FAB3 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				53672AA08B3B2C689C5D8F77 /* SimpleVoiceKeyboard.appex in Embed Foundation Extensions */,
+				1450AB28BD6C20A4A633840E /* SimpleVoiceWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		00AEAEED66416D2BC267BD16 /* simple-voice-mobile_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "simple-voice-mobile_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		01FE8C601D8CB432AA548DEF /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		0B0D744A7B571100142371EC /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
 		19482B779773658C0808D516 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		1B6D2493CDE73F4369FC306B /* SimpleVoiceWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SimpleVoiceWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		205BE797F13FD7B3F10F641D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		24D625B059DEF8A4780A18B9 /* TopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopBar.swift; sourceTree = "<group>"; };
+		2DEF758AE56668B1D5B09468 /* SessionActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionActivity.swift; sourceTree = "<group>"; };
 		308C5C408EB0A2F5385DB88C /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
 		339ADE19EB6CA6386438017B /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		3997118B4B3723977E13DA0A /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		3CA8F590A72BAD95E4C9B3EE /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		3FA400BD983A6FC3C4A51CE0 /* KeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeysView.swift; sourceTree = "<group>"; };
 		445F92F88378F4C0B565D39A /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		4BA080979B8B5C7F6DEE73B9 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		531109D8C56C16A3303958F4 /* SessionLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLiveActivity.swift; sourceTree = "<group>"; };
 		5A7D7012A00388E65EEEE311 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		61A7F94255C8284CD18168EB /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		645C9FECC0CDA7960EEC3B9B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		73234935B17BBFA56F50B906 /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+		798CE097445E8FAE43F7E884 /* KeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardView.swift; sourceTree = "<group>"; };
 		7A1AAEA83A898EB262E97091 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		8160265973FE410D70B6855D /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
 		82333BF40DB6FDBAD6B4A175 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		8B48AD0850918755B6A4FC27 /* Speech.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Speech.framework; path = System/Library/Frameworks/Speech.framework; sourceTree = SDKROOT; };
+		8B7336241C16227413F53C2C /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		8D002335E6EADA6A54FC5080 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndSessionIntent.swift; sourceTree = "<group>"; };
 		9D0916C0C0B55FD040EA6D81 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		A5BD153F2C120AA6B4628503 /* events.rs */ = {isa = PBXFileReference; path = events.rs; sourceTree = "<group>"; };
+		A72B6A275461AC8F49E78AF5 /* Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge.swift; sourceTree = "<group>"; };
 		ACD9CE59E9601D2AB8450C1C /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		B11B5676E95EB83C05B47B3C /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		B5267777DF00FBCC01DDD160 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BB2F6AFECB002D511D73EB34 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		BC512461318F14E1EC6C0821 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		C05E627429728094994D7E63 /* SimpleVoiceKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SimpleVoiceKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3A167993DEFB2F55E65120A /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		C4F4A23430BFF2E8582CD539 /* LevelBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LevelBars.swift; sourceTree = "<group>"; };
+		C7F80F98ACA459347608574F /* Palette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Palette.swift; sourceTree = "<group>"; };
+		CAED94FAC2A6F07152069918 /* KeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyButton.swift; sourceTree = "<group>"; };
+		D6BEFEE557E801BE2166CC89 /* ActivityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ActivityKit.framework; path = System/Library/Frameworks/ActivityKit.framework; sourceTree = SDKROOT; };
 		D84540244E0884A6C72F38C0 /* simple-voice-mobile_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "simple-voice-mobile_iOS.entitlements"; sourceTree = "<group>"; };
+		D87EEE291604996E094321A9 /* KeyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyLayout.swift; sourceTree = "<group>"; };
 		DB0B5A01C521E4D11060C51A /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		E218BF54AD32430B174F5EEC /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		F253A148A0620BB9F852F2F3 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		19CD16BBCD8331924550F8B2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E9A93CFD27B174A727CC87C2 /* ActivityKit.framework in Frameworks */,
+				C07AF7D3AAED6456910AD0F7 /* AppIntents.framework in Frameworks */,
+				51DECCF143D0392D39BBCBB0 /* SwiftUI.framework in Frameworks */,
+				8996694DFD93CCBAFD43F3D6 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		4570929B1295F1E185F582DD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				FDBE8A50F34BC6B0218CE0FF /* libapp.a in Frameworks */,
+				15692E07F108AB06E939E474 /* ActivityKit.framework in Frameworks */,
+				F52AAEDD3B8A2015148CD1FF /* AppIntents.framework in Frameworks */,
+				087DB702F4ACCCAB96C675FE /* AVFoundation.framework in Frameworks */,
+				0465310E09108A81E765413E /* Network.framework in Frameworks */,
+				95FBBCCEBDF6B2D36FBC30C5 /* Speech.framework in Frameworks */,
 				09B56A3DB9222C0CD1BCF2AD /* CoreGraphics.framework in Frameworks */,
 				6ED30639B5DDE688EBE23E19 /* Metal.framework in Frameworks */,
 				5E89BCF2783F9137F3E83DFE /* MetalKit.framework in Frameworks */,
@@ -74,6 +172,15 @@
 				D84540244E0884A6C72F38C0 /* simple-voice-mobile_iOS.entitlements */,
 			);
 			path = "simple-voice-mobile_iOS";
+			sourceTree = "<group>";
+		};
+		272E5EB4680E7679AE23FDF5 /* SimpleVoiceWidget */ = {
+			isa = PBXGroup;
+			children = (
+				9AE3218A0614E9A937B0BF9D /* EndSessionIntent.swift */,
+				531109D8C56C16A3303958F4 /* SessionLiveActivity.swift */,
+			);
+			path = SimpleVoiceWidget;
 			sourceTree = "<group>";
 		};
 		2F3E8049725A49D21B740F8A /* src */ = {
@@ -99,16 +206,41 @@
 		3C52E3E4486035AF59511709 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				D6BEFEE557E801BE2166CC89 /* ActivityKit.framework */,
+				0B0D744A7B571100142371EC /* AppIntents.framework */,
+				3CA8F590A72BAD95E4C9B3EE /* AVFoundation.framework */,
 				3997118B4B3723977E13DA0A /* CoreGraphics.framework */,
 				BC512461318F14E1EC6C0821 /* libapp.a */,
 				ACD9CE59E9601D2AB8450C1C /* Metal.framework */,
 				C3A167993DEFB2F55E65120A /* MetalKit.framework */,
+				73234935B17BBFA56F50B906 /* Network.framework */,
 				445F92F88378F4C0B565D39A /* QuartzCore.framework */,
 				8D002335E6EADA6A54FC5080 /* Security.framework */,
+				8B48AD0850918755B6A4FC27 /* Speech.framework */,
+				4BA080979B8B5C7F6DEE73B9 /* SwiftUI.framework */,
 				F253A148A0620BB9F852F2F3 /* UIKit.framework */,
 				82333BF40DB6FDBAD6B4A175 /* WebKit.framework */,
+				61A7F94255C8284CD18168EB /* WidgetKit.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		3EC7477EF827C2545CE319A4 /* session */ = {
+			isa = PBXGroup;
+			children = (
+				B11B5676E95EB83C05B47B3C /* mod.rs */,
+			);
+			path = session;
+			sourceTree = "<group>";
+		};
+		6D67DCD52E17D85729D83BEE /* SvShared */ = {
+			isa = PBXGroup;
+			children = (
+				A72B6A275461AC8F49E78AF5 /* Bridge.swift */,
+				2DEF758AE56668B1D5B09468 /* SessionActivity.swift */,
+			);
+			name = SvShared;
+			path = "../../../plugins/sv-native/ios/Sources/SvShared";
 			sourceTree = "<group>";
 		};
 		6EE0CBD32924C7F8D9C0A8A8 /* features */ = {
@@ -118,6 +250,7 @@
 				EC0963843E8A9A48C40797CA /* dictionary */,
 				D3B79B61A49980123EE4160D /* history */,
 				78DA3A0931ADAC03D0E1484D /* insights */,
+				3EC7477EF827C2545CE319A4 /* session */,
 				39278B3F9C1198BD313F49BF /* settings */,
 			);
 			path = features;
@@ -154,8 +287,11 @@
 				645C9FECC0CDA7960EEC3B9B /* LaunchScreen.storyboard */,
 				A98853E3E9318550ED8DB5A1 /* Externals */,
 				040904EDD083FFBC2ADC018A /* simple-voice-mobile_iOS */,
+				FF862C0EFE277B1F10283D70 /* SimpleVoiceKeyboard */,
+				272E5EB4680E7679AE23FDF5 /* SimpleVoiceWidget */,
 				8539C54BB0502CC97A7F1C1E /* Sources */,
 				2F3E8049725A49D21B740F8A /* src */,
+				6D67DCD52E17D85729D83BEE /* SvShared */,
 				3C52E3E4486035AF59511709 /* Frameworks */,
 				BC89C032BE85089AA859425E /* Products */,
 			);
@@ -165,6 +301,8 @@
 			isa = PBXGroup;
 			children = (
 				00AEAEED66416D2BC267BD16 /* simple-voice-mobile_iOS.app */,
+				C05E627429728094994D7E63 /* SimpleVoiceKeyboard.appex */,
+				1B6D2493CDE73F4369FC306B /* SimpleVoiceWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -202,18 +340,34 @@
 			path = bindings;
 			sourceTree = "<group>";
 		};
-		"TEMP_10903E7C-7D10-4105-AB43-08847BD31D90" /* arm64 */ = {
+		FF862C0EFE277B1F10283D70 /* SimpleVoiceKeyboard */ = {
 			isa = PBXGroup;
 			children = (
+				8160265973FE410D70B6855D /* DictationController.swift */,
+				798CE097445E8FAE43F7E884 /* KeyboardView.swift */,
+				8B7336241C16227413F53C2C /* KeyboardViewController.swift */,
+				CAED94FAC2A6F07152069918 /* KeyButton.swift */,
+				D87EEE291604996E094321A9 /* KeyLayout.swift */,
+				3FA400BD983A6FC3C4A51CE0 /* KeysView.swift */,
+				C4F4A23430BFF2E8582CD539 /* LevelBars.swift */,
+				C7F80F98ACA459347608574F /* Palette.swift */,
+				24D625B059DEF8A4780A18B9 /* TopBar.swift */,
 			);
-			path = arm64;
+			path = SimpleVoiceKeyboard;
 			sourceTree = "<group>";
 		};
-		"TEMP_6A345329-7253-4B3A-95EA-B54DE7C09331" /* x86_64 */ = {
+		"TEMP_16E06D51-FF95-4134-B9DC-99B5062C1849" /* x86_64 */ = {
 			isa = PBXGroup;
 			children = (
 			);
 			path = x86_64;
+			sourceTree = "<group>";
+		};
+		"TEMP_47304417-725F-4B4B-AB61-CDDF993DA3F7" /* arm64 */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = arm64;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -227,10 +381,13 @@
 				878BED5569A69CBA7B925D7C /* Sources */,
 				7A240DEDDC0FA9EC08C71895 /* Resources */,
 				4570929B1295F1E185F582DD /* Frameworks */,
+				A05820DBE70E46FCB9C2FAB3 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B65AD534B5EC7B69BF99BF85 /* PBXTargetDependency */,
+				0B8D9FF23E07398DBBE3864A /* PBXTargetDependency */,
 			);
 			name = "simple-voice-mobile_iOS";
 			packageProductDependencies = (
@@ -238,6 +395,41 @@
 			productName = "simple-voice-mobile_iOS";
 			productReference = 00AEAEED66416D2BC267BD16 /* simple-voice-mobile_iOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		2B0D9CFD245B5FF7C1FA53E7 /* SimpleVoiceKeyboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E62361608D3D3E6AE8B0F939 /* Build configuration list for PBXNativeTarget "SimpleVoiceKeyboard" */;
+			buildPhases = (
+				D37C18762D3C111CD0F17049 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SimpleVoiceKeyboard;
+			packageProductDependencies = (
+			);
+			productName = SimpleVoiceKeyboard;
+			productReference = C05E627429728094994D7E63 /* SimpleVoiceKeyboard.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CEB9E8E2EFBE90084B80C0F8 /* SimpleVoiceWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 512E4E07A44D57F9FADA0266 /* Build configuration list for PBXNativeTarget "SimpleVoiceWidget" */;
+			buildPhases = (
+				C34812A1DA77087BAD925A51 /* Sources */,
+				19CD16BBCD8331924550F8B2 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SimpleVoiceWidget;
+			packageProductDependencies = (
+			);
+			productName = SimpleVoiceWidget;
+			productReference = 1B6D2493CDE73F4369FC306B /* SimpleVoiceWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -265,6 +457,8 @@
 			projectRoot = "";
 			targets = (
 				2356400238B563AB156665BC /* simple-voice-mobile_iOS */,
+				2B0D9CFD245B5FF7C1FA53E7 /* SimpleVoiceKeyboard */,
+				CEB9E8E2EFBE90084B80C0F8 /* SimpleVoiceWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -311,11 +505,54 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9EF41966D1F70E70C07326F7 /* EndSessionIntent.swift in Sources */,
 				3995753C267A3B8CE2801A97 /* main.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C34812A1DA77087BAD925A51 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				515C5A90D3870310FE39D4F1 /* Bridge.swift in Sources */,
+				902E959CB110C4B7FB0D0869 /* EndSessionIntent.swift in Sources */,
+				E20E926AB9E35C789D2B0174 /* SessionActivity.swift in Sources */,
+				98DBCB2A5BA91146409636FE /* SessionLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D37C18762D3C111CD0F17049 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F90ED6B3197BAB388B94958C /* Bridge.swift in Sources */,
+				82016F0477EB01478A561FE7 /* DictationController.swift in Sources */,
+				C4671FD9ACE314BA30FC76DD /* KeyButton.swift in Sources */,
+				99A19972232277B036AE10B8 /* KeyLayout.swift in Sources */,
+				57548711A2419729F9146AE2 /* KeyboardView.swift in Sources */,
+				A42692D5EF822DEC55FB673D /* KeyboardViewController.swift in Sources */,
+				97FC6823F2F337ED272F1E41 /* KeysView.swift in Sources */,
+				F3499E5BFDDBAD8B6F15C966 /* LevelBars.swift in Sources */,
+				29F273759A554766BE2ADE05 /* Palette.swift in Sources */,
+				76ADEFA10F09128D73D336BE /* SessionActivity.swift in Sources */,
+				1149F6A35B4E483128564724 /* TopBar.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0B8D9FF23E07398DBBE3864A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CEB9E8E2EFBE90084B80C0F8 /* SimpleVoiceWidget */;
+			targetProxy = CD30617DE2649E4A8199AFD2 /* PBXContainerItemProxy */;
+		};
+		B65AD534B5EC7B69BF99BF85 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2B0D9CFD245B5FF7C1FA53E7 /* SimpleVoiceKeyboard */;
+			targetProxy = CFB71164D81230615FBEE871 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		33B9468D45D1449AF04A4246 /* debug */ = {
@@ -349,6 +586,62 @@
 			};
 			name = debug;
 		};
+		670AE9D988C12B1AE5BDA543 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SimpleVoiceKeyboard/SimpleVoiceKeyboard.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SimpleVoiceKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuyudhan.simplevoice.mobile.keyboard;
+				PRODUCT_NAME = SimpleVoiceKeyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = release;
+		};
+		6F913FE963EB86E48ECF8AFE /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = SimpleVoiceKeyboard/SimpleVoiceKeyboard.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SimpleVoiceKeyboard/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuyudhan.simplevoice.mobile.keyboard;
+				PRODUCT_NAME = SimpleVoiceKeyboard;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
+		8143D1231BF993FD125C4492 /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SimpleVoiceWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuyudhan.simplevoice.mobile.widget;
+				PRODUCT_NAME = SimpleVoiceWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = debug;
+		};
 		845F3FF290E4019D2E2E3084 /* release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -377,6 +670,24 @@
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+		C725435AB4E7EF7B1D211926 /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SimpleVoiceWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = dev.yuyudhan.simplevoice.mobile.widget;
+				PRODUCT_NAME = SimpleVoiceWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = release;
 		};
@@ -414,6 +725,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 0.0.7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -426,6 +738,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.0.7;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -470,6 +783,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 0.0.7;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -488,6 +802,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.0.7;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -507,6 +822,24 @@
 			buildConfigurations = (
 				F1EB61D7D5EA9AE39F3B3A3D /* debug */,
 				D3858A0BBDB327095DB34E45 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		512E4E07A44D57F9FADA0266 /* Build configuration list for PBXNativeTarget "SimpleVoiceWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8143D1231BF993FD125C4492 /* debug */,
+				C725435AB4E7EF7B1D211926 /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		E62361608D3D3E6AE8B0F939 /* Build configuration list for PBXNativeTarget "SimpleVoiceKeyboard" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F913FE963EB86E48ECF8AFE /* debug */,
+				670AE9D988C12B1AE5BDA543 /* release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;

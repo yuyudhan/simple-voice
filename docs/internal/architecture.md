@@ -131,18 +131,18 @@ Dependencies only point down the table. Every crate: `[lints] workspace = true` 
 `#![forbid(unsafe_code)]`, except `sv-ffi` (§ 9), which keeps its own lint table because JNI
 exports need `#[no_mangle]`; it still contains no `unsafe` block, function or impl.
 
-| Crate                       | Path                 | Depends on                                                                  | Owns                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------- | -------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `simple-voice` (app)        | `src-tauri/`         | all below                                                                   | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
-| `simple-voice-mobile` (app) | `mobile/src-tauri/`  | `sv-mobile`, `sv-storage`, `sv-cloud`, `sv-domain`, `sv-ffi` (Android only) | Tauri mobile wiring: `src/features/<feature>/` (`history/`, `dictionary/`, `insights/`, `settings/`), `src/events.rs`, `src/state.rs`, `src/lib.rs` (`mobile_entry_point`)                                                                                                                                                                                                                              |
-| `sv-ffi`                    | `crates/sv-ffi/`     | `sv-mobile`, `sv-storage`, `sv-domain`                                      | JNI exports for the Android keyboard (`keyboard.rs`), its process-wide runtime, database and HTTPS client (`core.rs`); answers are JSON                                                                                                                                                                                                                                                                 |
-| `sv-mobile`                 | `crates/sv-mobile/`  | `sv-storage`, `sv-text`, `sv-cloud`, `sv-domain`                            | The phone dictation pipeline: `pipeline.rs` (`dictate`, `retry`), `status.rs` (keyboard status line), `http.rs` (HTTPS client with Mozilla's roots)                                                                                                                                                                                                                                                     |
-| `sv-storage`                | `crates/sv-storage/` | `sv-domain`                                                                 | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `model_insights.rs`, `migrations/`                                                                                                                                                                                                                                                  |
-| `sv-text`                   | `crates/sv-text/`    | `sv-domain`                                                                 | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout), `preview.rs` (the pill's one-line text preview) — pure, no I/O                                                                                                                                                                                                                  |
-| `sv-cloud`                  | `crates/sv-cloud/`   | `sv-domain`, `sv-text`                                                      | `groq_whisper.rs`, `chat.rs` (one OpenAI-compatible chat completion for Groq and custom endpoints, shared by the formatting pass and edit mode), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                  |
-| `sv-audio`                  | `crates/sv-audio/`   | `sv-domain`                                                                 | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
-| `sv-engine`                 | `crates/sv-engine/`  | `sv-domain`                                                                 | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
-| `sv-domain`                 | `crates/sv-domain/`  | —                                                                           | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                                    |
+| Crate                       | Path                 | Depends on                                                                                            | Owns                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `simple-voice` (app)        | `src-tauri/`         | all below                                                                                             | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
+| `simple-voice-mobile` (app) | `mobile/src-tauri/`  | `sv-mobile`, `sv-storage`, `sv-cloud`, `sv-domain`, `tauri-plugin-sv-native`, `sv-ffi` (Android only) | Tauri mobile wiring: `src/features/<feature>/` (`history/`, `dictionary/`, `insights/`, `settings/`, `session/` for the iPhone bridge), `src/events.rs`, `src/state.rs`, `src/lib.rs` (`mobile_entry_point`)                                                                                                                                                                                            |
+| `sv-ffi`                    | `crates/sv-ffi/`     | `sv-mobile`, `sv-storage`, `sv-domain`                                                                | JNI exports for the Android keyboard (`keyboard.rs`), its process-wide runtime, database and HTTPS client (`core.rs`); answers are JSON                                                                                                                                                                                                                                                                 |
+| `sv-mobile`                 | `crates/sv-mobile/`  | `sv-storage`, `sv-text`, `sv-cloud`, `sv-domain`                                                      | The phone dictation pipeline: `pipeline.rs` (`dictate`, `retry`), `local.rs` (`dictate_local`, an Apple Speech transcript), `status.rs` (keyboard status line for a `Reach`), `http.rs` (HTTPS client with Mozilla's roots)                                                                                                                                                                             |
+| `sv-storage`                | `crates/sv-storage/` | `sv-domain`                                                                                           | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `model_insights.rs`, `migrations/`                                                                                                                                                                                                                                                  |
+| `sv-text`                   | `crates/sv-text/`    | `sv-domain`                                                                                           | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout), `preview.rs` (the pill's one-line text preview) — pure, no I/O                                                                                                                                                                                                                  |
+| `sv-cloud`                  | `crates/sv-cloud/`   | `sv-domain`, `sv-text`                                                                                | `groq_whisper.rs`, `chat.rs` (one OpenAI-compatible chat completion for Groq and custom endpoints, shared by the formatting pass and edit mode), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                  |
+| `sv-audio`                  | `crates/sv-audio/`   | `sv-domain`                                                                                           | `devices.rs`, `capture.rs` (cpal → 16 kHz mono i16 + level), `wav.rs`, `cues.rs` (4 synthesized themes, rodio)                                                                                                                                                                                                                                                                                          |
+| `sv-engine`                 | `crates/sv-engine/`  | `sv-domain`                                                                                           | `client.rs` (request ids, pending map, progress streams), `protocol.rs` (typed commands/results)                                                                                                                                                                                                                                                                                                        |
+| `sv-domain`                 | `crates/sv-domain/`  | —                                                                                                     | Shared serde types, `AppError`, `categorize`, `text_stats` (exists; read the source)                                                                                                                                                                                                                                                                                                                    |
 
 ### Crate APIs (the contract between slices)
 
@@ -561,13 +561,15 @@ line) plus the log path.
 A separate Tauri 2 app for iPhone and Android, built from the same workspace. It never touches
 the desktop crate or its build; its commands live in `mobile/justfile`.
 
-| Path                            | What it is                                                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `mobile/src/`                   | The phone shell (`app/MobileApp.tsx`: History, Insights, Dictionary, Settings tabs) importing the desktop pages from `../src`.  |
-| `mobile/src-tauri/`             | The `simple-voice-mobile` crate and its `tauri.conf.json` (identifier `dev.yuyudhan.simplevoice.mobile`, dev server port 1430). |
-| `mobile/src-tauri/gen/android/` | The Gradle project from `tauri android init`, committed. Our code there is the `keyboard` package and `res/xml/method.xml`.     |
-| `crates/sv-mobile/`             | The phone dictation pipeline, shared by the app's commands and the Android keyboard.                                            |
-| `crates/sv-ffi/`                | The Android keyboard's way into `sv-mobile`.                                                                                    |
+| Path                            | What it is                                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `mobile/src/`                   | The phone shell (`app/MobileApp.tsx`: History, Insights, Dictionary, Settings tabs) importing the desktop pages from `../src`.          |
+| `mobile/src-tauri/`             | The `simple-voice-mobile` crate and its `tauri.conf.json` (identifier `dev.yuyudhan.simplevoice.mobile`, dev server port 1430).         |
+| `mobile/src-tauri/gen/android/` | The Gradle project from `tauri android init`, committed. Our code there is the `keyboard` package and `res/xml/method.xml`.             |
+| `crates/sv-mobile/`             | The phone dictation pipeline, shared by the app's commands and the Android keyboard.                                                    |
+| `crates/sv-ffi/`                | The Android keyboard's way into `sv-mobile`.                                                                                            |
+| `mobile/plugins/sv-native/`     | `tauri-plugin-sv-native`: the iPhone recording session, App Group bridge, Live Activity and Apple Speech (Swift), and its Rust channel. |
+| `mobile/src-tauri/gen/apple/`   | The Xcode project from `tauri ios init`, committed. Our code there is `SimpleVoiceKeyboard/`, `SimpleVoiceWidget/` and `project.yml`.   |
 
 - **Commands.** The reused pages call the same command names as the desktop app (§ 3), so they
   work unchanged: `get_settings`, `update_settings` (stores the patch; no system side effects),
@@ -593,13 +595,19 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   linked into the Tauri library (`libsimple_voice_mobile_lib.so`). It runs in its own process
   (`:keyboard`): in the app's process its synchronous `InputConnection` calls to the app's
   WebView fields deadlock for two seconds each. Views: `KeyboardView` (one bar holding the status,
-  or spelling suggestions while a word is typed, beside the mic; `KeyLayout` rows for letters,
-  `123` and `#+=`), `LevelBars` (the live microphone meter), `WavRecorder` (16 kHz mono PCM16 WAV
-  in `files/audio/`), `Palette` (Signal tokens). Symbol keys are vector icons in one 2-px stroke
+  or spelling suggestions while a word is typed with the best one in the middle, beside the mic;
+  `KeyLayout` rows for letters, `123` and `#+=`), `KeyView` (one drawn key: cap with a 1 dp edge,
+  label or icon, long-press hint; the gap around the cap still takes touches), `KeyPreview` (the
+  bubble above a held key, showing the long-press character in the accent), `KeyFeedback` (haptic
+  and key-click sound on touch down, following the system "Touch feedback" and "Touch sounds"
+  settings), `MicButton` (the mic disc; a halo that swells with the voice while recording),
+  `LevelBars` (the live microphone meter), `WavRecorder` (16 kHz mono PCM16 WAV in
+  `files/audio/`), `Palette` (Signal tokens). Symbol keys are vector icons in one 2-px stroke
   style (`res/drawable/sv_*.xml`); the return key shows the field's action (send, search, go,
-  next, done). Typing: auto-capitals, shift (double tap or long press for caps lock), digits on a
-  long press of the top row and `!`/`?` on comma/full stop, two spaces for ". ", punctuation
-  after a suggestion or dictation joins the word, a drag along the space bar moves the cursor.
+  next, done) and takes the accent when there is one. Typing: auto-capitals, shift (double tap or
+  long press for caps lock), digits on a long press of the top row and `!`/`?` on comma/full stop,
+  two spaces for ". ", punctuation after a suggestion or dictation joins the word, a drag along
+  the space bar moves the cursor.
   `SvCore.status(online)` → `{line, ready, needsKey, maxSeconds}`; online means a validated
   connection (`NET_CAPABILITY_VALIDATED`). The mic is tap to start, tap to stop; the watchdog
   stops at `maxSeconds` (D-13); leaving the field abandons a recording. A failed dictation shows
@@ -608,5 +616,36 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   it opens `MainActivity` with `REQUEST_MICROPHONE`, which shows the system prompt. Suggestions
   come from the system spell checker (`SpellCheckerSession`); recording, sending and Retry keep
   the status in the bar.
-- **iPhone.** Not built yet: it needs Xcode. The keyboard and widget extensions will be targets
-  in a committed XcodeGen template (`bundle > iOS > template`).
+- **iPhone.** A keyboard cannot use the microphone, so the app records for it (MB-7). The first
+  mic tap queues `startSession` and opens the app (`simplevoice://session`); the app starts a
+  session: the audio engine runs in the background (`UIBackgroundModes: audio`) for
+  `sessionMinutes` after the last dictation, shown as a Live Activity with a Stop button. Later
+  taps never leave the keyboard.
+    - _Targets_ (`gen/apple/project.yml`, regenerated with `xcodegen generate`, never with
+      `tauri ios init`): the app, `SimpleVoiceKeyboard` (UIKit keyboard extension,
+      `RequestsOpenAccess`) and `SimpleVoiceWidget` (the Live Activity). All three share the App
+      Group `group.dev.yuyudhan.simplevoice.mobile`. `UIApplicationSceneManifest` is set because
+      the iOS 27 SDK refuses to launch apps without the scene life cycle.
+    - _Keyboard ↔ app_ (`mobile/plugins/sv-native/ios/Sources/SvShared/Bridge.swift`, compiled
+      into the plugin and both extensions): App Group files `SimpleVoice/status.json` (line, ready,
+      needsKey, maxSeconds, session `{endsAt, aliveAt}`, recording `{startedAt}`), a request queue
+      `requests/<ms>-<id>.json` (`startSession`, `start`, `stop`, `cancel`, `retry`, `ack`) and
+      `reply.json` (`recording`, `text`, `noSpeech`, `failed`, `error`, `sessionEnded`), plus the
+      level in shared `UserDefaults`. Each write is followed by a Darwin notification
+      (`dev.yuyudhan.simplevoice.request|reply|status|endSession`). A session is live while
+      `endsAt` is ahead and the 5-second heartbeat `aliveAt` is under 15 s old. A `text` reply not
+      acknowledged within 2 s goes to the clipboard and the row is marked not pasted (D-15).
+    - _Swift ↔ Rust_ (`tauri-plugin-sv-native`): Rust registers the Swift plugin and hands it a
+      Rust-side `Channel` (`listen`); Swift sends `status {online, onDeviceSpeech}`,
+      `dictate {wavPath, durationMs}`, `local {…, text, language, transcribeMs}`,
+      `retry {historyId}`, `notInserted {historyId}`; the app (`features/session/`) answers each
+      with `reply {id, body}` (a `Dictation`, or the status plus `sessionMinutes`) and calls
+      `refresh` after a settings or Groq key change. The plugin does nothing on Android.
+    - _Offline_: with `appleSpeechOffline` on and Apple Speech's model installed (iOS 26+,
+      `SpeechAnalyzer`; downloaded while online), the status reads "Apple Speech · offline" and the
+      recording is transcribed on the phone, then gets the rules only (`sv_mobile::dictate_local`).
+    - _Live Activity_: "Simple Voice · ready · m:ss left" or "Recording · model · m:ss"; Stop is an
+      `EndSessionIntent` (`LiveActivityIntent`, compiled into the app and the widget) that posts
+      `endSession`.
+    - _Signing_: the App Group needs a paid Apple Developer account on a real iPhone; a free
+      Personal Team cannot provision it. The simulator does not check it.

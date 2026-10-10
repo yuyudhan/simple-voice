@@ -1,0 +1,23 @@
+# FilePath: mobile/plugins/sv-native/Cargo.toml
+[package]
+name = "tauri-plugin-sv-native"
+description = "Carries messages between the iPhone app's Swift recording session and its Rust core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+links = "tauri-plugin-sv-native"
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+tauri-plugin.workspace = true
+
+[lints]
+workspace = true

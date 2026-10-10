@@ -4,6 +4,12 @@ options:
   deploymentTarget:
     iOS: 17.0
 fileGroups: [../../src]
+settings:
+  base:
+    # Swift 5 language mode: the plugin and extensions predate Swift 6 strict concurrency.
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: 0.0.7
+    CURRENT_PROJECT_VERSION: 0.0.7
 configs:
   debug: debug
   release: release
@@ -41,6 +47,8 @@ targets:
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
+      # The Live Activity's Stop button runs in the app's process, so the app compiles it too.
+      - path: SimpleVoiceWidget/EndSessionIntent.swift
     info:
       path: simple-voice-mobile_iOS/Info.plist
       properties:
@@ -61,8 +69,19 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         CFBundleShortVersionString: 0.0.7
         CFBundleVersion: "0.0.7"
+        # The keyboard opens the app with simplevoice:// to start a recording session.
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.yuyudhan.simplevoice.mobile
+            CFBundleURLSchemes: [simplevoice]
+        NSMicrophoneUsageDescription: Simple Voice records what you say in its keyboard and turns it into text.
+        NSSpeechRecognitionUsageDescription: Without internet, Simple Voice transcribes on this iPhone with Apple Speech.
+        NSSupportsLiveActivities: true
+        # A session keeps the microphone running while you type in other apps.
+        UIBackgroundModes: [audio]
     entitlements:
       path: simple-voice-mobile_iOS/simple-voice-mobile_iOS.entitlements
+      properties:
+        com.apple.security.application-groups: [group.dev.yuyudhan.simplevoice.mobile]
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -78,8 +97,15 @@ targets:
         EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
       groups: [app]
     dependencies:
+      - target: SimpleVoiceKeyboard
+      - target: SimpleVoiceWidget
       - framework: libapp.a
         embed: false
+      - sdk: ActivityKit.framework
+      - sdk: AppIntents.framework
+      - sdk: AVFoundation.framework
+      - sdk: Network.framework
+      - sdk: Speech.framework
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -95,3 +121,39 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
+  # The keyboard (MB-2): typing on its own, dictation through the app's session via the App Group.
+  SimpleVoiceKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SimpleVoiceKeyboard
+        excludes: ["*.plist", "*.entitlements"]
+      - path: ../../../plugins/sv-native/ios/Sources/SvShared
+    settings:
+      base:
+        PRODUCT_NAME: SimpleVoiceKeyboard
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yuyudhan.simplevoice.mobile.keyboard
+        INFOPLIST_FILE: SimpleVoiceKeyboard/Info.plist
+        CODE_SIGN_ENTITLEMENTS: SimpleVoiceKeyboard/SimpleVoiceKeyboard.entitlements
+        APPLICATION_EXTENSION_API_ONLY: true
+        GENERATE_INFOPLIST_FILE: false
+  # The session's Live Activity (MB-7).
+  SimpleVoiceWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SimpleVoiceWidget
+        excludes: ["*.plist"]
+      - path: ../../../plugins/sv-native/ios/Sources/SvShared
+    settings:
+      base:
+        PRODUCT_NAME: SimpleVoiceWidget
+        PRODUCT_BUNDLE_IDENTIFIER: dev.yuyudhan.simplevoice.mobile.widget
+        INFOPLIST_FILE: SimpleVoiceWidget/Info.plist
+        APPLICATION_EXTENSION_API_ONLY: true
+        GENERATE_INFOPLIST_FILE: false
+    dependencies:
+      - sdk: ActivityKit.framework
+      - sdk: AppIntents.framework
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework

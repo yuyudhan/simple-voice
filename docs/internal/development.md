@@ -61,9 +61,12 @@ armv7-linux-androideabi i686-linux-android x86_64-linux-android`
   `avdmanager create avd -n sv-pixel -k "system-images;android-36;google_apis;arm64-v8a"`.
   `mobile/justfile` defaults `JAVA_HOME` and `ANDROID_HOME` to the standard locations and picks
   the newest NDK.
-- iPhone: full Xcode (the Command Line Tools are not enough) and an Apple account set as the
-  signing team. A free Apple ID installs for 7 days and cannot enable App Groups, which the
-  keyboard needs to share data with the app; the Apple Developer Program has neither limit.
+- iPhone: full Xcode, selected with `sudo xcode-select -s /Applications/Xcode.app` (the Command
+  Line Tools are not enough), its iOS simulator (`xcodebuild -downloadPlatform iOS`),
+  CocoaPods and XcodeGen (`brew install cocoapods xcodegen`). A real iPhone also needs an Apple
+  account as the signing team (`APPLE_DEVELOPMENT_TEAM`). A free Apple ID installs for 7 days
+  and cannot provision App Groups, which the keyboard needs to reach the app, so on a phone the
+  keyboard only works with the Apple Developer Program; the simulator needs no account.
 - The Rust-built Tauri CLI: `cargo install tauri-cli --version "^2" --locked`. Gradle calls back
   into the CLI that started the build, and the bun-launched one crashes there, so
   `mobile/justfile` and `gen/android/buildSrc/.../BuildTask.kt` use `cargo tauri`.
@@ -73,7 +76,8 @@ cd mobile
 just emulator        # start the sv-pixel emulator
 just android         # hot reload on the emulator or a USB phone
 just android-build   # debug APK
-just ios             # iPhone simulator (Xcode)
+just ios             # iPhone simulator (Xcode), hot reload
+just xcodegen        # regenerate the Xcode project after editing gen/apple/project.yml
 just check           # tsc, eslint, prettier, clippy for the mobile crates
 ```
 
@@ -82,6 +86,13 @@ On Android the keyboard is enabled under Settings → System → Keyboard → On
 needs a Groq key (Settings tab) and the microphone, which the keyboard asks for by opening the
 app. The emulator's microphone hears silence unless host audio is enabled
 (`adb emu avd hostmicon`), and Whisper may invent a word for silence.
+
+On iPhone, add the keyboard under Settings → General → Keyboard → Keyboards → Add New Keyboard →
+Simple Voice, then turn on Allow Full Access (the App Group needs it). The first mic tap opens
+the app, which asks for the microphone and starts a session; go back with the "◀" link at the
+top left. The simulator records from the Mac's microphone, so `say "…"` near the Mac works as
+test speech. The Live Activity's Stop button can also be triggered with
+`xcrun simctl spawn booted notifyutil -p dev.yuyudhan.simplevoice.endSession`.
 
 ## Quality gates
 

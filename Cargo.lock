@@ -4321,6 +4321,7 @@ dependencies = [
  "chrono",
  "reqwest",
  "serde",
+ "serde_json",
  "sv-cloud",
  "sv-domain",
  "sv-ffi",
@@ -4331,6 +4332,7 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tauri-plugin-sv-native",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5139,6 +5141,17 @@ dependencies = [
  "tracing",
  "windows-sys 0.60.2",
  "zbus",
+]
+
+[[package]]
+name = "tauri-plugin-sv-native"
+version = "0.0.7"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "tracing",
 ]
 
 [[package]]
