@@ -147,3 +147,22 @@
     height: max(env(safe-area-inset-top), 28px);
     background: var(--bg);
 }
+
+/* Keyboard setup: each step title carries its icon. */
+.svm-setup__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.svm-setup__title svg {
+    width: 16px;
+    height: 16px;
+    color: var(--muted);
+}
+
+/* At the top of Settings the setup group needs no gap above it. */
+.svm-shell__content > .svm-settings__group:first-child {
+    margin-top: 0;
+    margin-bottom: 28px;
+}

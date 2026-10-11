@@ -688,6 +688,15 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   `import_vocabulary`, `get_insights`, `get_model_insights`. Events: `settings-changed`,
   `history-changed`. The keyboard writes history outside Tauri, so the shell reloads the open
   tab whenever the app comes back to the foreground.
+- **Keyboard setup.** The Settings tab opens with a checklist (`mobile/src/features/setup/`):
+  keyboard added, Full Access (iPhone) or current keyboard (Android), microphone, Groq key.
+  Phone-only commands `get_keyboard_setup` → `{enabled, fullAccess, selected, microphone}`,
+  `open_keyboard_settings`, `choose_keyboard`, `request_microphone` run through the sv-native
+  plugin (`src/setup.rs`; Swift `SvNativePlugin.swift`, Kotlin `android/…/SvNativePlugin.kt`).
+  iPhone reads added keyboards from `AppleKeyboards` and Full Access from a marker the keyboard
+  writes to the shared store, and opens the app's own Settings page (apps cannot open the
+  Keyboards page); Android checks `InputMethodManager`, opens On-screen keyboard settings and
+  shows the system keyboard picker.
 - **Storage.** `Db::open_at(app_data_dir)`: one database per phone in the app's private storage,
   with the same schema and migrations as the desktop app. The Groq key is stored there, as on
   the desktop (S-8); the app's storage is private to it.

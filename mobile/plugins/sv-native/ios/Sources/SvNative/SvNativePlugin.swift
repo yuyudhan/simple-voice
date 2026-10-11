@@ -3,7 +3,9 @@
 // every answer and `refresh` after settings change. Tauri runs these on its IPC queue; the
 // session lives on the main thread, so each hops there.
 
+import AVFoundation
 import Foundation
+import SvShared
 import SwiftRs
 import Tauri
 import UIKit
@@ -43,6 +45,61 @@ final class SvNativePlugin: Plugin {
     @objc func refresh(_ invoke: Invoke) {
         invoke.resolve()
         DispatchQueue.main.async { self.session?.refreshStatus() }
+    }
+
+    // MARK: Keyboard setup (the Settings tab's checklist)
+
+    private static let keyboardId = "dev.yuyudhan.simplevoice.mobile.keyboard"
+
+    @objc func setupStatus(_ invoke: Invoke) {
+        // The keyboards a user has added live in the global defaults the app can read.
+        let added = UserDefaults.standard.stringArray(forKey: "AppleKeyboards") ?? []
+        invoke.resolve([
+            "enabled": added.contains(Self.keyboardId),
+            "fullAccess": SharedFiles()?.keyboardWasSeen ?? false,
+            "selected": NSNull(),
+            "microphone": Self.microphone(),
+        ] as JsonObject)
+    }
+
+    /// The app's own page in Settings, which lists Keyboards (add Simple Voice, Full Access) and
+    /// the microphone switch. Apps cannot open the system Keyboards page directly.
+    @objc func openKeyboardSettings(_ invoke: Invoke) {
+        DispatchQueue.main.async {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+            invoke.resolve()
+        }
+    }
+
+    /// iPhone has no keyboard picker apps can show; the globe key switches keyboards.
+    @objc func chooseKeyboard(_ invoke: Invoke) {
+        invoke.resolve()
+    }
+
+    @objc func requestMicrophone(_ invoke: Invoke) {
+        guard Self.microphone() == "undetermined" else {
+            // Refused before: iOS will not ask again, so open the switch in Settings instead.
+            DispatchQueue.main.async {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+                invoke.resolve(["microphone": Self.microphone()] as JsonObject)
+            }
+            return
+        }
+        AVAudioApplication.requestRecordPermission { _ in
+            invoke.resolve(["microphone": Self.microphone()] as JsonObject)
+        }
+    }
+
+    private static func microphone() -> String {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted: return "granted"
+        case .denied: return "denied"
+        default: return "undetermined"
+        }
     }
 }
 

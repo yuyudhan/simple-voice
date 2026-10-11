@@ -46,6 +46,10 @@ pub fn run() {
             features::dictionary::import_vocabulary,
             features::insights::get_insights,
             features::insights::get_model_insights,
+            features::setup::get_keyboard_setup,
+            features::setup::open_keyboard_settings,
+            features::setup::choose_keyboard,
+            features::setup::request_microphone,
         ])
         .run(tauri::generate_context!());
     if let Err(error) = result {

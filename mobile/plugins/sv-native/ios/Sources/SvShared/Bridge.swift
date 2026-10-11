@@ -133,6 +133,7 @@ public final class SharedFiles {
     private static let status = "status.json"
     private static let reply = "reply.json"
     private static let level = "level"
+    private static let keyboardSeen = "keyboard-seen"
     private static let requestPrefix = "request-"
 
     public func readStatus() -> SharedStatus? { read(SharedStatus.self, Self.status) }
@@ -161,6 +162,14 @@ public final class SharedFiles {
             defer { store.remove(name) }
             return read(KeyboardRequest.self, name)
         }
+    }
+
+    /// The keyboard reached the shared store, which it can only do with Full Access.
+    public var keyboardWasSeen: Bool { store.read(Self.keyboardSeen) != nil }
+
+    public func markKeyboardSeen() {
+        guard !keyboardWasSeen else { return }
+        store.write(Self.keyboardSeen, Data([1]))
     }
 
     /// The microphone level, 0 to 1, written about 12 times a second while recording.

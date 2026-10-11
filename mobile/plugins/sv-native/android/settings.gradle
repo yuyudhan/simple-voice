@@ -1,0 +1,4 @@
+// FilePath: mobile/plugins/sv-native/android/settings.gradle
+// Only used when this module is opened on its own; the app build supplies :tauri-android itself.
+include ':tauri-android'
+project(':tauri-android').projectDir = new File('./.tauri/tauri-api')

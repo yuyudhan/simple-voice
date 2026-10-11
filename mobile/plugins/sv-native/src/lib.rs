@@ -1,18 +1,21 @@
 // FilePath: mobile/plugins/sv-native/src/lib.rs
-//! The iPhone app's bridge between Swift and Rust. Swift owns what needs Apple frameworks (the
-//! background recording session, the App Group the keyboard talks through, the Live Activity,
-//! Apple Speech); Rust owns the pipeline and the database. Swift sends [`NativeRequest`]s
-//! through a channel; the app answers each with [`NativeBridge::reply`]. On other platforms the
-//! bridge exists but carries nothing.
+//! The phone app's bridge to native code. On iPhone, Swift owns what needs Apple frameworks (the
+//! background recording session, the store the keyboard talks through, the Live Activity, Apple
+//! Speech); Rust owns the pipeline and the database. Swift sends [`NativeRequest`]s through a
+//! channel; the app answers each with [`NativeBridge::reply`]. On both phones the plugin also
+//! reports keyboard setup and opens the settings pages for it (`setup.rs`; Kotlin on Android).
+//! Elsewhere the bridge exists but carries nothing.
 #![forbid(unsafe_code)]
 
 mod request;
+mod setup;
 
 use serde::Serialize;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, Runtime};
 
 pub use request::NativeRequest;
+pub use setup::KeyboardSetup;
 
 #[cfg(target_os = "ios")]
 tauri::ios_plugin_binding!(init_plugin_sv_native);
@@ -24,7 +27,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let bridge = NativeBridge {
                 handle: Some(_api.register_ios_plugin(init_plugin_sv_native)?),
             };
-            #[cfg(not(target_os = "ios"))]
+            #[cfg(target_os = "android")]
+            let bridge = NativeBridge {
+                handle: Some(_api.register_android_plugin(ANDROID_PACKAGE, "SvNativePlugin")?),
+            };
+            #[cfg(not(mobile))]
             let bridge = NativeBridge::<R> {
                 handle: None::<Handle<R>>,
             };
@@ -34,9 +41,12 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
-#[cfg(target_os = "ios")]
+#[cfg(target_os = "android")]
+const ANDROID_PACKAGE: &str = "dev.yuyudhan.simplevoice.svnative";
+
+#[cfg(mobile)]
 type Handle<R> = tauri::plugin::PluginHandle<R>;
-#[cfg(not(target_os = "ios"))]
+#[cfg(not(mobile))]
 type Handle<R> = std::marker::PhantomData<fn() -> R>;
 
 /// Managed by the plugin; reach it with `app.state::<NativeBridge<R>>()`.

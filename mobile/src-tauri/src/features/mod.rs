@@ -6,3 +6,4 @@ pub(crate) mod history;
 pub(crate) mod insights;
 pub(crate) mod session;
 pub(crate) mod settings;
+pub(crate) mod setup;

@@ -59,6 +59,8 @@ final class DictationController {
     /// while the keyboard was away.
     func appear() {
         if files == nil { files = SharedFiles() }
+        // Lets the app's setup screen see that Full Access is on.
+        files?.markKeyboardSeen()
         status = files?.readStatus()
         replyArrived()
         render()

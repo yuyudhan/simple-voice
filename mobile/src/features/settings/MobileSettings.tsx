@@ -14,6 +14,7 @@ import {
     type SelectOption,
 } from "../../../../src/ui";
 import "../../../../src/features/settings/models/models.css";
+import { KeyboardSetupGroup } from "../setup/KeyboardSetupGroup";
 
 const THEME_OPTIONS: SegmentedOption<Theme>[] = [
     { value: "system", label: "System", icon: <Monitor /> },
@@ -29,13 +30,14 @@ const SESSION_OPTIONS: SelectOption<string>[] = [5, 10, 15, 30, 60].map((minutes
 /** Only the iPhone keyboard needs a session and can transcribe offline. */
 const IS_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
-/** The Groq key the keyboard needs, Style (shared with the desktop app) and appearance. */
+/** Keyboard setup, Style (shared with the desktop app), the Groq key and appearance. */
 export function MobileSettings() {
     const { settings, update } = useSettings();
     return (
         <>
+            <KeyboardSetupGroup />
             <StylePage />
-            <div className="svm-settings__group">
+            <div className="svm-settings__group" id="svm-voice">
                 <SettingsGroup title="Voice">
                     <SettingRow
                         title="Groq"
