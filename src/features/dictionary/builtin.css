@@ -1,0 +1,85 @@
+/* FilePath: src/features/dictionary/builtin.css */
+.dictionary-packs__intro {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Hairline list like the dictionary table: no per-pack cards. */
+.dictionary-packs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border);
+}
+
+.dictionary-pack {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.dictionary-pack__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.dictionary-pack__text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.dictionary-pack__name {
+    font-weight: 500;
+}
+
+.dictionary-pack__description {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.dictionary-pack__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--faint);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.dictionary-pack__more:hover,
+.dictionary-pack__more:focus-visible {
+    color: var(--text);
+}
+
+.dictionary-pack__more svg {
+    width: 13px;
+    height: 13px;
+    transition: transform var(--dur) var(--ease);
+}
+
+.dictionary-pack__more.is-open svg {
+    transform: rotate(180deg);
+}
+
+.dictionary-pack__terms {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}

@@ -1,13 +1,14 @@
 // FilePath: src-tauri/src/features/models/smart_select.rs
-//! Smart Select: which voice model runs a dictation, and when a second model double-checks it.
-//! The user's languages pick one local model; a saved Groq key puts Groq Whisper in front of
-//! it. Only ready models run, at most one retry follows, and it runs when the first model
-//! errored or its result falls below that model's confidence floor. Routing reads the language
+//! Smart Select: which on-device voice model runs a dictation, and when a second one
+//! double-checks it. The user's languages rank the local models by how many of them each writes
+//! as chosen; the best ready one runs. At most one retry follows, on the next ready model that
+//! writes every selected language the first one does, when the first model errored or its result
+//! fell below that model's confidence floor. Routing reads the language
 //! registry and each catalog model's coverage, so nothing here names a language. Nothing here
 //! does I/O, so the whole policy is unit-tested.
 
 use sv_domain::languages::{language, Language, Script};
-use sv_domain::models::{model_name, GROQ_WHISPER, WHISPER_TURBO};
+use sv_domain::models::{model_name, WHISPER_TURBO};
 use sv_domain::text_stats::word_count;
 use sv_domain::{AppError, AppResult, RetryReason, SmartSelectPlan, TranscriptQuality};
 
@@ -32,72 +33,88 @@ fn selected(languages: &[String]) -> Vec<&'static Language> {
     languages.iter().filter_map(|tag| language(tag)).collect()
 }
 
-/// The candidate covering the most selected languages; ties go to the more accurate model,
-/// then the smaller download.
-fn local_entry(selected: &[&Language]) -> Option<(&'static CatalogEntry, Coverage)> {
+/// Every candidate that writes at least one selected language, best first: most selected
+/// languages covered, then the more accurate model, then the smaller download.
+fn ranked(selected: &[&Language]) -> Vec<(&'static CatalogEntry, Coverage)> {
     let covered = |coverage: Coverage| {
         selected
             .iter()
             .filter(|language| coverage.covers(language))
             .count()
     };
-    CATALOG
+    let mut candidates: Vec<(&'static CatalogEntry, Coverage)> = CATALOG
         .iter()
         .filter_map(|entry| entry.covers.map(|coverage| (entry, coverage)))
-        .max_by(|(a, a_covers), (b, b_covers)| {
-            covered(*a_covers)
-                .cmp(&covered(*b_covers))
-                .then(a.accuracy.cmp(&b.accuracy))
-                .then(size(b).cmp(&size(a)))
-        })
+        .filter(|(_, coverage)| covered(*coverage) > 0)
+        .collect();
+    candidates.sort_by(|(a, a_covers), (b, b_covers)| {
+        covered(*b_covers)
+            .cmp(&covered(*a_covers))
+            .then(b.accuracy.cmp(&a.accuracy))
+            .then(size(a).cmp(&size(b)))
+    });
+    candidates
+}
+
+/// The candidate covering the most selected languages.
+fn local_entry(selected: &[&Language]) -> Option<(&'static CatalogEntry, Coverage)> {
+    ranked(selected).into_iter().next()
 }
 
 fn size(entry: &CatalogEntry) -> u32 {
     entry.size_mb.unwrap_or(u32::MAX)
 }
 
-/// The one local model for the languages; also the model worth keeping in memory.
+/// The best local model for the languages; also the model worth keeping in memory.
 pub(crate) fn local_model(languages: &[String]) -> &'static str {
-    // The catalog always has candidates; Whisper Turbo, the widest of them, stands in so an
-    // empty candidate list still names a model.
+    // The catalog always has candidates; Whisper Turbo, the widest of them, stands in so a
+    // selection no model covers still names a model.
     local_entry(&selected(languages)).map_or(WHISPER_TURBO, |(entry, _)| entry.id)
 }
 
-/// The models in the order they are tried: Groq Whisper first when a key is saved, then the
-/// local model.
-pub(crate) fn route(languages: &[String], groq: bool) -> Vec<&'static str> {
-    let local = local_model(languages);
-    if groq {
-        vec![GROQ_WHISPER, local]
-    } else {
-        vec![local]
-    }
+/// The models worth trying for the languages, best first.
+pub(crate) fn route(languages: &[String]) -> Vec<&'static str> {
+    ranked(&selected(languages))
+        .into_iter()
+        .map(|(entry, _)| entry.id)
+        .collect()
 }
 
-/// A route narrowed to the models that are ready right now.
+/// The models a dictation runs right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ReadyRoute {
     pub(crate) first: &'static str,
-    /// The model that double-checks the first one, if another is ready.
+    /// The model that double-checks the first one, if a ready one writes every selected
+    /// language the first one writes.
     pub(crate) retry: Option<&'static str>,
 }
 
+/// The best ready model, and the next ready one that covers at least the selected languages
+/// the first covers (a retry must never write a chosen language worse).
 pub(crate) fn ready_route(
-    route: &[&'static str],
+    languages: &[String],
     is_ready: impl Fn(&str) -> bool,
 ) -> AppResult<ReadyRoute> {
-    let mut ready = route.iter().copied().filter(|model| is_ready(model));
-    let first = ready
+    let selected = selected(languages);
+    let mut ready = ranked(&selected)
+        .into_iter()
+        .filter(|(entry, _)| is_ready(entry.id));
+    let (first, first_covers) = ready
         .next()
         .ok_or_else(|| AppError::invalid(NO_READY_MODEL))?;
+    let retry = ready.find(|(_, coverage)| {
+        selected
+            .iter()
+            .all(|language| !first_covers.covers(language) || coverage.covers(language))
+    });
     Ok(ReadyRoute {
-        first,
-        retry: ready.next(),
+        first: first.id,
+        retry: retry.map(|(entry, _)| entry.id),
     })
 }
 
-/// Whether a successful first result should be double-checked by the local model. The first
-/// model of a two-model route is always Groq Whisper, so only Whisper's numbers are read.
+/// Whether a successful first result should be double-checked by the retry model. Only
+/// Whisper reports the numbers read here; Parakeet results pass unless their script is mixed.
 pub(crate) fn gate(
     text: &str,
     quality: &TranscriptQuality,
@@ -120,8 +137,8 @@ pub(crate) fn gate(
             return Some(RetryReason::LowConfidence);
         }
     }
-    // Groq writes a romanised variant half in the base language's own script with full
-    // confidence ("कल का stand up"); the local model writes it the chosen way. Text in one
+    // Whisper can write a romanised variant half in the base language's own script with full
+    // confidence ("कल का stand up"); the retry model writes it the chosen way. Text in one
     // script passes: it is either the base language or the variant.
     let mixed = selected(languages).iter().any(|variant| {
         variant.is_variant()
@@ -135,16 +152,25 @@ fn has_letters(text: &str, script: Script) -> bool {
     text.chars().any(|c| script.contains(c))
 }
 
-/// What Smart Select runs for `languages`, for its card in Settings → Transcription.
-pub(crate) fn plan(languages: &[String], groq: bool) -> SmartSelectPlan {
+/// What Smart Select runs for `languages` given what `is_ready`, for its card in Settings →
+/// Transcription: the model a dictation would run now (the same choice as [`ready_route`]),
+/// the best model for the languages to recommend downloading, and what the running model
+/// can't write as chosen.
+pub(crate) fn plan(languages: &[String], is_ready: impl Fn(&str) -> bool) -> SmartSelectPlan {
     let selected = selected(languages);
-    let local = local_entry(&selected);
+    let ranked = ranked(&selected);
+    let recommended = ranked.first().copied();
+    let running = ranked.iter().copied().find(|(entry, _)| is_ready(entry.id));
+    let shown = running.or(recommended);
     SmartSelectPlan {
-        groq,
-        local: local
+        local: shown
             .map_or(WHISPER_TURBO, |(entry, _)| entry.id)
             .to_owned(),
-        notice: local.and_then(|(entry, coverage)| notice(&selected, entry, coverage)),
+        recommended: recommended
+            .map_or(WHISPER_TURBO, |(entry, _)| entry.id)
+            .to_owned(),
+        ready: running.is_some(),
+        notice: shown.and_then(|(entry, coverage)| notice(&selected, entry, coverage)),
     }
 }
 
@@ -163,7 +189,7 @@ fn notice(selected: &[&Language], entry: &CatalogEntry, coverage: Coverage) -> O
         });
         match sibling {
             Some(sibling) => sentences.push(format!(
-                "Offline, {} is written in {}. Remove {} to get {} offline.",
+                "{} is written in {}. Remove {} to get {}.",
                 missing.name,
                 sibling.script.user_name(),
                 sibling.name,
@@ -174,7 +200,7 @@ fn notice(selected: &[&Language], entry: &CatalogEntry, coverage: Coverage) -> O
     }
     if !unwritten.is_empty() {
         sentences.push(format!(
-            "{} can't transcribe {} offline.",
+            "{} can't transcribe {}.",
             model_name(entry.id).unwrap_or(entry.id),
             join_names(&unwritten)
         ));
@@ -238,50 +264,64 @@ mod tests {
     }
 
     #[test]
-    fn groq_runs_in_front_of_the_local_model() {
-        assert_eq!(route(&langs(DEFAULT_SET), false), [WHISPER_HINGLISH]);
+    fn route_ranks_every_model_writing_a_selected_language() {
         assert_eq!(
-            route(&langs(DEFAULT_SET), true),
-            [GROQ_WHISPER, WHISPER_HINGLISH]
+            route(&langs(DEFAULT_SET)),
+            [
+                WHISPER_HINGLISH,
+                WHISPER_TURBO,
+                PARAKEET_TDT_V2,
+                PARAKEET_TDT_V3
+            ]
         );
         assert_eq!(
-            route(&langs(&["fr", "de"]), true),
-            [GROQ_WHISPER, PARAKEET_TDT_V3]
+            route(&langs(&["fr", "de"])),
+            [PARAKEET_TDT_V3, WHISPER_TURBO]
         );
+        // Nothing writes Hinglish but the Hinglish model.
+        assert_eq!(route(&langs(&["hi-Latn"])), [WHISPER_HINGLISH]);
     }
 
     #[test]
-    fn only_ready_models_run() {
-        let with_groq = route(&langs(DEFAULT_SET), true);
+    fn only_ready_models_run_and_a_retry_never_covers_less() {
+        let defaults = langs(DEFAULT_SET);
+        // Hinglish first; Turbo would write Hinglish in Devanagari, so it is no retry for it.
         assert_eq!(
-            ready_route(&with_groq, |_| true).unwrap(),
+            ready_route(&defaults, |_| true).unwrap(),
             ReadyRoute {
-                first: GROQ_WHISPER,
-                retry: Some(WHISPER_HINGLISH)
-            }
-        );
-        // The local model not downloaded: Groq runs alone.
-        assert_eq!(
-            ready_route(&with_groq, |model| model != WHISPER_HINGLISH).unwrap(),
-            ReadyRoute {
-                first: GROQ_WHISPER,
+                first: WHISPER_HINGLISH,
                 retry: None
             }
         );
-        let local = route(&langs(&["en"]), false);
+        // Only Parakeet downloaded: it still transcribes the English it covers.
         assert_eq!(
-            ready_route(&local, |_| true).unwrap(),
+            ready_route(&defaults, |model| model == PARAKEET_TDT_V3).unwrap(),
+            ReadyRoute {
+                first: PARAKEET_TDT_V3,
+                retry: None
+            }
+        );
+        let english = langs(&["en"]);
+        assert_eq!(
+            ready_route(&english, |_| true).unwrap(),
             ReadyRoute {
                 first: PARAKEET_TDT_V2,
-                retry: None
+                retry: Some(PARAKEET_TDT_V3)
+            }
+        );
+        let european = langs(&["de", "fr"]);
+        assert_eq!(
+            ready_route(&european, |_| true).unwrap(),
+            ReadyRoute {
+                first: PARAKEET_TDT_V3,
+                retry: Some(WHISPER_TURBO)
             }
         );
     }
 
     #[test]
     fn nothing_ready_is_an_error_naming_where_to_download() {
-        let hindi = route(&langs(&["en", "hi"]), false);
-        let error = ready_route(&hindi, |_| false).unwrap_err();
+        let error = ready_route(&langs(&["en", "hi"]), |_| false).unwrap_err();
         assert_eq!(error, AppError::invalid(NO_READY_MODEL));
         assert!(error.to_string().contains("Settings → Transcription"));
     }
@@ -295,37 +335,55 @@ mod tests {
             (
                 DEFAULT_SET,
                 WHISPER_HINGLISH,
-                Some(
-                    "Offline, Hindi is written in Roman script. \
-                     Remove Hinglish to get Devanagari offline.",
-                ),
+                Some("Hindi is written in Roman script. Remove Hinglish to get Devanagari."),
             ),
             (
                 &["en", "hi", "hi-Latn", "ja"],
                 WHISPER_TURBO,
-                Some(
-                    "Offline, Hinglish is written in Devanagari. \
-                     Remove Hindi to get Roman script offline.",
-                ),
+                Some("Hinglish is written in Devanagari. Remove Hindi to get Roman script."),
             ),
             (
                 &["en", "hi-Latn", "ja"],
                 WHISPER_HINGLISH,
-                Some("Hinglish Whisper can't transcribe Japanese offline."),
+                Some("Hinglish Whisper can't transcribe Japanese."),
             ),
             (
                 &["en", "hi-Latn", "ja", "ko"],
                 WHISPER_TURBO,
-                Some("Whisper Turbo can't transcribe Hinglish offline."),
+                Some("Whisper Turbo can't transcribe Hinglish."),
             ),
         ];
         for (languages, local, notice) in cases {
-            let plan = plan(&langs(languages), true);
-            assert!(plan.groq);
+            let plan = plan(&langs(languages), |_| true);
             assert_eq!(plan.local, *local, "{languages:?}");
+            assert_eq!(plan.recommended, *local, "{languages:?}");
+            assert!(plan.ready);
             assert_eq!(plan.notice.as_deref(), *notice, "{languages:?}");
         }
-        assert!(!plan(&langs(&["en"]), false).groq);
+    }
+
+    #[test]
+    fn plan_shows_the_model_that_runs_now_and_still_recommends_the_best_one() {
+        let defaults = langs(DEFAULT_SET);
+        // Hinglish Whisper missing, Parakeet v3 and Turbo downloaded: Turbo runs, as the
+        // dictation route would choose, and its own limits are what the notice explains.
+        let qa = |model: &str| model == PARAKEET_TDT_V3 || model == WHISPER_TURBO;
+        let shown = plan(&defaults, qa);
+        assert_eq!(shown.local, WHISPER_TURBO);
+        assert_eq!(
+            Some(shown.local.as_str()),
+            ready_route(&defaults, qa).ok().map(|route| route.first)
+        );
+        assert_eq!(shown.recommended, WHISPER_HINGLISH);
+        assert!(shown.ready);
+        assert_eq!(
+            shown.notice.as_deref(),
+            Some("Hinglish is written in Devanagari. Remove Hindi to get Roman script.")
+        );
+        // Nothing downloaded: the recommendation is shown, marked not ready.
+        let none = plan(&defaults, |_| false);
+        assert_eq!(none.local, WHISPER_HINGLISH);
+        assert!(!none.ready);
     }
 
     #[test]

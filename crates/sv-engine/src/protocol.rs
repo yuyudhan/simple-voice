@@ -17,14 +17,19 @@ use sv_domain::{
 
 use crate::client::{EngineClient, ProgressCallback};
 
-const QUICK: Duration = Duration::from_secs(10);
+pub(crate) const QUICK: Duration = Duration::from_secs(10);
 const MODEL_STATUS: Duration = Duration::from_secs(30);
 const DOWNLOAD: Duration = Duration::from_secs(2 * 60 * 60);
 const PRELOAD: Duration = Duration::from_secs(5 * 60);
 const TRANSCRIBE: Duration = Duration::from_secs(120);
+/// Timed transcription is for meetings, which can run for hours.
+const TRANSCRIBE_LONG: Duration = Duration::from_secs(2 * 60 * 60);
+/// Local generation of a long summary on a 4B model takes minutes, including the model load.
+const GENERATE: Duration = Duration::from_secs(15 * 60);
 /// The user may leave the system prompt open for a while before answering it.
 const REQUEST_PERMISSION: Duration = Duration::from_secs(10 * 60);
-const POLISH: Duration = Duration::from_secs(30);
+/// Apple Intelligence answers in seconds; a first local-model polish also loads the model.
+const POLISH: Duration = Duration::from_secs(120);
 /// The helper answers `watch_edits` when its watch window closes; this covers the rest.
 const EDIT_WATCH_SLACK: Duration = Duration::from_secs(10);
 
@@ -40,8 +45,23 @@ pub struct PingResult {
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatusResult {
     pub status: ModelStatus,
+    /// Bytes on disk when ready; the download size when not downloaded and the catalog pins it.
     pub size_bytes: Option<u64>,
     pub reason: Option<String>,
+    /// Whether `stream_start` accepts the model (true incremental recognition).
+    #[serde(default)]
+    pub streaming: bool,
+    /// Prompt plus answer token budget of a text model.
+    #[serde(default)]
+    pub context_tokens: Option<u32>,
+    #[serde(default)]
+    pub license: Option<String>,
+    /// Provenance: the repository (and upstream model) the files come from.
+    #[serde(default)]
+    pub source: Option<String>,
+    /// Pinned repository commit, when the catalog pins one.
+    #[serde(default)]
+    pub revision: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -52,6 +72,18 @@ pub struct EngineTranscript {
     /// Absent for models that report nothing (Parakeet Flash, Apple Speech).
     #[serde(default)]
     pub quality: TranscriptQuality,
+    /// Timed segments, present when the request asked for `timestamps`.
+    #[serde(default)]
+    pub segments: Vec<TimedSegment>,
+}
+
+/// A stretch of transcript and its place in the audio, in milliseconds from the start.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimedSegment {
+    pub start_ms: i64,
+    pub end_ms: i64,
+    pub text: String,
 }
 
 /// How a `transcribe` call should recognise the recording.
@@ -61,8 +93,25 @@ pub struct TranscribeOptions<'a> {
     pub language: Option<&'a str>,
     /// Allowed ISO 639-1 languages; Whisper models detect among these. Empty = any.
     pub languages: &'a [String],
-    /// Whisper conditioning prompt (the personal-dictionary prompt); empty = none.
+    /// Whisper conditioning prompt (`sv_text::whisper_prompt`); empty = none.
     pub prompt: &'a str,
+    /// Return timed `segments` (meetings); also allows hours of audio instead of a dictation.
+    pub timestamps: bool,
+}
+
+/// A text-generation request (summaries, transcript chat, translation).
+#[derive(Debug, Clone, Copy)]
+pub struct GenerateRequest<'a> {
+    /// `apple-intelligence` or a downloaded local model (`qwen3-4b-instruct`).
+    pub model: &'a str,
+    pub system: &'a str,
+    /// `(user, assistant)` example pairs.
+    pub shots: &'a [(String, String)],
+    pub user: &'a str,
+    /// Answer budget; the helper defaults to 1024.
+    pub max_tokens: Option<u32>,
+    /// The helper defaults to 0.2; 0 is deterministic.
+    pub temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -138,8 +187,22 @@ struct LoginItem {
     status: LoginItemStatus,
 }
 
+fn shot_values(shots: &[(String, String)]) -> Value {
+    Value::Array(
+        shots
+            .iter()
+            .map(|(example_user, example_assistant)| {
+                params([
+                    ("user", text(example_user)),
+                    ("assistant", text(example_assistant)),
+                ])
+            })
+            .collect(),
+    )
+}
+
 /// Builds a flat parameter object, leaving out absent optional values.
-fn params<const N: usize>(pairs: [(&str, Option<Value>); N]) -> Value {
+pub(crate) fn params<const N: usize>(pairs: [(&str, Option<Value>); N]) -> Value {
     let map: Map<String, Value> = pairs
         .into_iter()
         .filter_map(|(key, value)| value.map(|value| (key.to_owned(), value)))
@@ -147,11 +210,11 @@ fn params<const N: usize>(pairs: [(&str, Option<Value>); N]) -> Value {
     Value::Object(map)
 }
 
-fn text(value: &str) -> Option<Value> {
+pub(crate) fn text(value: &str) -> Option<Value> {
     Some(Value::from(value))
 }
 
-fn optional_text(value: Option<&str>) -> Option<Value> {
+pub(crate) fn optional_text(value: Option<&str>) -> Option<Value> {
     value.map(Value::from)
 }
 
@@ -184,7 +247,7 @@ impl EngineClient {
             ("language", optional_text(language)),
         ]);
         let result: DownloadResult = self
-            .request_with_progress("download_model", params, on_progress, DOWNLOAD)
+            .request_cancellable("download_model", params, Some(on_progress), DOWNLOAD)
             .await?;
         match result.status {
             ModelStatus::Ready => Ok(()),
@@ -238,8 +301,18 @@ impl EngineClient {
             ("language", optional_text(options.language)),
             ("languages", languages),
             ("prompt", prompt),
+            (
+                "timestamps",
+                options.timestamps.then_some(Value::from(true)),
+            ),
         ]);
-        self.request("transcribe", params, TRANSCRIBE).await
+        let timeout = if options.timestamps {
+            TRANSCRIBE_LONG
+        } else {
+            TRANSCRIBE
+        };
+        self.request_cancellable("transcribe", params, None, timeout)
+            .await
     }
 
     pub async fn permissions(&self) -> AppResult<Permissions> {
@@ -333,29 +406,48 @@ impl EngineClient {
         Ok(result.status)
     }
 
-    /// Runs the post-processing prompt on Apple Intelligence. `shots` are `(user, assistant)`
-    /// example pairs.
+    /// Runs the post-processing prompt on `model` (`None`: Apple Intelligence; or a downloaded
+    /// local model such as `qwen3-4b-instruct`). `shots` are `(user, assistant)` example pairs.
+    /// Dropping the future cancels the generation.
     pub async fn polish(
         &self,
+        model: Option<&str>,
         system: &str,
         shots: &[(String, String)],
         user: &str,
     ) -> AppResult<PolishReply> {
-        let shots: Vec<Value> = shots
-            .iter()
-            .map(|(example_user, example_assistant)| {
-                params([
-                    ("user", text(example_user)),
-                    ("assistant", text(example_assistant)),
-                ])
-            })
-            .collect();
         let params = params([
+            ("model", optional_text(model)),
             ("system", text(system)),
-            ("shots", Some(Value::Array(shots))),
+            ("shots", Some(shot_values(shots))),
             ("user", text(user)),
         ]);
-        self.request("polish", params, POLISH).await
+        self.request_cancellable("polish", params, None, POLISH)
+            .await
+    }
+
+    /// Summaries, transcript chat and translation on a local text model. Progress reports the
+    /// share of the answer budget used; dropping the future cancels the generation.
+    pub async fn generate(
+        &self,
+        request: &GenerateRequest<'_>,
+        on_progress: ProgressCallback,
+    ) -> AppResult<PolishReply> {
+        let params = params([
+            ("model", text(request.model)),
+            ("system", text(request.system)),
+            ("shots", Some(shot_values(request.shots))),
+            ("user", text(request.user)),
+            ("maxTokens", request.max_tokens.map(Value::from)),
+            (
+                "temperature",
+                request
+                    .temperature
+                    .map(|value| Value::from(f64::from(value))),
+            ),
+        ]);
+        self.request_cancellable("generate", params, Some(on_progress), GENERATE)
+            .await
     }
 
     /// Tells the overlay pill what to show and how long a finished dictation stays before the
@@ -388,7 +480,12 @@ impl EngineClient {
     }
 
     /// A command whose result carries nothing (`{}`).
-    async fn command(&self, cmd: &str, params: Value, timeout: Duration) -> AppResult<()> {
+    pub(crate) async fn command(
+        &self,
+        cmd: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> AppResult<()> {
         self.request::<IgnoredAny>(cmd, params, timeout).await?;
         Ok(())
     }
@@ -414,8 +511,10 @@ mod tests {
     impl Transport for Scripted {
         fn send_line(&self, line: String) -> AppResult<()> {
             let request: Value = serde_json::from_str(&line).unwrap();
-            let id = request["id"].as_u64().unwrap();
+            let id = request["id"].as_u64();
             self.seen.lock().push(request);
+            // Notifications carry no id and get no reply.
+            let Some(id) = id else { return Ok(()) };
             let client = self.client.clone();
             let reply = self.reply.replace("$ID", &id.to_string());
             tokio::spawn(async move { client.on_stdout_line(&reply) });
@@ -452,14 +551,48 @@ mod tests {
                 text: "hello".to_owned(),
                 language: Some("en".to_owned()),
                 quality: TranscriptQuality::default(),
+                segments: Vec::new(),
             }
         );
         let request = transport.seen.lock()[0].clone();
         assert_eq!(request["cmd"], "transcribe");
         assert_eq!(request["wavPath"], "/tmp/a.wav");
-        for omitted in ["language", "languages", "prompt"] {
+        for omitted in ["language", "languages", "prompt", "timestamps"] {
             assert!(request.get(omitted).is_none(), "{omitted}");
         }
+    }
+
+    #[tokio::test]
+    async fn timed_transcription_asks_for_and_reads_segments() {
+        let (client, transport) = scripted(
+            r#"{"id":$ID,"ok":true,"result":{"text":"Hi there. Bye.","language":"en",
+                "segments":[{"startMs":0,"endMs":900,"text":"Hi there."},
+                            {"startMs":2400,"endMs":2800,"text":"Bye."}]}}"#,
+        );
+        let options = TranscribeOptions {
+            timestamps: true,
+            ..TranscribeOptions::default()
+        };
+        let reply = client
+            .transcribe("parakeet-tdt-v3", Path::new("/tmp/m.wav"), options)
+            .await
+            .unwrap();
+        assert_eq!(
+            reply.segments,
+            vec![
+                TimedSegment {
+                    start_ms: 0,
+                    end_ms: 900,
+                    text: "Hi there.".to_owned()
+                },
+                TimedSegment {
+                    start_ms: 2400,
+                    end_ms: 2800,
+                    text: "Bye.".to_owned()
+                },
+            ]
+        );
+        assert_eq!(transport.seen.lock()[0]["timestamps"], true);
     }
 
     #[tokio::test]
@@ -473,6 +606,7 @@ mod tests {
             language: None,
             languages: &languages,
             prompt: "Kubernetes, Anjali",
+            timestamps: false,
         };
         let reply = client
             .transcribe("whisper-hinglish", Path::new("/tmp/a.wav"), options)
@@ -497,12 +631,13 @@ mod tests {
     async fn permissions_map_to_domain_statuses() {
         let (client, _transport) = scripted(
             r#"{"id":$ID,"ok":true,"result":{"microphone":"granted",
-                "accessibility":"denied","speech":"not_determined"}}"#,
+                "accessibility":"denied","speech":"not_determined","systemAudio":"granted"}}"#,
         );
         let permissions = client.permissions().await.unwrap();
         assert_eq!(permissions.microphone, PermissionStatus::Granted);
         assert_eq!(permissions.accessibility, PermissionStatus::Denied);
         assert_eq!(permissions.speech, PermissionStatus::NotDetermined);
+        assert_eq!(permissions.system_audio, PermissionStatus::Granted);
     }
 
     #[tokio::test]
@@ -562,7 +697,10 @@ mod tests {
         let (client, transport) =
             scripted(r#"{"id":$ID,"ok":true,"result":{"text":"Hi.","finished":true}}"#);
         let shots = vec![("hey".to_owned(), "Hey.".to_owned())];
-        let reply = client.polish("be formal", &shots, "hi").await.unwrap();
+        let reply = client
+            .polish(None, "be formal", &shots, "hi")
+            .await
+            .unwrap();
         assert_eq!(
             reply,
             PolishReply {
@@ -573,6 +711,54 @@ mod tests {
         let request = transport.seen.lock()[0].clone();
         assert_eq!(request["shots"][0]["assistant"], "Hey.");
         assert_eq!(request["system"], "be formal");
+        assert!(request.get("model").is_none());
+    }
+
+    #[tokio::test]
+    async fn polish_and_generate_name_the_local_model() {
+        let (client, transport) =
+            scripted(r#"{"id":$ID,"ok":true,"result":{"text":"Résumé","finished":false}}"#);
+        client
+            .polish(Some("qwen3-4b-instruct"), "be formal", &[], "hi")
+            .await
+            .unwrap();
+        let request = GenerateRequest {
+            model: "qwen3-4b-instruct",
+            system: "Summarize the meeting.",
+            shots: &[],
+            user: "[00:01] S1: hello",
+            max_tokens: Some(400),
+            temperature: Some(0.0),
+        };
+        let reply = client
+            .generate(&request, Box::new(|_, _| {}))
+            .await
+            .unwrap();
+        assert!(!reply.finished);
+        let seen = transport.seen.lock().clone();
+        assert_eq!(seen[0]["model"], "qwen3-4b-instruct");
+        assert_eq!(seen[1]["cmd"], "generate");
+        assert_eq!(seen[1]["maxTokens"], 400);
+        assert_eq!(seen[1]["temperature"], 0.0);
+        assert_eq!(seen[1]["shots"], serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn model_status_reads_catalog_fields() {
+        let (client, _transport) = scripted(
+            r#"{"id":$ID,"ok":true,"result":{"status":"not_downloaded","sizeBytes":2497281120,
+                "streaming":false,"contextTokens":8192,"license":"Apache-2.0",
+                "source":"https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF",
+                "revision":"a06e946bb6b655725eafa393f4a9745d460374c9"}}"#,
+        );
+        let status = client
+            .model_status("qwen3-4b-instruct", None)
+            .await
+            .unwrap();
+        assert_eq!(status.size_bytes, Some(2_497_281_120));
+        assert_eq!(status.context_tokens, Some(8192));
+        assert_eq!(status.license.as_deref(), Some("Apache-2.0"));
+        assert!(!status.streaming);
     }
 
     #[tokio::test]

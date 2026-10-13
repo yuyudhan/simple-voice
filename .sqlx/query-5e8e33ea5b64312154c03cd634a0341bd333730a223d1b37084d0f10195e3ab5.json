@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (SELECT COUNT(*) FROM meeting_speakers)\n                    + (SELECT COUNT(*) FROM meeting_segments)\n                    + (SELECT COUNT(*) FROM meeting_summaries)\n                    + (SELECT COUNT(*) FROM meeting_chat)\n                    + (SELECT COUNT(*) FROM meeting_translations)\n                    + (SELECT COUNT(*) FROM meeting_translation_segments) AS \"left!: i64\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "left!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5e8e33ea5b64312154c03cd634a0341bd333730a223d1b37084d0f10195e3ab5"
+}

@@ -45,9 +45,9 @@ true` in every member manifest. Objective-C or C APIs belong in the Swift helper
 ## Organisation
 
 - Crates split horizontally by responsibility (`sv-domain`, `sv-storage`, `sv-text`,
-  `sv-cloud`, `sv-audio`, `sv-engine`, the app); dependencies point strictly down.
+  `sv-audio`, `sv-engine`, the app); dependencies point strictly down.
 - Inside a crate and in the UI, split vertically by feature (`features/<feature>/`).
-- Shared types live in `sv-domain`; the UI's view of the contract is `src/lib/api.ts`.
+- Shared types live in `sv-domain`; the UI's view of the contract is `src/lib/api/`.
 - Comments explain why, not what.
 
 ## Commands

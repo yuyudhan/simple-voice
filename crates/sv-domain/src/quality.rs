@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Whisper models (Groq and local) report the first three; Parakeet reports `confidence`.
+/// Whisper models report the first three; Parakeet reports `confidence`.
 /// Every field is absent when the model reports nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

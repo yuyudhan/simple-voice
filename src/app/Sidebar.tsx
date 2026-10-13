@@ -1,6 +1,14 @@
 // FilePath: src/app/Sidebar.tsx
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Activity as Pulse, AudioLines, BookA, Settings as Gear, Type } from "lucide-react";
+import {
+    Activity as Pulse,
+    AudioLines,
+    BookA,
+    Settings as Gear,
+    Scissors,
+    Type,
+    Users,
+} from "lucide-react";
 import {
     api,
     errorMessage,
@@ -38,7 +46,9 @@ const NAV: { id: Page; label: string; icon: ReactNode }[] = [
     { id: "home", label: "History", icon: <AudioLines /> },
     { id: "insights", label: "Insights", icon: <Pulse /> },
     { id: "dictionary", label: "Dictionary", icon: <BookA /> },
+    { id: "snippets", label: "Snippets", icon: <Scissors /> },
     { id: "style", label: "Style", icon: <Type /> },
+    { id: "meetings", label: "Meetings", icon: <Users /> },
 ];
 
 /** Apple Speech needs the Speech Recognition grant; every setup needs mic + accessibility. */

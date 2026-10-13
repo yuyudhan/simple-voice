@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", trigger_phrase AS \"trigger_phrase!: String\",\n                      body AS \"body!: String\", created_at AS \"created_at!: i64\",\n                      updated_at AS \"updated_at!: i64\"\n               FROM snippets ORDER BY trigger_phrase COLLATE NOCASE, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "snippets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "trigger_phrase!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "snippets",
+            "name": "trigger_phrase"
+          }
+        }
+      },
+      {
+        "name": "body!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "snippets",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "snippets",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at!: i64",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "snippets",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a0fa9b1708032d790440472e471343148b5b67bfdd9fc2cdbb7397a1e46b24ce"
+}

@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde::Serialize;
 use sv_audio::{Cue, Microphone};
 use sv_domain::languages::{language_infos, LanguageInfo};
-use sv_domain::{AppError, AppResult, Settings, SettingsPatch, SoundTheme};
+use sv_domain::{categorize, AppError, AppResult, KnownApp, Settings, SettingsPatch, SoundTheme};
 use sv_engine::LoginItemStatus;
 use tauri::{AppHandle, Manager, State};
 
@@ -21,6 +21,8 @@ use crate::state::{lock, AppState};
 
 /// Gap between the start and stop cue in a preview.
 const PREVIEW_GAP: Duration = Duration::from_millis(700);
+const KNOWN_APPS_LIMIT: i64 = 100;
+const FRONTMOST_TIMEOUT: Duration = Duration::from_millis(500);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,11 +116,12 @@ fn apply_changes(app: &AppHandle, old: &Settings, new: &Settings) {
         overlay::set_pasted_text_seconds(app, new.pasted_text_seconds);
     }
     // Covers a new model choice and, with Smart Select, languages that change its route.
-    let target = models::preload_target(new);
-    if let Some(model) = target.filter(|&model| models::preload_target(old) != Some(model)) {
+    let route_changed =
+        old.transcription_model != new.transcription_model || old.languages != new.languages;
+    if route_changed {
         let app = app.clone();
-        let model = model.to_owned();
-        tauri::async_runtime::spawn(async move { models::preload(&app, &model).await });
+        let new = new.clone();
+        tauri::async_runtime::spawn(async move { models::preload_selected(&app, &new).await });
     }
 }
 
@@ -179,37 +182,6 @@ pub(crate) async fn follow_login_item(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub(crate) async fn set_groq_api_key(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    key: Option<String>,
-) -> AppResult<Settings> {
-    let db = state.db()?;
-    db.set_groq_api_key(normalize_key(key)).await?;
-    settings_changed(&app, db.settings().await?)
-}
-
-#[tauri::command]
-pub(crate) async fn verify_groq_api_key(state: State<'_, AppState>, key: String) -> AppResult<()> {
-    let key = key.trim();
-    if key.is_empty() {
-        return Err(AppError::invalid("Enter a Groq API key"));
-    }
-    sv_cloud::groq_verify_key(&state.http, key).await
-}
-
-#[tauri::command]
-pub(crate) async fn set_custom_api_key(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    key: Option<String>,
-) -> AppResult<Settings> {
-    let db = state.db()?;
-    db.set_custom_api_key(normalize_key(key)).await?;
-    settings_changed(&app, db.settings().await?)
-}
-
-#[tauri::command]
 pub(crate) async fn test_post_processing(app: AppHandle) -> AppResult<PostProcessingTest> {
     dictation::test_post_processing(&app).await
 }
@@ -233,6 +205,39 @@ pub(crate) async fn set_database_dir(
 #[tauri::command]
 pub(crate) async fn suspend_shortcuts(app: AppHandle, suspended: bool) -> AppResult<()> {
     shortcuts::suspend(&app, suspended)
+}
+
+/// Apps for the per-app style picker: those dictated into, newest first, plus the app in front
+/// right now (unless it is Simple Voice itself) when it is not among them.
+#[tauri::command]
+pub(crate) async fn list_known_apps(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<Vec<KnownApp>> {
+    let own_id = app.config().identifier.clone();
+    let mut apps = state.db()?.known_apps(KNOWN_APPS_LIMIT).await?;
+    let front = tokio::time::timeout(FRONTMOST_TIMEOUT, state.engine.frontmost_app()).await;
+    if let Ok(Ok(front)) = front {
+        let skip = |id: &str| {
+            id.trim().is_empty()
+                || id.eq_ignore_ascii_case(&own_id)
+                || apps
+                    .iter()
+                    .any(|app| app.bundle_id.eq_ignore_ascii_case(id))
+        };
+        if let Some(bundle_id) = front.bundle_id.filter(|id| !skip(id)) {
+            let app_name = front.name.unwrap_or_else(|| bundle_id.clone());
+            apps.insert(
+                0,
+                KnownApp {
+                    category: categorize(Some(&bundle_id), Some(&app_name)),
+                    bundle_id,
+                    app_name,
+                },
+            );
+        }
+    }
+    Ok(apps)
 }
 
 /// The dictation languages the picker offers, from the registry settings validation checks.
@@ -282,11 +287,6 @@ pub(crate) async fn app_info(app: AppHandle, state: State<'_, AppState>) -> AppR
         engine_version,
         dev: cfg!(debug_assertions),
     })
-}
-
-fn normalize_key(key: Option<String>) -> Option<String> {
-    key.map(|key| key.trim().to_owned())
-        .filter(|key| !key.is_empty())
 }
 
 fn settings_changed(app: &AppHandle, settings: Settings) -> AppResult<Settings> {

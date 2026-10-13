@@ -1,9 +1,11 @@
 // FilePath: src/features/style/StylePage.tsx
 import { ArrowRight, Eraser, Keyboard, ListChecks, MessageCircleQuestionMark } from "lucide-react";
-import type { Settings, Style } from "../../lib/api";
+import type { ModelInfo, Settings, Style } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
 import { useShell } from "../../app/ShellContext";
 import { Badge, Button, Card, PageHeader } from "../../ui";
+import { useModels } from "../settings/models/useModels";
+import { StyleOverrides } from "./StyleOverrides";
 import "./style.css";
 
 interface StyleOption {
@@ -26,7 +28,8 @@ const SPECIMEN: { text: string; mark?: boolean }[] = [
 ];
 
 const DESCRIPTION =
-    "How dictated text is punctuated. One style applies everywhere: email, chat, documents.";
+    "How dictated text is punctuated: one global style, with optional styles per kind of app " +
+    "and per app.";
 
 const FORMATTING_POINTS = [
     { icon: <Eraser />, text: "Fillers, false starts and self-corrections are removed." },
@@ -38,25 +41,32 @@ const FORMATTING_POINTS = [
     },
 ];
 
-function providerSummary(settings: Settings): { name: string; detail: string; warning?: string } {
+function providerSummary(
+    settings: Settings,
+    models: ModelInfo[] | null,
+): { name: string; detail: string; warning?: string } {
     switch (settings.postProcessing) {
-        case "groq":
+        case "apple": {
+            const apple = models?.find((m) => m.id === "apple-intelligence");
             return {
-                name: "Groq",
-                detail: settings.groqFormattingModel,
-                warning: settings.groqApiKeyPresent ? undefined : "Needs an API key",
+                name: "Apple Intelligence",
+                detail: "On this Mac",
+                warning: apple?.status === "unsupported" ? "Not available" : undefined,
             };
-        case "apple":
-            return { name: "Apple Intelligence", detail: "On this Mac" };
-        case "custom":
+        }
+        case "local": {
+            const local = models?.find((m) => m.id === settings.localLlmModel);
             return {
-                name: "Custom endpoint",
-                detail: `${settings.customModel} at ${settings.customBaseUrl}`,
+                name: local?.name ?? "Local model",
+                detail: "On this Mac",
+                warning:
+                    models !== null && local?.status !== "ready" ? "Not downloaded" : undefined,
             };
+        }
         case "off":
             return {
                 name: "Off",
-                detail: "Only the built-in clean-up runs: your dictionary, capitals and spacing.",
+                detail: "Only the built-in clean-up runs: your dictionary, snippets, capitals and spacing.",
             };
     }
 }
@@ -64,13 +74,15 @@ function providerSummary(settings: Settings): { name: string; detail: string; wa
 export function StylePage() {
     const { settings, update } = useSettings();
     const { navigate } = useShell();
-    const provider = providerSummary(settings);
+    const { models } = useModels();
+    const provider = providerSummary(settings, models);
 
     return (
         <>
             <PageHeader title="Style" description={DESCRIPTION} />
 
-            <div className="style-options" role="radiogroup" aria-label="Writing style">
+            <h2 className="style-section-title caps-label">Global style</h2>
+            <div className="style-options" role="radiogroup" aria-label="Global writing style">
                 {OPTIONS.map((option) => {
                     const selected = settings.style === option.value;
                     return (
@@ -105,6 +117,8 @@ export function StylePage() {
                     );
                 })}
             </div>
+
+            <StyleOverrides />
 
             <Card className="style-note">
                 <h2 className="style-note__title caps-label">Applied in both styles</h2>

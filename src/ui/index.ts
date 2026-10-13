@@ -28,3 +28,4 @@ export { Tabs, type TabItem, type TabsProps } from "./Tabs";
 export { TextField, type TextFieldProps } from "./TextField";
 export { ToastProvider, useToast, type ToastTone } from "./Toast";
 export { Toggle, type ToggleProps } from "./Toggle";
+export { TextArea, type TextAreaProps } from "./TextArea";

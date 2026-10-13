@@ -51,10 +51,11 @@ pub(crate) async fn install_update(app: AppHandle) -> AppResult<UpdateStatus> {
         Ok(dir) => dir.join(LOG_FILE),
         Err(error) => return Err(abandon(&app, error)),
     };
-    let child = match sv_cloud::install_script_url(REPOSITORY).and_then(|url| spawn(&url, &log)) {
-        Ok(child) => child,
-        Err(error) => return Err(abandon(&app, error)),
-    };
+    let child =
+        match super::releases::install_script_url(REPOSITORY).and_then(|url| spawn(&url, &log)) {
+            Ok(child) => child,
+            Err(error) => return Err(abandon(&app, error)),
+        };
     tracing::info!(pid = child.id(), log = %log.display(), "update install started");
 
     let status = lock(&state.updates).clone();

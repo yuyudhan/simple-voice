@@ -1,24 +1,22 @@
 // FilePath: src-tauri/src/features/dictation/transcription.rs
-//! Speech to text for dictations, their retries and edit instructions: Groq Whisper or the
-//! engine helper's local models (or Smart Select choosing among them), the personal dictionary
-//! that primes them, and the session WAV files the local models read.
+//! Speech to text for dictations, their retries and edit instructions: the engine helper's
+//! on-device models (or Smart Select choosing among them), the personal dictionary that primes
+//! them, and the session WAV files they read.
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use sv_domain::languages::model_languages;
-use sv_domain::models::{GROQ_WHISPER, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
+use sv_domain::models::{SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
 use sv_domain::{AppError, AppResult, RetryReason, Settings, TranscriptQuality};
 use sv_engine::TranscribeOptions;
 use sv_text::Vocabulary;
 
 use super::elapsed_ms;
 use crate::features::history::remove_audio;
-use crate::features::models::smart_select::{self, ReadyRoute};
+use crate::features::models::smart_select;
 use crate::features::models::{engine_language, is_ready};
 use crate::state::{now_ms, AppState};
-
-const NO_GROQ_KEY: &str = "Add your Groq API key in Settings → Transcription";
 
 pub(super) struct Heard {
     pub(super) text: String,
@@ -57,8 +55,8 @@ impl Unheard {
     }
 }
 
-/// The audio a transcription reads: always the WAV bytes, plus a file when one already exists
-/// (local models read files; retries read the kept file).
+/// The audio a transcription reads: always the WAV bytes, plus the file the helper reads once
+/// it is written (retries read the kept file).
 pub(super) struct Audio {
     pub(super) wav: Vec<u8>,
     pub(super) path: Option<PathBuf>,
@@ -85,7 +83,7 @@ impl Run {
     }
 }
 
-pub(super) async fn vocabulary(state: &AppState) -> Vocabulary {
+pub(super) async fn vocabulary(state: &AppState, settings: &Settings) -> Vocabulary {
     let entries = match state.db() {
         Ok(db) => db.dictionary().await.unwrap_or_else(|error| {
             tracing::warn!(%error, "could not read the dictionary");
@@ -93,11 +91,11 @@ pub(super) async fn vocabulary(state: &AppState) -> Vocabulary {
         }),
         Err(_) => Vec::new(),
     };
-    Vocabulary::from_entries(&entries)
+    Vocabulary::new(&entries, &settings.vocabulary_packs)
 }
 
-/// Local models read a file, so a fresh recording is written to its own per-session WAV
-/// (overlapping sessions never share one) whenever a local model might run.
+/// The helper reads a file, so a fresh recording is written to its own per-session WAV
+/// (overlapping sessions never share one).
 pub(super) async fn transcribe_fresh(
     state: &AppState,
     settings: &Settings,
@@ -105,12 +103,10 @@ pub(super) async fn transcribe_fresh(
     id: u64,
     audio: &mut Audio,
 ) -> Result<Heard, Unheard> {
-    if settings.transcription_model != GROQ_WHISPER {
-        let path = write_session_wav(&audio.wav, id)
-            .await
-            .map_err(|error| Unheard::untried(settings, error))?;
-        audio.path = Some(path);
-    }
+    let path = write_session_wav(&audio.wav, id)
+        .await
+        .map_err(|error| Unheard::untried(settings, error))?;
+    audio.path = Some(path);
     transcribe(state, settings, vocabulary, audio).await
 }
 
@@ -145,11 +141,7 @@ async fn smart_transcribe(
     vocabulary: &Vocabulary,
     audio: &Audio,
 ) -> Result<Heard, Unheard> {
-    let groq = groq_key(state)
-        .await
-        .map_err(|error| Unheard::untried(settings, error))?
-        .is_some();
-    let route = ready_route(state, settings, groq)
+    let route = ready_route(state, settings)
         .await
         .map_err(|error| Unheard::untried(settings, error))?;
     let first = route.first;
@@ -209,15 +201,18 @@ fn settle(
 }
 
 /// The route for the current languages, narrowed to models that can run right now.
-async fn ready_route(state: &AppState, settings: &Settings, groq: bool) -> AppResult<ReadyRoute> {
-    let route = smart_select::route(&settings.languages, groq);
+pub(super) async fn ready_route(
+    state: &AppState,
+    settings: &Settings,
+) -> AppResult<smart_select::ReadyRoute> {
+    let route = smart_select::route(&settings.languages);
     let mut ready = Vec::with_capacity(route.len());
     for &model in &route {
-        if model == GROQ_WHISPER || is_ready(state, settings, model).await {
+        if is_ready(state, settings, model).await {
             ready.push(model);
         }
     }
-    smart_select::ready_route(&route, |model| ready.contains(&model))
+    smart_select::ready_route(&settings.languages, |model| ready.contains(&model))
 }
 
 /// One line per Smart Select dictation: models, their quality numbers and why a retry ran.
@@ -260,32 +255,12 @@ async fn run(
     let started = Instant::now();
     // Models know only spoken languages: script variants go as their base.
     let languages = model_languages(&settings.languages);
-    if model == GROQ_WHISPER {
-        let key = groq_key(state)
-            .await?
-            .ok_or_else(|| AppError::invalid(NO_GROQ_KEY))?;
-        let transcript = sv_cloud::groq_transcribe(
-            &state.http,
-            &key,
-            audio.wav.clone(),
-            &sv_text::whisper_prompt(&settings.languages, vocabulary),
-            &languages,
-            &settings.fallback_language,
-        )
-        .await?;
-        return Ok(Run {
-            text: transcript.text,
-            language: transcript.language,
-            quality: transcript.quality,
-            ms: elapsed_ms(started),
-        });
-    }
     let path = audio
         .path
         .as_deref()
         .ok_or_else(|| AppError::other("Audio file missing"))?;
-    // Whisper detects among the allowed languages and is primed with the dictionary, like
-    // Groq's; the other local models take neither.
+    // Whisper detects among the allowed languages and is primed with the dictionary; the other
+    // local models take neither.
     let whisper = model == WHISPER_TURBO || model == WHISPER_HINGLISH;
     let prompt = if whisper {
         sv_text::whisper_prompt(&settings.languages, vocabulary)
@@ -296,6 +271,7 @@ async fn run(
         language: engine_language(settings, model),
         languages: if whisper { &languages } else { &[] },
         prompt: &prompt,
+        timestamps: false,
     };
     let transcript = state.engine.transcribe(model, path, options).await?;
     Ok(Run {
@@ -304,11 +280,6 @@ async fn run(
         quality: transcript.quality,
         ms: elapsed_ms(started),
     })
-}
-
-pub(super) async fn groq_key(state: &AppState) -> AppResult<Option<String>> {
-    let key = state.db()?.groq_api_key().await?;
-    Ok(key.filter(|key| !key.trim().is_empty()))
 }
 
 async fn write_session_wav(wav: &[u8], id: u64) -> AppResult<PathBuf> {
@@ -339,7 +310,7 @@ pub(super) async fn discard_audio(audio: &Audio) {
 
 #[cfg(test)]
 mod tests {
-    use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V2, WHISPER_HINGLISH};
+    use sv_domain::models::{PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
 
     use super::*;
 
@@ -392,15 +363,15 @@ mod tests {
 
         let offline = RetryReason::Failed;
         let settled = settle(
-            GROQ_WHISPER,
-            failed("offline"),
+            PARAKEET_TDT_V3,
+            failed("model failed to load"),
             offline,
             WHISPER_HINGLISH,
             heard("hi"),
         );
         assert_eq!(
             route_of(&settled),
-            (WHISPER_HINGLISH, Some(GROQ_WHISPER), Some(offline))
+            (WHISPER_HINGLISH, Some(PARAKEET_TDT_V3), Some(offline))
         );
     }
 
@@ -429,8 +400,8 @@ mod tests {
     #[test]
     fn when_both_fail_the_retry_error_is_reported_against_the_last_model() {
         let settled = settle(
-            GROQ_WHISPER,
-            failed("offline"),
+            PARAKEET_TDT_V3,
+            failed("model failed to load"),
             RetryReason::Failed,
             WHISPER_HINGLISH,
             failed("model missing"),
@@ -439,7 +410,7 @@ mod tests {
             route_of(&settled),
             (
                 WHISPER_HINGLISH,
-                Some(GROQ_WHISPER),
+                Some(PARAKEET_TDT_V3),
                 Some(RetryReason::Failed)
             )
         );
@@ -450,8 +421,8 @@ mod tests {
     #[test]
     fn a_silent_retry_after_a_failure_is_no_speech() {
         let settled = settle(
-            GROQ_WHISPER,
-            failed("offline"),
+            PARAKEET_TDT_V3,
+            failed("model failed to load"),
             RetryReason::Failed,
             WHISPER_HINGLISH,
             heard(""),

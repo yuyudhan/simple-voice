@@ -1,6 +1,6 @@
 // FilePath: src/features/settings/permissions/PermissionsGroup.tsx
 import { CircleCheck } from "lucide-react";
-import type { PermissionKind, PermissionStatus } from "../../../lib/api";
+import { PERMISSION_FIELD, type PermissionKind, type PermissionStatus } from "../../../lib/api";
 import { Badge, Button, SettingRow, SettingsGroup, Spinner } from "../../../ui";
 import { usePermissions } from "./usePermissions";
 import "../common.css";
@@ -31,6 +31,12 @@ const PERMISSIONS: PermissionCopy[] = [
         title: "Speech Recognition",
         requirement: "Apple Speech only",
         why: "Only needed when Apple Speech is your voice model; other models never use it.",
+    },
+    {
+        kind: "system_audio",
+        title: "Screen & System Audio Recording",
+        requirement: "Meetings only",
+        why: "Only needed when you choose to record other apps' audio in a meeting. Simple Voice records that audio, never the screen.",
     },
 ];
 
@@ -103,26 +109,29 @@ export function PermissionsGroup() {
                     )}
                 </div>
             ) : (
-                PERMISSIONS.map((p) => (
-                    <SettingRow
-                        key={p.kind}
-                        title={p.title}
-                        description={`${p.requirement}. ${p.why}`}
-                    >
-                        <div className="sv-perm__control">
-                            <StatusBadge status={permissions[p.kind]} />
-                            {permissions[p.kind] !== "granted" && (
-                                <PermissionAction
-                                    kind={p.kind}
-                                    status={permissions[p.kind]}
-                                    busy={busy === p.kind}
-                                    onRequest={request}
-                                    onOpenSettings={openSettings}
-                                />
-                            )}
-                        </div>
-                    </SettingRow>
-                ))
+                PERMISSIONS.map((p) => {
+                    const status = permissions[PERMISSION_FIELD[p.kind]];
+                    return (
+                        <SettingRow
+                            key={p.kind}
+                            title={p.title}
+                            description={`${p.requirement}. ${p.why}`}
+                        >
+                            <div className="sv-perm__control">
+                                <StatusBadge status={status} />
+                                {status !== "granted" && (
+                                    <PermissionAction
+                                        kind={p.kind}
+                                        status={status}
+                                        busy={busy === p.kind}
+                                        onRequest={request}
+                                        onOpenSettings={openSettings}
+                                    />
+                                )}
+                            </div>
+                        </SettingRow>
+                    );
+                })
             )}
             {permissions !== null && error && (
                 <p className="sv-inline-error sv-perm__error" role="alert">

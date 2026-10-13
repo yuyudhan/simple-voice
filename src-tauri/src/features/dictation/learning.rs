@@ -8,8 +8,8 @@ use std::time::Duration;
 use sv_domain::{PostProcessing, Settings};
 use tauri::{AppHandle, Manager};
 
-use super::llm;
 use crate::events;
+use crate::features::llm;
 use crate::state::AppState;
 
 /// How long the helper follows the field after a paste. Corrections come right after reading
@@ -84,7 +84,7 @@ async fn learn(app: &AppHandle, history_id: i64, pasted: &str) {
         }
     };
     let prompt = sv_text::learning_prompt(&corrections);
-    let reply = llm::complete(
+    let reply = llm::post_process(
         &state,
         &settings,
         &prompt,

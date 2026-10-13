@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT body AS \"body!: String\", action_items AS \"action_items!: String\",\n                      model AS \"model!: String\", created_at AS \"created_at!: i64\"\n               FROM meeting_summaries WHERE meeting_id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "body!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_summaries",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "action_items!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_summaries",
+            "name": "action_items"
+          }
+        }
+      },
+      {
+        "name": "model!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_summaries",
+            "name": "model"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_summaries",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b40a3477ccfed860db3fbdf25fa6ae34b47cd8300c3c02003cc4d29d4835cada"
+}

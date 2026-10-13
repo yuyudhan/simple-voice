@@ -1,9 +1,8 @@
 // FilePath: src/features/settings/transcription/SmartSelectPanel.tsx
 // Smart Select (beta) as shown in Settings → Transcription and onboarding: the user picks the
-// languages they speak, and the panel lists how a dictation then runs, in order (Groq Whisper
-// first while a key is saved, then the one local model with its download state), any language
-// the local model can't write as chosen, and the double-check toggle. The mode switch between a
-// chosen model and Smart Select lives here too so both screens share it.
+// languages they speak, and the panel shows the local model a dictation then runs on with its
+// download state, any language that model can't write as chosen, and the double-check toggle.
+// The mode switch between a chosen model and Smart Select lives here too so both screens share it.
 import { useId } from "react";
 import { ListChecks, Sparkles, TriangleAlert } from "lucide-react";
 import type { SmartSelectPlan } from "../../../lib/api";
@@ -31,15 +30,8 @@ const BETA_NOTE = "Pick the languages you speak. Simple Voice picks the model.";
 
 const RETRY_TITLE = "Double-check unclear dictations";
 const RETRY_HINT =
-    "Re-run a result that looks wrong on this Mac. Adds about a second when it happens.";
-
-/** When the local model runs: it is the whole route without Groq, the backup with it. */
-function localSubtitle(groq: boolean, smartRetry: boolean): string {
-    if (!groq) return "On this Mac · audio never leaves it";
-    return smartRetry
-        ? "On this Mac · when offline or a result looks wrong"
-        : "On this Mac · when you're offline";
-}
+    "Re-run a result that looks wrong on the next-best downloaded model. Adds about a second " +
+    "when it happens.";
 
 export function VoiceModelModeSwitch({
     mode,
@@ -53,8 +45,7 @@ export function VoiceModelModeSwitch({
     );
 }
 
-function RouteSteps({ plan, models }: { plan: SmartSelectPlan; models: ModelsState }) {
-    const { settings } = useSettings();
+function RouteStep({ plan, models }: { plan: SmartSelectPlan; models: ModelsState }) {
     if (models.models === null) {
         return (
             <div className="sv-models__loading">
@@ -68,44 +59,53 @@ function RouteSteps({ plan, models }: { plan: SmartSelectPlan; models: ModelsSta
             </div>
         );
     }
-    const model = models.models.find((m) => m.id === plan.local);
+    const local = models.models.find((m) => m.id === plan.local);
+    const recommended =
+        plan.recommended === plan.local
+            ? undefined
+            : models.models.find((m) => m.id === plan.recommended);
     return (
         <ol className="sv-smart__rows">
-            {plan.groq && (
-                <li className="sv-smart__row">
-                    <span className="sv-smart__lead">
-                        <span className="sv-smart__step" aria-hidden="true">
-                            1
-                        </span>
-                        <ProviderMark provider="groq" />
-                        <span className="sv-model__text">
-                            <span className="sv-model__name">Groq Whisper</span>
-                            <span className="sv-model__subtitle">Cloud · uses your API key</span>
-                        </span>
-                    </span>
-                    <Badge tone="success">Key saved</Badge>
-                </li>
-            )}
             <li className="sv-smart__row">
                 <span className="sv-smart__lead">
                     <span className="sv-smart__step" aria-hidden="true">
-                        {plan.groq ? 2 : 1}
+                        1
                     </span>
-                    {model && <ProviderMark provider={model.provider} />}
+                    {local && <ProviderMark provider={local.provider} />}
                     <span className="sv-model__text">
-                        <span className="sv-model__name">{model?.name ?? plan.local}</span>
+                        <span className="sv-model__name">{local?.name ?? plan.local}</span>
                         <span className="sv-model__subtitle">
-                            {localSubtitle(plan.groq, settings.smartRetry)}
+                            {plan.ready
+                                ? "Runs now · on this Mac, audio never leaves it"
+                                : "Download it to dictate · runs on this Mac"}
                         </span>
                     </span>
                 </span>
-                {model && (
+                {local && (
                     <>
-                        <ModelSide model={model} state={models} deletable={false} />
-                        <ModelDetails model={model} state={models} />
+                        <ModelSide model={local} state={models} deletable={false} />
+                        <ModelDetails model={local} state={models} />
                     </>
                 )}
             </li>
+            {recommended && (
+                <li className="sv-smart__row">
+                    <span className="sv-smart__lead">
+                        <span className="sv-smart__step" aria-hidden="true">
+                            +
+                        </span>
+                        <ProviderMark provider={recommended.provider} />
+                        <span className="sv-model__text">
+                            <span className="sv-model__name">{recommended.name}</span>
+                            <span className="sv-model__subtitle">
+                                Better for your languages · download it and Smart Select uses it
+                            </span>
+                        </span>
+                    </span>
+                    <ModelSide model={recommended} state={models} deletable={false} />
+                    <ModelDetails model={recommended} state={models} />
+                </li>
+            )}
         </ol>
     );
 }
@@ -147,7 +147,7 @@ export function SmartSelectPanel({ models, plan, planError, framed = false }: Pa
                     </div>
                 ) : (
                     <>
-                        <RouteSteps plan={plan} models={models} />
+                        <RouteStep plan={plan} models={models} />
                         {plan.notice !== null && (
                             <p className="sv-smart__notice" role="note">
                                 <TriangleAlert
@@ -161,18 +161,15 @@ export function SmartSelectPanel({ models, plan, planError, framed = false }: Pa
                     </>
                 )}
             </section>
-            {/* Without a Groq key the route has one local model, so there is nothing to retry. */}
-            {plan?.groq && (
-                <SettingRow title={RETRY_TITLE} description={RETRY_HINT}>
-                    <Toggle
-                        label={RETRY_TITLE}
-                        checked={settings.smartRetry}
-                        onChange={(smartRetry) => {
-                            void update({ smartRetry });
-                        }}
-                    />
-                </SettingRow>
-            )}
+            <SettingRow title={RETRY_TITLE} description={RETRY_HINT}>
+                <Toggle
+                    label={RETRY_TITLE}
+                    checked={settings.smartRetry}
+                    onChange={(smartRetry) => {
+                        void update({ smartRetry });
+                    }}
+                />
+            </SettingRow>
         </div>
     );
 }

@@ -72,8 +72,15 @@ actor EditWatcher {
         guard let app = await MainActor.run(body: { FrontApp.current() }) else {
             return nil
         }
+        enableTree(of: app)
+        return app
+    }
+
+    /// Asks a web-view app (Electron, Chromium) to build its accessibility tree; native apps
+    /// already have one. Also used by `focus_context`, after its excluded-app check.
+    func enableTree(of app: FrontApp) {
         guard enabledProcesses.insert(app.pid).inserted else {
-            return app
+            return
         }
         let element = AXUIElementCreateApplication(app.pid)
         AXUIElementSetMessagingTimeout(element, EditTracker.messagingTimeout)
@@ -85,7 +92,6 @@ actor EditWatcher {
                 element, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
             Log.info("asked \(app.bundleId ?? path) for its accessibility tree (AXError \(enhanced.rawValue))")
         }
-        return app
     }
 
     private func isChromium(_ bundlePath: String) -> Bool {
@@ -120,8 +126,9 @@ actor EditWatcher {
 }
 
 /// The frontmost app as read on the main thread, where NSWorkspace keeps it current.
-private struct FrontApp: Sendable {
+struct FrontApp: Sendable {
     let pid: pid_t
+    let name: String?
     let bundleId: String?
     let bundlePath: String?
 
@@ -130,7 +137,9 @@ private struct FrontApp: Sendable {
         guard let app = NSWorkspace.shared.frontmostApplication else {
             return nil
         }
-        return FrontApp(pid: app.processIdentifier, bundleId: app.bundleIdentifier, bundlePath: app.bundleURL?.path)
+        return FrontApp(
+            pid: app.processIdentifier, name: app.localizedName, bundleId: app.bundleIdentifier,
+            bundlePath: app.bundleURL?.path)
     }
 }
 

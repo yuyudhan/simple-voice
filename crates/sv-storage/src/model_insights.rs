@@ -108,6 +108,7 @@ mod tests {
             format_model: format.map(|(id, _)| id.to_owned()),
             language: Some("en".to_owned()),
             style: Style::Formal,
+            style_source: None,
             audio_ms: 3_000,
             latency_ms: 900,
             transcribe_ms,
@@ -149,7 +150,8 @@ mod tests {
 
         let whisper = &insights.transcription[0];
         assert_eq!(whisper.model, "groq-whisper");
-        assert_eq!(whisper.name, "Groq Whisper");
+        // History recorded before the app became local-only keeps its numbers.
+        assert_eq!(whisper.name, "Groq Whisper (removed)");
         assert_eq!(whisper.runs, 3);
         assert!((whisper.average_ms - 500.0).abs() < f64::EPSILON);
         assert_eq!((whisper.fastest_ms, whisper.slowest_ms), (400, 600));

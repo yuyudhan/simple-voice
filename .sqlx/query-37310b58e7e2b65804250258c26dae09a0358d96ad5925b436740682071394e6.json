@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", role AS \"role!: String\", body AS \"body!: String\",\n                      citations AS \"citations!: String\", created_at AS \"created_at!: i64\"\n               FROM meeting_chat WHERE meeting_id = ?1 ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_chat",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "role!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_chat",
+            "name": "role"
+          }
+        }
+      },
+      {
+        "name": "body!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_chat",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "citations!: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_chat",
+            "name": "citations"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_chat",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "37310b58e7e2b65804250258c26dae09a0358d96ad5925b436740682071394e6"
+}

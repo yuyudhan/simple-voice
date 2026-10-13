@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", label AS \"label!: String\", name AS \"name?: String\"\n               FROM meeting_speakers WHERE meeting_id = ?1 ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_speakers",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "label!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_speakers",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "name": "name?: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_speakers",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "787621cd8d4d59bde76a2b56b63eaf2ae4ecfa8d366411d090a83fb42fe0e7c0"
+}

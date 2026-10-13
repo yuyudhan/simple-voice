@@ -11,8 +11,8 @@ use sv_domain::text_stats::word_count;
 use crate::language_prompts::writing_line;
 use crate::polish::PolishPrompt;
 
-/// Longest selection edit mode accepts, in characters. Latency and cost grow with the text, and
-/// a reply is about as long as the selection.
+/// Longest selection edit mode accepts, in characters. Latency grows with the text, and a reply
+/// is about as long as the selection.
 pub const EDIT_MAX_CHARS: usize = 4_000;
 
 const TIMEOUT_BASE_MS: u64 = 6_000;
@@ -21,8 +21,8 @@ const TIMEOUT_PER_WORD_MS: u64 = 20;
 const TIMEOUT_MAX_MS: u64 = 30_000;
 
 /// Output budget: room for a reply about as long as the selection plus a short expansion.
-/// Providers reserve `max_tokens` against per-minute output quotas (Groq's on-demand tier allows
-/// 1,000 output tokens a minute on some models), so a short edit must not ask for thousands.
+/// The cap bounds how long a runaway local generation can keep the user waiting, so a short
+/// edit must not allow thousands.
 const MAX_TOKENS_BASE: u32 = 256;
 const MAX_TOKENS_CEILING: u32 = 4_096;
 

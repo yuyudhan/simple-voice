@@ -22,6 +22,20 @@ func embedInfoPlist(_ name: String, _ configuration: BuildConfiguration) -> Link
     )
 }
 
+// llama.cpp is only published as a dynamic framework. The app bundle carries it in
+// Contents/Frameworks (tauri.conf.json `bundle.macOS.frameworks`) and the helper sits in
+// Contents/MacOS; `tauri dev` runs the helper from target/debug, so debug builds also look in
+// src-tauri/binaries, where engine/build.sh puts the framework.
+func runtimeSearchPath(_ path: String, _ configuration: BuildConfiguration? = nil) -> LinkerSetting {
+    .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", path], configuration.map { .when(configuration: $0) })
+}
+
+let devFrameworks = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("src-tauri/binaries")
+    .path
+
 let package = Package(
     name: "SimpleVoiceEngine",
     platforms: [.macOS(.v14)],
@@ -38,6 +52,7 @@ let package = Package(
             dependencies: [
                 .product(name: "FluidAudio", package: "FluidAudio"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
+                "llama",
             ],
             path: "Sources/SimpleVoiceEngine",
             swiftSettings: [
@@ -51,7 +66,18 @@ let package = Package(
                 .unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"]),
                 embedInfoPlist("Info.plist", .release),
                 embedInfoPlist("Info.dev.plist", .debug),
+                runtimeSearchPath("@executable_path/../Frameworks"),
+                runtimeSearchPath(devFrameworks, .debug),
             ]
-        )
+        ),
+        // llama.cpp b11575 (MIT), the official Apple XCFramework release asset. b11576 ("graph: pad
+        // the KV dimension of the no-cache attention to 256", #30416) breaks T5 encoders, which the
+        // MADLAD translator needs: its output turns into repeated fragments. Do not move past it
+        // without re-running the translation smoke.
+        .binaryTarget(
+            name: "llama",
+            url: "https://github.com/ggml-org/llama.cpp/releases/download/b11575/llama-b11575-xcframework.zip",
+            checksum: "9234c47e6b1f29fb8a3b6466647bff5d82a6113a41dc5dcfc47643d7da62c4ea"
+        ),
     ]
 )

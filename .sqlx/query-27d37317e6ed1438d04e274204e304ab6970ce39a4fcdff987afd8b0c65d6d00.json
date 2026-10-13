@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", language AS \"language!: String\", model AS \"model!: String\",\n                      created_at AS \"created_at!: i64\"\n               FROM meeting_translations WHERE meeting_id = ?1 ORDER BY language",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_translations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "language!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_translations",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "model!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_translations",
+            "name": "model"
+          }
+        }
+      },
+      {
+        "name": "created_at!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_translations",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "27d37317e6ed1438d04e274204e304ab6970ce39a4fcdff987afd8b0c65d6d00"
+}

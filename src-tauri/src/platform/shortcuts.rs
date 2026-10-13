@@ -11,7 +11,7 @@ use std::sync::Mutex;
 
 use sv_domain::settings::FN_KEY_ACCELERATOR;
 use sv_domain::{AppError, AppResult, Settings};
-use sv_engine::{EngineEvent, FnKeyAction};
+use sv_engine::FnKeyAction;
 use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_global_shortcut::{
@@ -275,8 +275,7 @@ pub(crate) fn sync_fn_key(app: &AppHandle) {
 /// Turns the helper's Fn key events into the same controls a key combination produces. A toggle
 /// on Fn fires on release, so Fn used as a modifier (Fn+Arrow) never toggles; the helper reports
 /// that case as `Chord`, which discards a recording the press already started.
-pub(crate) fn on_engine_event(app: &AppHandle, event: EngineEvent) {
-    let EngineEvent::FnKey { action } = event;
+pub(crate) fn on_fn_key(app: &AppHandle, action: FnKeyAction) {
     let lookup = *lock(&app.state::<ShortcutRegistry>().lookup);
     if lookup.suspended {
         return;

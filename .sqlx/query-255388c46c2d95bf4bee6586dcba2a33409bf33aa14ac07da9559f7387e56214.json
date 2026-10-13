@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE meetings SET status = ?1, error = NULL, model = ?2, language = ?3\n             WHERE id = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "255388c46c2d95bf4bee6586dcba2a33409bf33aa14ac07da9559f7387e56214"
+}

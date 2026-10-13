@@ -5,6 +5,7 @@ import {
     ArrowRight,
     BookA,
     Download,
+    Library,
     Pencil,
     Plus,
     Search,
@@ -27,6 +28,7 @@ import {
     TextField,
     useToast,
 } from "../../ui";
+import { BuiltInVocabulary } from "./BuiltInVocabulary";
 import { DictionaryEditor } from "./DictionaryEditor";
 import { SortHeader } from "./SortHeader";
 import { sortEntries } from "./sort";
@@ -51,6 +53,7 @@ export function DictionaryPage() {
     const [deleting, setDeleting] = useState(false);
     const [importing, setImporting] = useState(false);
     const [exporting, setExporting] = useState(false);
+    const [builtInOpen, setBuiltInOpen] = useState(false);
 
     const load = useCallback(
         () =>
@@ -156,6 +159,15 @@ export function DictionaryPage() {
                 description={DESCRIPTION}
                 actions={
                     <>
+                        <Button
+                            variant="secondary"
+                            icon={<Library />}
+                            onClick={() => {
+                                setBuiltInOpen(true);
+                            }}
+                        >
+                            Built-in…
+                        </Button>
                         <Button
                             variant="secondary"
                             icon={<Upload />}
@@ -321,6 +333,13 @@ export function DictionaryPage() {
                     </ul>
                 </div>
             )}
+
+            <BuiltInVocabulary
+                open={builtInOpen}
+                onClose={() => {
+                    setBuiltInOpen(false);
+                }}
+            />
 
             {editor && (
                 <DictionaryEditor

@@ -3,7 +3,6 @@
 // because the provider is what decides which corrections are worth keeping.
 import { useSettings } from "../../../app/SettingsContext";
 import { SettingRow, SettingsGroup, Toggle } from "../../../ui";
-import { GroqKeyField } from "../models/GroqKeyField";
 import { useModels } from "../models/useModels";
 import { FormattingProviders } from "./FormattingProviders";
 import "../common.css";
@@ -12,8 +11,8 @@ import "./formatting.css";
 
 const LEARNING_DESCRIPTION =
     "After a dictation is pasted, Simple Voice reads that text field for up to a minute. When " +
-    "you fix a misspelled name or term, only the changed words are sent to your formatting " +
-    "provider, which decides whether to add them to your dictionary.";
+    "you fix a misspelled name or term, your formatting model on this Mac looks at only the " +
+    "changed words and decides whether to add them to your dictionary.";
 
 function LearningRow() {
     const { settings, update } = useSettings();
@@ -46,21 +45,14 @@ function LearningRow() {
 }
 
 export function FormattingSection() {
-    const { settings } = useSettings();
     const models = useModels();
-    const appleIntelligence = models.models?.find((m) => m.id === "apple-intelligence");
 
     return (
         <>
             <SettingsGroup title="Provider">
                 <div className="sv-models-section">
-                    <FormattingProviders appleIntelligence={appleIntelligence} />
+                    <FormattingProviders models={models} />
                 </div>
-                {settings.postProcessing === "groq" && (
-                    <div className="sv-models-section__key">
-                        <GroqKeyField />
-                    </div>
-                )}
             </SettingsGroup>
 
             <SettingsGroup title="Learning">

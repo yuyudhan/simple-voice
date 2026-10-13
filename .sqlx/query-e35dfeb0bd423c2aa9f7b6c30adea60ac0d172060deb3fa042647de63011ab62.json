@@ -1,0 +1,148 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT m.id AS \"id!: i64\", m.title AS \"title!: String\",\n                  m.started_at AS \"started_at!: i64\", m.ended_at AS \"ended_at?: i64\",\n                  m.duration_ms AS \"duration_ms!: i64\", m.status AS \"status!: String\",\n                  m.microphone AS \"microphone!: bool\", m.system_audio AS \"system_audio!: bool\",\n                  m.language AS \"language?: String\", m.error AS \"error?: String\",\n                  (SELECT COUNT(*) FROM meeting_segments s WHERE s.meeting_id = m.id)\n                      AS \"segment_count!: i64\",\n                  (SELECT COUNT(*) FROM meeting_speakers p WHERE p.meeting_id = m.id)\n                      AS \"speaker_count!: i64\"\n           FROM meetings m WHERE m.id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "title!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "started_at!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "started_at"
+          }
+        }
+      },
+      {
+        "name": "ended_at?: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "ended_at"
+          }
+        }
+      },
+      {
+        "name": "duration_ms!: i64",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "name": "status!: String",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "microphone!: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "microphone"
+          }
+        }
+      },
+      {
+        "name": "system_audio!: bool",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "system_audio"
+          }
+        }
+      },
+      {
+        "name": "language?: String",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "error?: String",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "error"
+          }
+        }
+      },
+      {
+        "name": "segment_count!: i64",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "speaker_count!: i64",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "e35dfeb0bd423c2aa9f7b6c30adea60ac0d172060deb3fa042647de63011ab62"
+}

@@ -23,12 +23,13 @@ build:
 engine MODE='debug':
     bash engine/build.sh {{MODE}}
 
-# Build the debug engine helper only when it is missing, so cargo-based gates can compile.
+# Build the debug engine helper only when it (or the llama.framework it links, which the app
+# bundle embeds) is missing, so cargo-based gates can compile.
 [private]
 engine-present:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ ! -x "{{engine_bin}}" ]; then
-        echo "engine helper missing at {{engine_bin}} - building it (debug)"
+    if [ ! -x "{{engine_bin}}" ] || [ ! -d "src-tauri/binaries/llama.framework" ]; then
+        echo "engine helper or llama.framework missing in src-tauri/binaries - building (debug)"
         bash engine/build.sh debug
     fi

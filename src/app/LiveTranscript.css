@@ -1,0 +1,33 @@
+/* FilePath: src/app/LiveTranscript.css */
+.sv-live {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-card);
+    background: var(--accent-tint);
+}
+
+.sv-live__label {
+    flex: none;
+    color: var(--accent-text);
+}
+
+/* Bounded height anchored at the bottom: a long dictation shows its latest lines. */
+.sv-live__text {
+    display: flex;
+    flex-direction: column-reverse;
+    max-height: 4.8em;
+    overflow: hidden;
+    font-size: 13.5px;
+    line-height: 1.6;
+}
+
+.sv-live__text p {
+    margin: 0;
+}
+
+.sv-live__tentative {
+    color: var(--muted);
+}

@@ -1,9 +1,10 @@
 // FilePath: crates/sv-domain/src/apps.rs
-//! Groups the app a dictation was pasted into, for Insights → usage by kind of app.
+//! Groups the app a dictation was pasted into, for Insights → usage by kind of app and for the
+//! per-category writing style.
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AppCategory {
     WorkMessages,
@@ -39,6 +40,15 @@ impl AppCategory {
             _ => Self::Other,
         }
     }
+}
+
+/// An app the user dictated into, offered by the per-app style picker.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnownApp {
+    pub bundle_id: String,
+    pub app_name: String,
+    pub category: AppCategory,
 }
 
 /// Bundle-id prefixes first (exact and stable), then app-name keywords for browsers and apps

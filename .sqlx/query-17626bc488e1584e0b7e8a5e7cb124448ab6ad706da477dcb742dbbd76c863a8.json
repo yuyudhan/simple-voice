@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!: i64\", start_ms AS \"start_ms!: i64\", end_ms AS \"end_ms!: i64\",\n                      speaker_id AS \"speaker_id?: i64\", text AS \"text!: String\"\n               FROM meeting_segments WHERE meeting_id = ?1 ORDER BY start_ms, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_segments",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "start_ms!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_segments",
+            "name": "start_ms"
+          }
+        }
+      },
+      {
+        "name": "end_ms!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_segments",
+            "name": "end_ms"
+          }
+        }
+      },
+      {
+        "name": "speaker_id?: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_segments",
+            "name": "speaker_id"
+          }
+        }
+      },
+      {
+        "name": "text!: String",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_segments",
+            "name": "text"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "17626bc488e1584e0b7e8a5e7cb124448ab6ad706da477dcb742dbbd76c863a8"
+}

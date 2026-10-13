@@ -6,7 +6,7 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 type Subscribe<A extends unknown[]> = (callback: (...args: A) => void) => Promise<UnlistenFn>;
 
 /**
- * Subscribes to one of the `events.*` listeners from `api.ts` for the lifetime of the component.
+ * Subscribes to one of the `events.*` listeners from `lib/api` for the lifetime of the component.
  * The handler may change every render; the subscription itself is made once per `subscribe`.
  */
 export function useTauriEvent<A extends unknown[]>(

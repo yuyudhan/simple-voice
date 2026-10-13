@@ -1,11 +1,33 @@
 // FilePath: src/features/settings/models/useModels.ts
-// Model catalogue with live download progress. Choosing a local model that is not on disk yet
-// downloads it first and only switches to it once the files are ready, so dictation never points
-// at a model that cannot load.
+// Model catalogue with live download progress. Choosing a model that is not on disk yet downloads
+// it first and only switches to it once the files are ready, so dictation never points at a model
+// that cannot load. A voice model becomes `transcriptionModel`, a local language model becomes
+// `localLlmModel`; the speaker model is not a choice, only a download.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage, events, type ModelInfo, type ModelProgress } from "../../../lib/api";
+import {
+    api,
+    errorMessage,
+    events,
+    type ModelInfo,
+    type ModelProgress,
+    type SettingsPatch,
+} from "../../../lib/api";
 import { useTauriEvent } from "../../../lib/useTauriEvent";
 import { useSettings } from "../../../app/SettingsContext";
+
+/** The setting a model is chosen into; null when the model is not a choice. */
+function choicePatch(model: ModelInfo): SettingsPatch | null {
+    if (model.kind === "transcription") return { transcriptionModel: model.id };
+    if (model.kind === "post_processing" && model.provider === "llm") {
+        return { localLlmModel: model.id };
+    }
+    return null;
+}
+
+interface PendingUse {
+    id: string;
+    patch: SettingsPatch;
+}
 
 export interface ModelsState {
     models: ModelInfo[] | null;
@@ -30,7 +52,7 @@ export function useModels(): ModelsState {
     const [progress, setProgress] = useState<Partial<Record<string, number>>>({});
     const [failures, setFailures] = useState<Partial<Record<string, string>>>({});
     const [pendingUse, setPendingUse] = useState<string | null>(null);
-    const pendingRef = useRef<string | null>(null);
+    const pendingRef = useRef<PendingUse | null>(null);
 
     const refresh = useCallback(async () => {
         try {
@@ -38,10 +60,10 @@ export function useModels(): ModelsState {
             setModels(list);
             setLoadError(null);
             const pending = pendingRef.current;
-            if (pending !== null && list.some((m) => m.id === pending && m.status === "ready")) {
+            if (pending !== null && list.some((m) => m.id === pending.id && m.status === "ready")) {
                 pendingRef.current = null;
                 setPendingUse(null);
-                await update({ transcriptionModel: pending });
+                await update(pending.patch);
             }
         } catch (e) {
             setLoadError(errorMessage(e));
@@ -53,7 +75,7 @@ export function useModels(): ModelsState {
     }, [refresh]);
 
     const clearPending = useCallback((id: string) => {
-        if (pendingRef.current === id) {
+        if (pendingRef.current?.id === id) {
             pendingRef.current = null;
             setPendingUse(null);
         }
@@ -75,6 +97,10 @@ export function useModels(): ModelsState {
         [refresh, clearPending],
     );
     useTauriEvent(events.modelProgress, onProgress);
+    // A delete, or a download finished from another page, changes what is on disk.
+    useTauriEvent(events.modelsChanged, () => {
+        void refresh();
+    });
 
     const download = useCallback(
         async (id: string) => {
@@ -107,14 +133,15 @@ export function useModels(): ModelsState {
 
     const use = useCallback(
         async (model: ModelInfo) => {
-            if (model.status === "unsupported") return;
+            const patch = choicePatch(model);
+            if (patch === null || model.status === "unsupported") return;
             if (model.status === "not_downloaded" || model.status === "downloading") {
-                pendingRef.current = model.id;
+                pendingRef.current = { id: model.id, patch };
                 setPendingUse(model.id);
                 if (model.status === "not_downloaded") await download(model.id);
                 return;
             }
-            await update({ transcriptionModel: model.id });
+            await update(patch);
         },
         [download, update],
     );

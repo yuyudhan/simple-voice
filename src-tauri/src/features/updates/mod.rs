@@ -5,6 +5,7 @@
 //! build is already on disk.
 
 pub(crate) mod install;
+mod releases;
 pub(crate) mod restart;
 
 use std::time::Duration;
@@ -138,7 +139,7 @@ async fn check(app: &AppHandle) -> UpdateStatus {
 async fn fetch(
     client: &reqwest::Client,
     current: &semver::Version,
-) -> AppResult<sv_cloud::LatestRelease> {
-    let url = sv_cloud::latest_release_url(REPOSITORY)?;
-    sv_cloud::latest_release(client, &url, &format!("Simple-Voice/{current}")).await
+) -> AppResult<releases::LatestRelease> {
+    let url = releases::latest_release_url(REPOSITORY)?;
+    releases::latest_release(client, &url, &format!("Simple-Voice/{current}")).await
 }

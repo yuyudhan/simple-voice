@@ -1,9 +1,9 @@
 // FilePath: src-tauri/src/features/dictation/edit.rs
 //! Edit mode: the user selects text, holds the edit shortcut and says how to change it. The
 //! selection is read the moment the shortcut goes down, the recording becomes the instruction,
-//! the configured AI provider rewrites the selection, and the result is pasted over the
-//! still-selected text in the same app, where Cmd+Z undoes it. A failed edit leaves the
-//! selection untouched.
+//! the configured on-device language model rewrites the selection, and the result is pasted
+//! over the still-selected text in the same app, where Cmd+Z undoes it. A failed edit leaves
+//! the selection untouched.
 
 use std::time::{Duration, Instant};
 
@@ -21,9 +21,9 @@ use tauri::{AppHandle, Manager};
 use super::delivery::{self, Delivery};
 use super::pipeline::SessionInput;
 use super::transcription::{discard_audio, transcribe_fresh, vocabulary, Audio};
-use super::{elapsed_ms, llm, publish};
+use super::{elapsed_ms, publish};
 use crate::events;
-use crate::features::permissions;
+use crate::features::{llm, permissions};
 use crate::state::AppState;
 
 /// The selection read that starts with an edit recording; `None` when nothing is selected.
@@ -35,8 +35,8 @@ const SELECTION_WAIT: Duration = Duration::from_secs(3);
 const FRONTMOST_TIMEOUT: Duration = Duration::from_millis(300);
 
 const NO_SELECTION: &str = "Select the text to edit first";
-const NO_PROVIDER: &str = "Edit mode needs AI post-processing — choose a provider in Settings → \
-                           Formatting";
+const NO_PROVIDER: &str = "Edit mode needs on-device AI formatting — choose Apple Intelligence or \
+                           the local model in Settings → Formatting";
 const APP_CHANGED: &str = "Edited text copied — the app changed before the edit finished";
 
 /// Starts reading the selection in the focused app. Called when the edit shortcut goes down,
@@ -62,6 +62,9 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
         stopped_at,
         frontmost,
         selection: _,
+        style_source,
+        context: _,
+        live: _,
     } = input;
     let state = app.state::<AppState>();
     publish(&app, edit_state(DictationPhase::Transcribing, id));
@@ -78,7 +81,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
         Err(error) => return fail(&app, &settings, id, error.to_string()),
     };
 
-    let vocabulary = vocabulary(&state).await;
+    let vocabulary = vocabulary(&state, &settings).await;
     let mut audio = Audio {
         wav: encode_wav(&recording.samples),
         path: None,
@@ -102,6 +105,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
         format_model: None,
         language: None,
         style: settings.style,
+        style_source: Some(style_source),
         audio_ms: recording.duration_ms,
         latency_ms: 0,
         transcribe_ms: None,
@@ -147,7 +151,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     let started = Instant::now();
     let limit = sv_text::edit_timeout(&selection);
     let max_tokens = sv_text::edit_max_tokens(&selection);
-    let edited = match llm::complete(&state, &settings, &prompt, max_tokens, limit).await {
+    let edited = match llm::post_process(&state, &settings, &prompt, max_tokens, limit).await {
         Ok(reply) => sv_text::accept_edit(&selection, &reply.text, reply.finished),
         Err(reason) => Err(reason),
     };
@@ -162,7 +166,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
             return fail(&app, &settings, id, message);
         }
     };
-    row.format_model = llm::model_id(&settings);
+    row.format_model = llm::post_processing_model(&settings).map(str::to_owned);
     row.format_ms = Some(elapsed_ms(started));
 
     let delivered = if still_in(&state, frontmost.as_ref()).await {

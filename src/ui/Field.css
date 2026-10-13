@@ -81,3 +81,13 @@
     color: var(--muted);
     pointer-events: none;
 }
+
+.sv-input.sv-textarea {
+    height: auto;
+    min-height: 96px;
+    padding: 8px 11px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    white-space: pre-wrap;
+}

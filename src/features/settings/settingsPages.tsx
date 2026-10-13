@@ -16,7 +16,8 @@ export const SETTINGS_PAGES: readonly SettingsPageInfo[] = [
     {
         id: "dictation",
         label: "Dictation",
-        description: "How a recording starts, what it records and how the text arrives.",
+        description:
+            "How a recording starts, what it records and may read, and how the text arrives.",
         icon: <Mic />,
     },
     {
@@ -28,7 +29,7 @@ export const SETTINGS_PAGES: readonly SettingsPageInfo[] = [
     {
         id: "formatting",
         label: "Formatting",
-        description: "The AI that cleans up your text, and what it may learn.",
+        description: "The on-device model that cleans up your text, and what it may learn.",
         icon: <WandSparkles />,
     },
     {

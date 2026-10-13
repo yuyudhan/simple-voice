@@ -302,6 +302,7 @@ mod tests {
             format_model: None,
             language: Some("en".to_owned()),
             style: Style::Formal,
+            style_source: None,
             audio_ms: 30_000,
             latency_ms: 250,
             transcribe_ms: Some(200),

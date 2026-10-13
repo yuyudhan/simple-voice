@@ -5,7 +5,7 @@
 import { Check, Download } from "lucide-react";
 import type { ModelInfo } from "../../lib/api";
 import { Badge, Button, ProgressBar } from "../../ui";
-import { formatSize, ProviderMark } from "../settings/models/VoiceModelList";
+import { formatSize, ModelProvenance, ProviderMark } from "../settings/models/VoiceModelList";
 import type { ModelsState } from "../settings/models/useModels";
 import "./ModelDownloadCard.css";
 
@@ -84,6 +84,7 @@ export function ModelDownloadCard({ model, state }: Props) {
                         {model.id === RECOMMENDED_MODEL && <Badge tone="accent">Recommended</Badge>}
                     </span>
                     <span className="sv-model__subtitle">{model.subtitle}</span>
+                    <ModelProvenance model={model} />
                 </div>
             </div>
             <ul className="sv-onb__dl-points">
@@ -93,7 +94,7 @@ export function ModelDownloadCard({ model, state }: Props) {
                 </li>
                 <li>
                     <Check size={14} strokeWidth={2.2} />
-                    Works offline, no account or API key
+                    Works offline, no account needed
                 </li>
                 <li>
                     <Check size={14} strokeWidth={2.2} />

@@ -1,7 +1,7 @@
 // FilePath: src/features/settings/transcription/useSmartSelect.ts
 // Which way the voice model is picked (Smart Select or a chosen model) and the Smart Select plan
-// for the current languages, refetched whenever the languages, the Groq key or a model's
-// availability change, since each of those can change the route.
+// for the current languages, refetched whenever the languages or a model's availability change,
+// since each of those can change the route.
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type SmartSelectPlan } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
@@ -28,7 +28,6 @@ export function useSmartSelect(models: ModelsState): SmartSelectState {
 
     const languages = settings.languages.join(",");
     const statuses = (models.models ?? []).map((m) => `${m.id}:${m.status}`).join(",");
-    const keyPresent = settings.groqApiKeyPresent;
 
     useEffect(() => {
         let current = true;
@@ -45,7 +44,7 @@ export function useSmartSelect(models: ModelsState): SmartSelectState {
         return () => {
             current = false;
         };
-    }, [languages, statuses, keyPresent]);
+    }, [languages, statuses]);
 
     const setMode = useCallback(
         (mode: VoiceModelMode) => {

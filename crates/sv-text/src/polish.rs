@@ -1,8 +1,9 @@
 // FilePath: crates/sv-text/src/polish.rs
-//! The LLM formatting pass ("polish"): one prompt shared by every backend (Groq, a custom
-//! OpenAI-compatible endpoint, Apple Intelligence), plus the guards that decide whether a reply
-//! may replace the deterministic text. Every rejection is a `Skipped` outcome: the dictation
-//! itself never fails because of this pass.
+//! The LLM formatting pass ("polish"): one prompt shared by every on-device backend (the local
+//! chat model and Apple Intelligence), plus the guards that decide whether a reply may replace
+//! the deterministic text. Every rejection is a `Skipped` outcome: the dictation itself never
+//! fails because of this pass. Snippet markers (`crate::snippets`) count as single words, so a
+//! transcript and reply carrying them pass the same guards before the payloads are restored.
 
 use std::time::Duration;
 
@@ -130,7 +131,7 @@ uh we should tell the team you know";
 /// to chat models.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PolishTarget {
-    /// Groq or any OpenAI-compatible endpoint.
+    /// A local chat model run by the engine.
     Chat,
     /// Apple Intelligence.
     OnDevice,
@@ -468,6 +469,36 @@ mod tests {
         assert_eq!(
             accept_polish("a b c", "<transcript>\n</transcript>", true),
             PolishOutcome::Skipped("empty response".into())
+        );
+    }
+
+    #[test]
+    fn snippet_markers_pass_the_guards_and_restore_long_payloads() {
+        let payload = "line of the saved snippet text\n".repeat(10);
+        let snippets = [sv_domain::Snippet {
+            id: 1,
+            trigger: "my signature".to_owned(),
+            text: payload.clone(),
+            created_at: 0,
+            updated_at: 0,
+        }];
+        let protected = crate::snippets::protect("um so thanks again my signature", &snippets);
+        let reply = "So thanks again.\n[[S1]]";
+        let PolishOutcome::Polished(polished) = accept_polish(protected.text(), reply, true) else {
+            panic!("a reply keeping the marker must be accepted");
+        };
+        assert_eq!(
+            protected.restore(&polished),
+            Some(format!("So thanks again.\n{payload}"))
+        );
+        // Measured against the expanded payload instead, the same reply would count as growth.
+        assert_eq!(
+            accept_polish(
+                protected.text(),
+                &format!("So thanks again.\n{payload}"),
+                true
+            ),
+            PolishOutcome::Skipped("output grew beyond the transcript".into())
         );
     }
 }

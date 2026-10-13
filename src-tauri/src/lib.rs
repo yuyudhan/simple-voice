@@ -11,6 +11,7 @@ mod state;
 use std::time::Duration;
 
 use sv_domain::{AppError, DictationPhase, DictationState, Settings};
+use sv_engine::EngineEvent;
 use sv_storage::Db;
 use tauri::{AppHandle, Manager, RunEvent};
 
@@ -37,14 +38,12 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             features::settings::get_settings,
             features::settings::update_settings,
-            features::settings::set_groq_api_key,
-            features::settings::verify_groq_api_key,
-            features::settings::set_custom_api_key,
             features::settings::test_post_processing,
             features::settings::set_database_dir,
             features::settings::suspend_shortcuts,
             features::settings::list_microphones,
             features::settings::list_languages,
+            features::settings::list_known_apps,
             features::settings::preview_sound,
             features::settings::app_info,
             features::history::list_history,
@@ -53,11 +52,32 @@ pub fn run() -> tauri::Result<()> {
             features::history::retry_history,
             features::history::copy_text,
             features::dictionary::list_dictionary,
+            features::dictionary::list_vocabulary_packs,
             features::dictionary::add_dictionary_entry,
             features::dictionary::update_dictionary_entry,
             features::dictionary::delete_dictionary_entry,
             features::dictionary::import_vocabulary,
             features::dictionary::export_vocabulary,
+            features::snippets::list_snippets,
+            features::snippets::add_snippet,
+            features::snippets::update_snippet,
+            features::snippets::delete_snippet,
+            features::meetings::list_meetings,
+            features::meetings::get_meeting,
+            features::meetings::meeting_readiness,
+            features::meetings::start_meeting,
+            features::meetings::stop_meeting,
+            features::meetings::cancel_meeting,
+            features::meetings::delete_meeting,
+            features::meetings::rename_meeting,
+            features::meetings::rename_speaker,
+            features::meetings::update_segment,
+            features::meetings::summarize_meeting,
+            features::meetings::ask_meeting,
+            features::meetings::translate_meeting,
+            features::meetings::cancel_meeting_job,
+            features::meetings::retry_meeting,
+            features::meetings::export_meeting,
             features::insights::get_insights,
             features::insights::get_model_insights,
             features::models::list_models,
@@ -119,11 +139,23 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(overlay::OverlayState::new(settings.pasted_text_seconds));
     app.manage(engine_process::EngineProcess::default());
     app.manage(dock::DockSetting::default());
+    app.manage(features::meetings::MeetingsState::default());
     let events_app = app.clone();
     app.state::<AppState>()
         .engine
-        .set_event_handler(Box::new(move |event| {
-            shortcuts::on_engine_event(&events_app, event);
+        .set_event_handler(Box::new(move |event| match event {
+            EngineEvent::FnKey { action } => shortcuts::on_fn_key(&events_app, action),
+            EngineEvent::StreamPartial {
+                stream_id,
+                text,
+                stable,
+            } => dictation::on_stream_partial(&events_app, stream_id, &text, &stable),
+            EngineEvent::StreamFailed { stream_id, reason } => {
+                dictation::on_stream_failed(&events_app, stream_id, &reason);
+            }
+            EngineEvent::SystemAudioFailed { reason } => {
+                features::meetings::on_system_audio_failed(&events_app, reason);
+            }
         }));
 
     windows::create_main(app, !launched_at_login || startup_error.is_some())?;
@@ -150,6 +182,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     dictation::spawn_coordinator(app.clone(), control);
     engine_process::start(app.clone());
     features::permissions::spawn_poller(app.clone());
+    features::meetings::spawn_recovery(app.clone());
     features::updates::spawn_checker(app.clone());
 
     if let Some(error) = startup_error {

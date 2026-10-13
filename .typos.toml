@@ -21,3 +21,7 @@ extend-exclude = [
 [default.extend-words]
 # Microphone brand used in device-selection tests.
 Shure = "Shure"
+# Built-in vocabulary pack terms (crates/sv-text/src/packs/): Chief Marketing Officer and the
+# design app, both spelled as their owners write them.
+CMO = "CMO"
+Canva = "Canva"

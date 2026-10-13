@@ -8,7 +8,7 @@
 use sv_domain::Style;
 
 use crate::hesitation::strip_hesitations;
-use crate::vocabulary::{Rule, Vocabulary};
+use crate::vocabulary::Vocabulary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Formatted {
@@ -29,7 +29,7 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
     let mut chars: Vec<char> = collapsed.chars().collect();
     let mut rule_hits = 0;
     for rule in &vocabulary.rules {
-        if let Some(pattern) = Pattern::compile(rule) {
+        if let Some(pattern) = Pattern::compile(&rule.from) {
             let (rewritten, hits) = pattern.replace_all(&chars, &rule.to);
             chars = rewritten;
             rule_hits += hits;
@@ -77,16 +77,16 @@ enum Token {
 
 /// A literal phrase matched case-insensitively and tolerant of any whitespace run between its
 /// words. Word frontiers apply only on alphanumeric ends, so "btw" never fires inside "btwn"
-/// while a phrase like "c++" still matches.
-struct Pattern {
+/// while a phrase like "c++" still matches. Dictionary rules and snippet triggers share it.
+pub(crate) struct Pattern {
     tokens: Vec<Token>,
     word_start: bool,
     word_end: bool,
 }
 
 impl Pattern {
-    fn compile(rule: &Rule) -> Option<Pattern> {
-        let phrase = rule.from.trim();
+    pub(crate) fn compile(phrase: &str) -> Option<Pattern> {
+        let phrase = phrase.trim();
         let first = phrase.chars().next()?;
         let last = phrase.chars().next_back()?;
         let mut tokens = Vec::with_capacity(phrase.len());
@@ -107,7 +107,7 @@ impl Pattern {
     }
 
     /// End index of a match starting at `start`, if any.
-    fn match_at(&self, text: &[char], start: usize) -> Option<usize> {
+    pub(crate) fn match_at(&self, text: &[char], start: usize) -> Option<usize> {
         let preceded_by_word = start
             .checked_sub(1)
             .and_then(|i| text.get(i))
@@ -301,7 +301,7 @@ mod tests {
                 source: DictionarySource::Manual,
             })
             .collect();
-        Vocabulary::from_entries(&entries)
+        Vocabulary::new(&entries, &[])
     }
 
     fn formal(text: &str, vocabulary: &Vocabulary) -> Formatted {

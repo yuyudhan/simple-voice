@@ -1,7 +1,8 @@
 // FilePath: src-tauri/src/features/dictionary/mod.rs
-//! Personal dictionary: words that bias recognition and `phrase -> replacement` rules.
+//! Personal dictionary: words that bias recognition and `phrase -> replacement` rules, plus the
+//! built-in vocabulary packs offered beside it.
 
-use sv_domain::{AppError, AppResult, DictionaryEntry, ImportSummary};
+use sv_domain::{AppError, AppResult, DictionaryEntry, ImportSummary, VocabularyPackInfo};
 use tauri::State;
 
 use crate::state::AppState;
@@ -9,6 +10,12 @@ use crate::state::AppState;
 #[tauri::command]
 pub(crate) async fn list_dictionary(state: State<'_, AppState>) -> AppResult<Vec<DictionaryEntry>> {
     state.db()?.dictionary().await
+}
+
+/// The built-in packs with their spellings; which are on lives in `Settings.vocabularyPacks`.
+#[tauri::command]
+pub(crate) fn list_vocabulary_packs() -> Vec<VocabularyPackInfo> {
+    sv_text::vocabulary_pack_infos()
 }
 
 #[tauri::command]

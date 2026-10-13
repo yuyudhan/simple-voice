@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meeting_translation_segments (translation_id, segment_id, body)\n                 SELECT ?1, id, ?2 FROM meeting_segments WHERE id = ?3 AND meeting_id = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "4e99040206f406bca98c2e8620f3587683290dc58edea82b242c4db0b1136de8"
+}

@@ -8,17 +8,21 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use sv_audio::{Cue, Recorder, Recording};
-use sv_domain::{AppError, DictationPhase, DictationState, PermissionStatus, Settings};
+use sv_domain::{
+    AppError, DictationPhase, DictationState, PermissionStatus, Settings, StyleSource,
+};
 use sv_engine::FrontmostApp;
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
+use super::context::{self, ContextTask};
 use super::edit::{capture_selection, edit_state, SelectionTask};
 use super::learning;
+use super::live::{self, LiveSession};
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
-use crate::features::permissions;
+use crate::features::{llm, permissions};
 use crate::platform::overlay;
 use crate::platform::shortcuts::{self, Binding};
 use crate::state::{lock, now_ms, AppState};
@@ -51,6 +55,12 @@ struct Active {
     watchdog: JoinHandle<()>,
     /// Set for an edit: the selection read started when the edit shortcut went down.
     selection: Option<SelectionTask>,
+    /// Where `settings.style` (resolved for the frontmost app at the start) came from.
+    style_source: StyleSource,
+    /// Spelling hints from the focused field, when context is on.
+    context: Option<ContextTask>,
+    /// The live transcription stream, when the voice model streams.
+    live: Option<LiveSession>,
 }
 
 struct Coordinator {
@@ -171,7 +181,7 @@ impl Coordinator {
         let state = app.state::<AppState>();
         let id = state.dictation.next_session();
 
-        let settings = match state.db() {
+        let mut settings = match state.db() {
             Ok(db) => match db.settings().await {
                 Ok(settings) => settings,
                 Err(error) => return self.fail_start(id, None, &error.to_string()),
@@ -180,6 +190,8 @@ impl Coordinator {
         };
         // Before anything this recording pastes can reach the watched field.
         learning::prepare(&app, &settings);
+        // The formatting model loads while the user speaks instead of after the recording.
+        llm::warm_up(&app, &settings);
 
         let (frontmost, permissions) = tokio::join!(
             tokio::time::timeout(START_PROBE_TIMEOUT, state.engine.frontmost_app()),
@@ -195,22 +207,44 @@ impl Coordinator {
             }
         }
         let frontmost = frontmost.ok().and_then(Result::ok);
+        // The style is decided for the app in front at the start and kept for this recording.
+        let (style, style_source) = settings.style_for(
+            frontmost
+                .as_ref()
+                .and_then(|front| front.bundle_id.as_deref()),
+            frontmost.as_ref().and_then(|front| front.name.as_deref()),
+        );
+        settings.style = style;
+        // An edit's instruction is neither streamed nor primed with the field it edits.
+        let context = if edit {
+            None
+        } else {
+            context::capture(&app, &settings, frontmost.as_ref())
+        };
+        let (live, sink) = if settings.live_transcript && !edit {
+            let (live, sink) = live::start(&app, id, &settings);
+            (Some(live), Some(sink))
+        } else {
+            (None, None)
+        };
 
         let recorder = {
             let microphone = settings.microphone.clone();
             let on_level = level_emitter(app.clone());
             tauri::async_runtime::spawn_blocking(move || {
-                Recorder::start(microphone.as_deref(), on_level)
+                Recorder::start_with(microphone.as_deref(), on_level, sink, true)
             })
             .await
         };
         let recorder = match recorder {
             Ok(Ok(recorder)) => recorder,
             Ok(Err(error)) => {
+                abandon(&app, live, context).await;
                 let message = format!("Could not start the microphone: {error}");
                 return self.fail_start(id, Some(&settings), &message);
             }
             Err(error) => {
+                abandon(&app, live, context).await;
                 let message = format!("Could not start the microphone: {error}");
                 return self.fail_start(id, Some(&settings), &message);
             }
@@ -258,6 +292,9 @@ impl Coordinator {
             mute_previous,
             watchdog,
             selection,
+            style_source,
+            context,
+            live,
         });
     }
 
@@ -280,6 +317,9 @@ impl Coordinator {
             mute_previous,
             watchdog,
             selection,
+            style_source,
+            context,
+            live,
         } = self.active.take()?;
         self.hold_started = false;
         self.pressed_at = None;
@@ -308,6 +348,9 @@ impl Coordinator {
             frontmost,
             recording,
             selection,
+            style_source,
+            context,
+            live,
         })
     }
 
@@ -321,15 +364,18 @@ impl Coordinator {
         let recording = match ended.recording {
             Ok(recording) => recording,
             Err(error) => {
+                abandon(&self.app, ended.live, ended.context).await;
                 state.play(&ended.settings, Cue::Error);
                 let message = format!("Recording failed: {error}");
                 return publish_message(&self.app, ended.id, DictationPhase::Error, message);
             }
         };
         if recording.duration_ms < MIN_RECORDING_MS {
+            abandon(&self.app, ended.live, ended.context).await;
             return publish_message(&self.app, ended.id, DictationPhase::Cancelled, "Too short");
         }
         if is_silent(&recording.samples) {
+            abandon(&self.app, ended.live, ended.context).await;
             return publish_message(
                 &self.app,
                 ended.id,
@@ -345,6 +391,9 @@ impl Coordinator {
             stopped_at,
             frontmost: ended.frontmost,
             selection: ended.selection,
+            style_source: ended.style_source,
+            context: ended.context,
+            live: ended.live,
         };
         tauri::async_runtime::spawn(pipeline::run_session(self.app.clone(), input));
     }
@@ -356,6 +405,7 @@ impl Coordinator {
         if let Err(error) = ended.recording {
             tracing::debug!(%error, "recorder error while cancelling");
         }
+        abandon(&self.app, ended.live, ended.context).await;
         publish_phase(&self.app, ended.id, DictationPhase::Cancelled);
     }
 }
@@ -367,6 +417,19 @@ struct Ended {
     frontmost: Option<FrontmostApp>,
     recording: Result<Recording, AppError>,
     selection: Option<SelectionTask>,
+    style_source: StyleSource,
+    context: Option<ContextTask>,
+    live: Option<LiveSession>,
+}
+
+/// Ends the live stream and the context read of a recording that will not be transcribed.
+async fn abandon(app: &AppHandle, live: Option<LiveSession>, context: Option<ContextTask>) {
+    if let Some(context) = context {
+        context.abort();
+    }
+    if let Some(live) = live {
+        live.end(app).await;
+    }
 }
 
 fn is_silent(samples: &[i16]) -> bool {

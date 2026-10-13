@@ -90,8 +90,8 @@
     color: var(--faint);
 }
 
-/* A caution about the route, not an error: the route still works, one language reads
-   differently offline. */
+/* A caution about the route, not an error: the route still works, but one language is written
+   differently than chosen. */
 .sv-smart__notice {
     display: flex;
     align-items: flex-start;

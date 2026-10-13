@@ -48,6 +48,7 @@ enum SystemServices {
             case .microphone: "Privacy_Microphone"
             case .accessibility: "Privacy_Accessibility"
             case .speech: "Privacy_SpeechRecognition"
+            case .systemAudio: "Privacy_ScreenCapture"
             }
         let text = "x-apple.systempreferences:com.apple.preference.security?\(anchor)"
         guard let url = URL(string: text), NSWorkspace.shared.open(url) else {

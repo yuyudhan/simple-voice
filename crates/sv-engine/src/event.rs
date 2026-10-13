@@ -18,10 +18,31 @@ pub enum FnKeyAction {
     Chord,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum EngineEvent {
-    FnKey { action: FnKeyAction },
+    FnKey {
+        action: FnKeyAction,
+    },
+    /// The live hypothesis of a stream changed. `stable` is the committed prefix of `text`;
+    /// the rest of `text` may still be revised.
+    StreamPartial {
+        #[serde(rename = "streamId")]
+        stream_id: u64,
+        text: String,
+        stable: String,
+    },
+    /// The stream is dead (recogniser error, or more than 30 s of audio queued); transcribe the
+    /// recording instead.
+    StreamFailed {
+        #[serde(rename = "streamId")]
+        stream_id: u64,
+        reason: String,
+    },
+    /// The system-audio capture stopped by itself; its WAV keeps what was written.
+    SystemAudioFailed {
+        reason: String,
+    },
 }
 
 /// Receives every event the helper emits; called on the thread that forwards stdout.

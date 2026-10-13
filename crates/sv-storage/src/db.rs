@@ -509,48 +509,75 @@ mod tests {
         assert_eq!(migrated.fallback_language, "hi");
     }
 
-    #[tokio::test]
-    async fn parakeet_default_migration_keeps_existing_installs_on_groq() {
-        use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V3, WHISPER_HINGLISH};
-
-        let before_default = Migrator::with_migrations(
+    /// Opens `dir` with only the migrations before `version`, inserts `rows` into settings,
+    /// and closes it: a database as an older release left it.
+    async fn database_before(dir: &Path, version: i64, rows: &[(&str, &str)]) {
+        let before = Migrator::with_migrations(
             MIGRATOR
                 .iter()
-                .filter(|migration| migration.version < 9)
+                .filter(|migration| migration.version < version)
+                .cloned()
+                .collect(),
+        );
+        let old = Db::open_with(dir.to_path_buf(), dir.to_path_buf(), &before)
+            .await
+            .unwrap();
+        {
+            let inner = old.read().await;
+            for &(key, value) in rows {
+                sqlx::query!(
+                    "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                    key,
+                    value
+                )
+                .execute(&inner.pool)
+                .await
+                .unwrap();
+            }
+        }
+        drop(old);
+    }
+
+    async fn stored_setting(db: &Db, key: &str) -> Option<String> {
+        let inner = db.read().await;
+        sqlx::query_scalar!(
+            r#"SELECT value AS "value!: String" FROM settings WHERE key = ?1"#,
+            key
+        )
+        .fetch_optional(&inner.pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn parakeet_default_migration_keeps_existing_installs_on_groq() {
+        use sv_domain::models::{LEGACY_GROQ_WHISPER, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+
+        // 0009 on its own, as the release that shipped it ran it.
+        let through_0009 = Migrator::with_migrations(
+            MIGRATOR
+                .iter()
+                .filter(|migration| migration.version <= 9)
                 .cloned()
                 .collect(),
         );
         let upgraded = async |rows: &[(&str, &str)]| {
             let dir = tempfile::tempdir().unwrap();
-            let old = Db::open_with(
+            database_before(dir.path(), 9, rows).await;
+            let db = Db::open_with(
                 dir.path().to_path_buf(),
                 dir.path().to_path_buf(),
-                &before_default,
+                &through_0009,
             )
             .await
             .unwrap();
-            {
-                let inner = old.read().await;
-                for &(key, value) in rows {
-                    sqlx::query!(
-                        "INSERT INTO settings (key, value) VALUES (?1, ?2)",
-                        key,
-                        value
-                    )
-                    .execute(&inner.pool)
-                    .await
-                    .unwrap();
-                }
-            }
-            drop(old);
-            let db = Db::open_at(dir.path()).await.unwrap();
-            db.settings().await.unwrap().transcription_model
+            stored_setting(&db, "transcriptionModel").await
         };
 
         // Onboarded on the old Groq default without ever saving a voice model.
         assert_eq!(
             upgraded(&[("onboardingComplete", "true")]).await,
-            GROQ_WHISPER
+            Some(format!("\"{LEGACY_GROQ_WHISPER}\""))
         );
         // A voice model the user chose is left alone.
         assert_eq!(
@@ -559,9 +586,98 @@ mod tests {
                 ("transcriptionModel", r#""whisper-hinglish""#),
             ])
             .await,
-            WHISPER_HINGLISH
+            Some(format!("\"{WHISPER_HINGLISH}\""))
         );
-        // Nothing saved yet: a new install takes the new default.
-        assert_eq!(upgraded(&[]).await, PARAKEET_TDT_V3);
+        // Nothing saved yet: a new install stores nothing and takes the default.
+        assert_eq!(upgraded(&[]).await, None);
+        assert_eq!(
+            sv_domain::Settings::default().transcription_model,
+            PARAKEET_TDT_V3
+        );
+    }
+
+    #[tokio::test]
+    async fn local_only_migration_moves_cloud_choices_to_local_and_keeps_user_data() {
+        use sv_domain::models::{SMART_SELECT, WHISPER_HINGLISH};
+        use sv_domain::{PostProcessing, Style};
+
+        // An install on Groq Whisper with Groq formatting and both keys.
+        let dir = tempfile::tempdir().unwrap();
+        database_before(
+            dir.path(),
+            10,
+            &[
+                ("onboardingComplete", "true"),
+                ("transcriptionModel", r#""groq-whisper""#),
+                ("postProcessing", r#""groq""#),
+                ("groqApiKey", r#""gsk-secret""#),
+                ("customApiKey", r#""sk-secret""#),
+                ("groqFormattingModel", r#""qwen/qwen3.8-27b""#),
+                ("customBaseUrl", r#""https://api.example.com/v1""#),
+                ("customModel", r#""gpt""#),
+                ("style", r#""casual""#),
+            ],
+        )
+        .await;
+        {
+            let old = Db::open_with(
+                dir.path().to_path_buf(),
+                dir.path().to_path_buf(),
+                &Migrator::with_migrations(
+                    MIGRATOR
+                        .iter()
+                        .filter(|migration| migration.version < 10)
+                        .cloned()
+                        .collect(),
+                ),
+            )
+            .await
+            .unwrap();
+            old.add_dictionary_entry("Kubernetes".to_owned(), None)
+                .await
+                .unwrap();
+        }
+        let db = Db::open_at(dir.path()).await.unwrap();
+        let settings = db.settings().await.unwrap();
+        assert_eq!(settings.transcription_model, SMART_SELECT);
+        assert_eq!(settings.post_processing, PostProcessing::Apple);
+        assert_eq!(settings.style, Style::Casual);
+        for removed in [
+            "groqApiKey",
+            "customApiKey",
+            "groqFormattingModel",
+            "customBaseUrl",
+            "customModel",
+        ] {
+            assert_eq!(stored_setting(&db, removed).await, None, "{removed} kept");
+        }
+        assert_eq!(db.dictionary().await.unwrap().len(), 1);
+        // Saving works after the migration: nothing left points at a removed provider.
+        db.update_settings(sv_domain::SettingsPatch {
+            sounds: Some(false),
+            ..sv_domain::SettingsPatch::default()
+        })
+        .await
+        .unwrap();
+
+        // A custom endpoint user who chose a local voice model keeps that model.
+        let dir = tempfile::tempdir().unwrap();
+        database_before(
+            dir.path(),
+            10,
+            &[
+                ("transcriptionModel", r#""whisper-hinglish""#),
+                ("postProcessing", r#""custom""#),
+            ],
+        )
+        .await;
+        let settings = Db::open_at(dir.path())
+            .await
+            .unwrap()
+            .settings()
+            .await
+            .unwrap();
+        assert_eq!(settings.transcription_model, WHISPER_HINGLISH);
+        assert_eq!(settings.post_processing, PostProcessing::Apple);
     }
 }

@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::settings::StyleSource;
 use crate::{AppCategory, Style};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,7 +93,7 @@ pub struct HistoryEntry {
     /// was never corrected.
     pub edited_text: Option<String>,
     pub error: Option<String>,
-    /// Transcription model id that produced `raw_text`, e.g. `groq-whisper`.
+    /// Transcription model id that produced `raw_text`, e.g. `parakeet-tdt-v3`.
     pub model: String,
     /// Display name of `model`.
     pub model_name: String,
@@ -104,7 +105,10 @@ pub struct HistoryEntry {
     /// produced the pasted text (off, skipped, failed, or recorded before this was tracked).
     pub format_model_name: Option<String>,
     pub language: Option<String>,
+    /// The style the dictation used.
     pub style: Style,
+    /// Where `style` came from; `None` for rows recorded before per-app styles.
+    pub style_source: Option<StyleSource>,
     pub audio_ms: i64,
     pub latency_ms: i64,
     /// How long the transcription model took; `None` when it failed or before this was tracked.
@@ -141,6 +145,7 @@ pub struct NewHistory {
     pub format_model: Option<String>,
     pub language: Option<String>,
     pub style: Style,
+    pub style_source: Option<StyleSource>,
     pub audio_ms: i64,
     pub latency_ms: i64,
     /// Duration of the transcription call, when it succeeded.

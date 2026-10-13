@@ -22,6 +22,7 @@ const DATA_DIR_NAME: &str = if cfg!(debug_assertions) {
 pub(crate) const LOCATION_FILE: &str = "location";
 const MODELS_DIR: &str = "models";
 const AUDIO_DIR: &str = "audio";
+const MEETINGS_DIR: &str = "meetings";
 const BACKUPS_DIR: &str = "backups";
 
 /// `~/.simplevoice` (`~/.simplevoice-dev` in debug builds), created with mode 0700.
@@ -41,6 +42,11 @@ pub fn models_dir() -> AppResult<PathBuf> {
 /// `data_dir/audio`, WAVs of failed dictations kept for retry.
 pub fn audio_dir() -> AppResult<PathBuf> {
     private_subdir(&data_dir()?, AUDIO_DIR)
+}
+
+/// `data_dir/meetings`, one owner-only folder of WAV files per meeting recording.
+pub fn meetings_dir() -> AppResult<PathBuf> {
+    private_subdir(&data_dir()?, MEETINGS_DIR)
 }
 
 /// `data_dir/backups`, database copies taken before migrations.

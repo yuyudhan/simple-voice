@@ -17,6 +17,9 @@ final class PillModel {
     var message: String?
     /// The session edits the selected text; the pill then reads as an edit, not a dictation.
     var edit = false
+    /// Live-dictation hypothesis shown while recording (empty when the model does not stream).
+    var live = ""
+    var liveStream: UInt64?
     /// Read on every frame by the level bars, so it is deliberately not observed.
     @ObservationIgnored let meter = LevelMeter()
 }
@@ -132,7 +135,7 @@ struct PillView: View {
         .padding(.trailing, 13)
         // A finished dictation sizes the pill to its text (never narrower than the others);
         // every other phase has a fixed width.
-        .frame(width: Self.fixedWidth(phase), height: 38)
+        .frame(width: fixedWidth(phase), height: 38)
         .frame(minWidth: phase == .done ? 188 : nil, alignment: .leading)
         .fixedSize(horizontal: phase == .done, vertical: false)
         .background {
@@ -147,6 +150,14 @@ struct PillView: View {
         .font(.system(size: 12))
         .opacity(phase == .idle ? 0.8 : phase == .cancelled ? 0 : 1)
         .scaleEffect(phase == .cancelled ? 0.96 : 1)
+    }
+
+    /// Live text widens the recording pill so the latest words stay readable.
+    private func fixedWidth(_ phase: PillPhase) -> CGFloat? {
+        if phase == .recording, !model.live.isEmpty {
+            return PillStyle.maxPillWidth
+        }
+        return Self.fixedWidth(phase)
     }
 
     private static func fixedWidth(_ phase: PillPhase) -> CGFloat? {
@@ -225,6 +236,12 @@ struct PillView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        case .recording where !model.live.isEmpty:
+            // The newest words matter while speaking, so the start is what gets cut.
+            Text(model.live)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         default:
             bars(phase, at: time)
         }

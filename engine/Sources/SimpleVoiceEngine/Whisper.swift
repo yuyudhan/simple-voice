@@ -11,8 +11,11 @@ struct WhisperRequest: Sendable {
     let language: String?
     /// Languages detection may choose from; empty means any Whisper language.
     let languages: [String]
-    /// Conditioning prompt, typically the personal dictionary.
+    /// Conditioning prompt: the language lead and vocabulary words, see `sv_text::whisper_prompt`.
     let prompt: String?
+    /// Return timed segments. Hinglish Whisper decodes without timestamp tokens, so its segments
+    /// are the 30 s decoding windows.
+    let timestamps: Bool
 }
 
 /// Loaded Whisper models, one per model id, kept in memory so a dictation only pays for inference.
@@ -119,7 +122,9 @@ private final class ResidentWhisper: @unchecked Sendable {
         let romanised = id == .whisperHinglish
         let pinned = romanised ? "en" : LanguageCode.primary(request.language)
         let reported = romanised ? nil : pinned
-        guard !samples.isEmpty else { return TranscriptResult(text: "", language: reported) }
+        guard !samples.isEmpty else {
+            return TranscriptResult(text: "", language: reported, segments: request.timestamps ? [] : nil)
+        }
         guard let tokenizer = kit.tokenizer else {
             throw EngineError("\(id.rawValue) has no tokenizer; delete it and download it again")
         }
@@ -156,8 +161,25 @@ private final class ResidentWhisper: @unchecked Sendable {
         return TranscriptResult(
             text: result.text.trimmingCharacters(in: .whitespacesAndNewlines),
             language: romanised ? nil : language,
-            quality: Self.quality(of: result.segments)
+            quality: Self.quality(of: result.segments),
+            segments: request.timestamps
+                ? Self.timed(result.segments, shift: Float(leadIn.count) / Float(WhisperKit.sampleRate)) : nil
         )
+    }
+
+    /// WhisperKit segments with their special tokens removed and times moved back by the silence
+    /// that was put in front of the audio.
+    static func timed(_ segments: [TranscriptionSegment], shift: Float) -> [TimedSegment] {
+        segments.compactMap { segment in
+            let text = segment.text
+                .replacingOccurrences(of: "<\\|[^|>]*\\|>", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let start = TimeInterval(max(segment.start - shift, 0))
+            let end = TimeInterval(max(segment.end - shift, 0))
+            return TimedSegment(
+                startMs: Timeline.milliseconds(start), endMs: Timeline.milliseconds(max(end, start)), text: text)
+        }
     }
 
     /// WhisperKit's language detection (the first 30 s through the encoder and one decoder step),

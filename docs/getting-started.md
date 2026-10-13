@@ -7,7 +7,7 @@ Install Simple Voice with the install script as described in the
 
 ## Permissions
 
-On first launch a short onboarding asks for three macOS permissions. Settings → Privacy & data
+On first launch a short onboarding asks for the macOS permissions dictation needs. Settings → Privacy & data
 shows their live status at any time and links straight to the right pane of System Settings.
 
 | Permission             | Why it is needed                                                                                            |
@@ -15,16 +15,17 @@ shows their live status at any time and links straight to the right pane of Syst
 | **Microphone**         | To record what you say.                                                                                     |
 | **Accessibility**      | To paste the result into the app you are using (a synthetic ⌘V). Without it, text is copied but not pasted. |
 | **Speech Recognition** | Only for the Apple Speech engine.                                                                           |
+| **Screen & System Audio Recording** | Only for meetings that also record what the Mac plays (the other side of a call). Asked when you first choose it. |
 
 If a permission is missing when you dictate, Simple Voice tells you which one and how to grant
 it rather than failing silently.
 
-## Groq API key
+## Models
 
-If you use Groq, paste your API key in Settings → Transcription when Groq Whisper or Smart Select
-is your voice model, or in Settings → Formatting when Groq formats your text. One key serves both. Create one at
-[console.groq.com](https://console.groq.com/keys). The `GROQ_API_KEY` environment variable is used
-when no key is saved. On-device engines need no key.
+Everything runs on your Mac, so there is no account or API key. Speech models, the optional
+Qwen3 4B formatting model (2.5 GB) and the meeting speaker model (22 MB) are downloaded once,
+from within the app, when you choose them; Settings shows each one's size, license and source
+before you download it. Apple Speech and Apple Intelligence are built into macOS 26 and later.
 
 ## Updates
 

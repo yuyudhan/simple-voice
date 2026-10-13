@@ -12,7 +12,9 @@ import Speech
 enum Permissions {
     static func current() async -> PermissionsResult {
         let accessibility: PermissionState = await AccessibilityTrust.isTrusted() ? .granted : .denied
-        return PermissionsResult(microphone: microphone(), accessibility: accessibility, speech: speech())
+        return PermissionsResult(
+            microphone: microphone(), accessibility: accessibility, speech: speech(),
+            systemAudio: ScreenCapturePermission.state())
     }
 
     /// Shows the system prompt when the user has not decided yet; otherwise reports the state.
@@ -34,6 +36,10 @@ enum Permissions {
                         continuation.resume()
                     }
                 }
+            }
+        case .systemAudio:
+            if ScreenCapturePermission.state() != .granted {
+                await MainActor.run { ScreenCapturePermission.request() }
             }
         }
         return await current()

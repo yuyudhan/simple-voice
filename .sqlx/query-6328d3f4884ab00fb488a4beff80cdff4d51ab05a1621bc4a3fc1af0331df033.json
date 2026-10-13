@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meeting_segments (meeting_id, start_ms, end_ms, speaker_id, text)\n                 VALUES (?1, ?2, ?3, ?4, ?5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "6328d3f4884ab00fb488a4beff80cdff4d51ab05a1621bc4a3fc1af0331df033"
+}

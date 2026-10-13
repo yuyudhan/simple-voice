@@ -1,0 +1,327 @@
+/* FilePath: src/features/meetings/meetingContent.css */
+/* The open meeting's content: transcript lines, long-job progress, summary, questions,
+   translation and the start dialog. Loaded after meetings.css, which holds the page frame. */
+
+/* Transcript lines: time, speaker, text; hairline separated. */
+.meeting-lines {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-strong);
+}
+
+.meeting-line {
+    display: grid;
+    grid-template-columns: 52px 120px minmax(0, 1fr) 28px;
+    align-items: start;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border);
+    transition: background-color var(--dur) var(--ease);
+}
+
+.meeting-line--translated {
+    grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.meeting-line:hover,
+.meeting-line.is-highlighted {
+    background: var(--surface);
+}
+
+.meeting-line.is-highlighted {
+    box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.meeting-line__time {
+    padding-top: 2px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+.meeting-line__speaker {
+    overflow: hidden;
+    color: var(--speaker);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.meeting-line__text,
+.meeting-line__original {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.meeting-line__original {
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.meeting-line__pair {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.meeting-line__action {
+    opacity: 0;
+    transition: opacity var(--dur) var(--ease);
+}
+
+.meeting-line:hover .meeting-line__action,
+.meeting-line__action:focus-visible {
+    opacity: 1;
+}
+
+.meeting-line__edit {
+    display: flex;
+    grid-column: 3 / -1;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.meeting-line__edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.meeting-time-link {
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--panel);
+    color: var(--accent-text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.meeting-time-link:hover {
+    border-color: var(--border-strong);
+}
+
+.meeting-time-link:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* Long jobs */
+.meeting-job {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.meeting-job__line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12.5px;
+}
+
+.meeting-job__label {
+    flex: 1;
+}
+
+.meeting-job__percent {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Summary */
+.meeting-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meeting-summary__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.meeting-summary__meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.meeting-summary__text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+}
+
+.meeting-summary__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 0;
+}
+
+.meeting-actions {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-strong);
+}
+
+.meeting-action {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13.5px;
+}
+
+.meeting-action__text {
+    flex: 1;
+}
+
+.meeting-action__owner {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Ask */
+.meeting-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meeting-chat__messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.meeting-message {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 85%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--panel);
+}
+
+.meeting-message--user {
+    align-self: flex-end;
+    background: var(--surface);
+}
+
+.meeting-message.is-pending {
+    opacity: 0.7;
+}
+
+.meeting-message__text {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+/* Inline citation chips sit in the answer's line, a little apart from the words. */
+.meeting-message__refs {
+    display: inline-flex;
+    gap: 3px;
+    margin: 0 2px;
+    vertical-align: 1px;
+}
+
+.meeting-message__citations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.meeting-chat__form {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.meeting-chat__form > .sv-field {
+    flex: 1;
+}
+
+/* Translate */
+.meeting-translate {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meeting-translate__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+/* Start dialog */
+.meeting-start {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.meeting-start__source {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+}
+
+.meeting-start__source > svg {
+    flex: none;
+    color: var(--muted);
+}
+
+.meeting-start__source-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.meeting-start__source-title {
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.meeting-start__consent {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.meeting-start__blocker {
+    flex: 1;
+    color: var(--warning);
+    font-size: 12px;
+}

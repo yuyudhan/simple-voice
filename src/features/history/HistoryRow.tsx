@@ -1,7 +1,7 @@
 // FilePath: src/features/history/HistoryRow.tsx
 import { useEffect, useRef, useState } from "react";
 import { AudioLines, Copy, PenLine, RotateCcw, Sparkles, Trash2 } from "lucide-react";
-import type { HistoryEntry, RetryReason } from "../../lib/api";
+import type { HistoryEntry, RetryReason, StyleSource } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
 import { CATEGORY_META } from "../../lib/categories";
 import { formatSeconds, formatTime } from "../../lib/format";
@@ -49,6 +49,12 @@ const RETRY_LABEL: Record<RetryReason, string> = {
     failed: "failed",
     low_confidence: "low confidence",
     mixed_script: "mixed script",
+};
+
+const STYLE_SOURCE: Record<StyleSource, string> = {
+    app: "this app's own style",
+    category: "the style for its kind of app",
+    global: "the global style",
 };
 
 function ModelsUsed({ entry }: { entry: HistoryEntry }) {
@@ -154,6 +160,18 @@ export function HistoryRow({ entry, retrying, onCopy, onRetry, onDelete }: Histo
                     {entry.editedText !== null && (
                         <Badge tone="neutral" title={`You changed it to: ${entry.editedText}`}>
                             Corrected
+                        </Badge>
+                    )}
+                    {!edit && (
+                        <Badge
+                            tone="neutral"
+                            title={
+                                entry.styleSource === null
+                                    ? "Style used for this dictation"
+                                    : `Chosen by ${STYLE_SOURCE[entry.styleSource]}`
+                            }
+                        >
+                            {entry.style === "formal" ? "Formal" : "Casual"}
                         </Badge>
                     )}
                     <ModelsUsed entry={entry} />

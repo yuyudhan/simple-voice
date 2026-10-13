@@ -1,12 +1,13 @@
 // FilePath: src-tauri/src/features/models/catalog.rs
-//! The fixed list of models Settings → Transcription (voice models) and Settings → Formatting
-//! (post-processing models) offer. Live status comes from the engine helper; display names come
-//! from `sv_domain::models::model_name`, which history shares.
+//! The fixed list of on-device models: voice models (Settings → Transcription), language models
+//! (Settings → Formatting; also meetings) and the meeting speaker diarization model. Live status,
+//! download size, license and provenance come from the engine helper; display names come from
+//! `sv_domain::models::model_name`, which history shares.
 
 use sv_domain::languages::Language;
 use sv_domain::models::{
-    APPLE_INTELLIGENCE, APPLE_SPEECH, CUSTOM_LLM, GROQ_LLM, GROQ_WHISPER, PARAKEET_FLASH,
-    PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH, WHISPER_TURBO,
+    APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, LOCAL_LLM, PARAKEET_FLASH, PARAKEET_TDT_V2,
+    PARAKEET_TDT_V3, TRANSLATOR, WHISPER_HINGLISH, WHISPER_TURBO,
 };
 use sv_domain::{ModelKind, ModelProvider};
 
@@ -38,10 +39,11 @@ pub(crate) struct CatalogEntry {
     pub(crate) speed: u8,
     pub(crate) accuracy: u8,
     pub(crate) languages: &'static str,
+    /// Download size shown until the helper reports the real one; `None` for models built
+    /// into macOS.
     pub(crate) size_mb: Option<u32>,
-    /// Remote: nothing to download, always available.
-    pub(crate) cloud: bool,
-    /// `None`: never a Smart Select candidate (cloud, streaming, locale-bound or LLM models).
+    /// `None`: never a Smart Select candidate (streaming-only, locale-bound, LLM and
+    /// diarization models).
     pub(crate) covers: Option<Coverage>,
 }
 
@@ -53,18 +55,6 @@ const PARAKEET_V3_LANGUAGES: &[&str] = &[
 
 pub(crate) const CATALOG: &[CatalogEntry] = &[
     CatalogEntry {
-        id: GROQ_WHISPER,
-        kind: ModelKind::Transcription,
-        provider: ModelProvider::Groq,
-        subtitle: "Whisper Large v3 Turbo on Groq — needs an API key",
-        speed: 95,
-        accuracy: 90,
-        languages: "100+ languages",
-        size_mb: None,
-        cloud: true,
-        covers: None,
-    },
-    CatalogEntry {
         id: PARAKEET_TDT_V3,
         kind: ModelKind::Transcription,
         provider: ModelProvider::Parakeet,
@@ -73,7 +63,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 92,
         languages: "25 European languages",
         size_mb: Some(480),
-        cloud: false,
         covers: Some(Coverage::Tags(PARAKEET_V3_LANGUAGES)),
     },
     CatalogEntry {
@@ -85,7 +74,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 96,
         languages: "English",
         size_mb: Some(480),
-        cloud: false,
         covers: Some(Coverage::Tags(&["en"])),
     },
     CatalogEntry {
@@ -97,7 +85,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 75,
         languages: "English",
         size_mb: Some(250),
-        cloud: false,
         covers: None,
     },
     CatalogEntry {
@@ -109,7 +96,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 90,
         languages: "99 languages incl. Hindi",
         size_mb: Some(1640),
-        cloud: false,
         covers: Some(Coverage::NativeScripts),
     },
     CatalogEntry {
@@ -121,7 +107,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 92,
         languages: "Hindi, Hinglish (romanised) and English",
         size_mb: Some(3100),
-        cloud: false,
         covers: Some(Coverage::Tags(&["en", "hi-Latn"])),
     },
     CatalogEntry {
@@ -133,19 +118,6 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 80,
         languages: "On-device locales",
         size_mb: None,
-        cloud: false,
-        covers: None,
-    },
-    CatalogEntry {
-        id: GROQ_LLM,
-        kind: ModelKind::PostProcessing,
-        provider: ModelProvider::Groq,
-        subtitle: "Fast cloud formatting with the Groq API key",
-        speed: 95,
-        accuracy: 92,
-        languages: "Multilingual",
-        size_mb: None,
-        cloud: true,
         covers: None,
     },
     CatalogEntry {
@@ -157,19 +129,39 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 80,
         languages: "Apple Intelligence languages",
         size_mb: None,
-        cloud: false,
         covers: None,
     },
     CatalogEntry {
-        id: CUSTOM_LLM,
+        id: LOCAL_LLM,
         kind: ModelKind::PostProcessing,
-        provider: ModelProvider::Custom,
-        subtitle: "Any OpenAI-compatible endpoint (Ollama, LM Studio, …)",
-        speed: 70,
+        provider: ModelProvider::Llm,
+        subtitle: "Runs on this Mac with llama.cpp — formatting, edits and meetings, offline",
+        speed: 60,
         accuracy: 85,
-        languages: "Depends on the model",
-        size_mb: None,
-        cloud: true,
+        languages: "Multilingual",
+        size_mb: Some(2_497),
+        covers: None,
+    },
+    CatalogEntry {
+        id: DIARIZER,
+        kind: ModelKind::Diarization,
+        provider: ModelProvider::Diarizer,
+        subtitle: "Tells meeting speakers apart on this Mac",
+        speed: 90,
+        accuracy: 80,
+        languages: "Any language",
+        size_mb: Some(22),
+        covers: None,
+    },
+    CatalogEntry {
+        id: TRANSLATOR,
+        kind: ModelKind::Translation,
+        provider: ModelProvider::Translator,
+        subtitle: "Dedicated translation model for meetings, on this Mac",
+        speed: 60,
+        accuracy: 85,
+        languages: "400+ languages",
+        size_mb: Some(1_859),
         covers: None,
     },
 ];

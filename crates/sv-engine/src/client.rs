@@ -139,7 +139,7 @@ impl EngineClient {
         params: Value,
         timeout: Duration,
     ) -> AppResult<T> {
-        self.send_request(cmd, params, None, timeout).await
+        self.send_request(cmd, params, None, timeout, false).await
     }
 
     pub async fn request_with_progress<T: DeserializeOwned>(
@@ -149,7 +149,21 @@ impl EngineClient {
         on_progress: ProgressCallback,
         timeout: Duration,
     ) -> AppResult<T> {
-        self.send_request(cmd, params, Some(Arc::new(on_progress)), timeout)
+        self.send_request(cmd, params, Some(Arc::new(on_progress)), timeout, false)
+            .await
+    }
+
+    /// Like [`EngineClient::request`], but when the returned future is dropped (or times out)
+    /// before the reply arrives, the helper is told to `cancel` the work, so an abandoned
+    /// transcription, diarization or generation stops using the machine.
+    pub async fn request_cancellable<T: DeserializeOwned>(
+        &self,
+        cmd: &str,
+        params: Value,
+        on_progress: Option<ProgressCallback>,
+        timeout: Duration,
+    ) -> AppResult<T> {
+        self.send_request(cmd, params, on_progress.map(Arc::new), timeout, true)
             .await
     }
 
@@ -172,6 +186,7 @@ impl EngineClient {
         params: Value,
         on_progress: Option<Arc<ProgressCallback>>,
         timeout: Duration,
+        cancel_on_drop: bool,
     ) -> AppResult<T> {
         let mut body = named_params(cmd, params)?;
         let (reply, receiver) = oneshot::channel();
@@ -187,7 +202,11 @@ impl EngineClient {
             (transport, id)
         };
         // Removes the pending entry on every exit path, including timeout and a dropped future.
-        let _guard = PendingGuard { client: self, id };
+        let _guard = PendingGuard {
+            client: self,
+            id,
+            cancel_on_drop,
+        };
 
         body.insert("id".to_owned(), Value::from(id));
         body.insert("cmd".to_owned(), Value::from(cmd));
@@ -273,11 +292,30 @@ fn named_params(cmd: &str, params: Value) -> AppResult<Map<String, Value>> {
 struct PendingGuard<'a> {
     client: &'a EngineClient,
     id: u64,
+    /// Tell the helper to stop the work when nobody waits for the reply any more.
+    cancel_on_drop: bool,
 }
 
 impl Drop for PendingGuard<'_> {
     fn drop(&mut self) {
-        self.client.lock().pending.remove(&self.id);
+        let cancel = {
+            let mut inner = self.client.lock();
+            let abandoned = inner.pending.remove(&self.id).is_some();
+            match inner.transport.clone() {
+                Some(transport) if abandoned && self.cancel_on_drop => {
+                    inner.next_id += 1;
+                    Some((transport, inner.next_id))
+                }
+                _ => None,
+            }
+        };
+        // The reply to `cancel` finds no pending entry and is dropped like any late reply.
+        if let Some((transport, cancel_id)) = cancel {
+            let line = serde_json::json!({ "id": cancel_id, "cmd": "cancel", "target": self.id });
+            if let Err(error) = transport.send_line(line.to_string()) {
+                tracing::debug!(%error, id = self.id, "could not ask the engine to cancel");
+            }
+        }
     }
 }
 
@@ -452,6 +490,51 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reply.version, "right");
+    }
+
+    #[tokio::test]
+    async fn abandoned_cancellable_request_cancels_it_in_the_engine() {
+        let (client, mut rx) = connected();
+        let pending = client.request_cancellable::<Value>(
+            "diarize",
+            Value::Null,
+            None,
+            Duration::from_secs(60),
+        );
+        // Dropping the future before any reply is how a caller cancels.
+        let abandoned = tokio::time::timeout(Duration::from_millis(30), pending).await;
+        assert!(abandoned.is_err());
+        let request: Value = serde_json::from_str(&rx.recv().await.unwrap()).unwrap();
+        let cancel: Value = serde_json::from_str(&rx.recv().await.unwrap()).unwrap();
+        assert_eq!(request["cmd"], "diarize");
+        assert_eq!(cancel["cmd"], "cancel");
+        assert_eq!(cancel["target"], request["id"]);
+        assert_ne!(cancel["id"], request["id"]);
+        assert_eq!(client.lock().pending.len(), 0);
+        // The helper's answers to both are ignored without panicking.
+        let id = request["id"].as_u64().unwrap();
+        client.on_stdout_line(&format!(
+            "{{\"id\":{id},\"ok\":false,\"error\":\"cancelled\"}}"
+        ));
+    }
+
+    #[tokio::test]
+    async fn answered_cancellable_request_sends_no_cancel() {
+        let (client, mut rx) = connected();
+        let feeder = client.clone();
+        let checker = tokio::spawn(async move {
+            let id = id_of(&rx.recv().await.unwrap());
+            feeder.on_stdout_line(&format!("{{\"id\":{id},\"ok\":true,\"result\":{{}}}}"));
+            // Anything sent after the reply would be a spurious cancel.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            rx.try_recv().is_err()
+        });
+        let reply: Value = client
+            .request_cancellable("generate", Value::Null, None, Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert_eq!(reply, serde_json::json!({}));
+        assert!(checker.await.unwrap(), "no cancel after a reply");
     }
 
     #[tokio::test]

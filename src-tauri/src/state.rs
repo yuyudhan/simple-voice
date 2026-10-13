@@ -17,6 +17,7 @@ pub(crate) struct AppState {
     /// A database that failed to open keeps its error so every command reports the same
     /// message instead of the app refusing to start.
     db: Result<Db, AppError>,
+    /// Only for the latest-release check; nothing the user says or writes is ever sent.
     pub(crate) http: reqwest::Client,
     pub(crate) engine: EngineClient,
     /// `None` when the Mac has no usable audio output; dictation still works without cues.
@@ -31,6 +32,9 @@ pub(crate) struct AppState {
     /// Held while the login item is read or changed together with `launchAtLogin`, so a status
     /// read (on focus, on helper connect) never overwrites a change that is still in flight.
     pub(crate) login_item: tokio::sync::Mutex<()>,
+    /// Language model id → when it last loaded or answered, so a request to a model that is
+    /// probably cold gets time to load (see `features::llm`).
+    pub(crate) llm_used: Mutex<HashMap<String, std::time::Instant>>,
 }
 
 impl AppState {
@@ -57,6 +61,7 @@ impl AppState {
             engine_version: Mutex::new(None),
             updates: Mutex::new(UpdateStatus::new(app_version)),
             login_item: tokio::sync::Mutex::new(()),
+            llm_used: Mutex::new(HashMap::new()),
         }
     }
 

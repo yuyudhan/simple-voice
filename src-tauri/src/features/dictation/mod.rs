@@ -1,13 +1,15 @@
 // FilePath: src-tauri/src/features/dictation/mod.rs
-//! Dictation: the recording coordinator, the transcription → formatting → post-processing
-//! pipeline, edit mode (the selected text rewritten by a spoken instruction), ordered delivery
-//! into the frontmost app, and learning from the corrections made to pasted text.
+//! Dictation: the recording coordinator, live transcription while recording, the transcription
+//! → formatting → snippets → post-processing pipeline, optional context from the focused field,
+//! edit mode (the selected text rewritten by a spoken instruction), ordered delivery into the
+//! frontmost app, and learning from the corrections made to pasted text.
 
+mod context;
 mod coordinator;
 mod delivery;
 mod edit;
 mod learning;
-mod llm;
+mod live;
 mod pipeline;
 mod transcription;
 
@@ -20,6 +22,7 @@ use tokio::sync::mpsc;
 
 pub(crate) use self::coordinator::spawn_coordinator;
 pub(crate) use self::delivery::copy_to_clipboard;
+pub(crate) use self::live::{on_failed as on_stream_failed, on_partial as on_stream_partial};
 pub(crate) use self::pipeline::{retry, test_post_processing, PostProcessingTest};
 use crate::events;
 use crate::platform::shortcuts::Binding;
@@ -52,6 +55,8 @@ pub(crate) struct DictationHandle {
     recording_session: AtomicU64,
     /// Id of the newest session whose text was pasted; older results arriving later are dropped.
     delivered: AtomicU64,
+    /// The live transcription stream of the recording in progress.
+    live: live::LiveState,
 }
 
 impl DictationHandle {
@@ -62,6 +67,7 @@ impl DictationHandle {
             latest_session: AtomicU64::new(0),
             recording_session: AtomicU64::new(0),
             delivered: AtomicU64::new(0),
+            live: live::LiveState::default(),
         };
         (handle, receiver)
     }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meeting_summaries (meeting_id, body, action_items, model, created_at)\n             VALUES (?1, ?2, ?3, ?4, ?5)\n             ON CONFLICT (meeting_id) DO UPDATE SET body = excluded.body,\n                 action_items = excluded.action_items, model = excluded.model,\n                 created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "012f2a8ac8e9ab29f0e482d12552cec40b42ac01de7c56f35b989628600a070a"
+}

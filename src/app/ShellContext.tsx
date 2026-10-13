@@ -6,7 +6,8 @@ const SETTINGS_SECTIONS = ["dictation", "transcription", "formatting", "app", "p
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 /** Every page of the main window; each settings section is a page of its own. */
-export type Page = "home" | "insights" | "dictionary" | "style" | SettingsSection;
+export type Page =
+    "home" | "insights" | "dictionary" | "snippets" | "style" | "meetings" | SettingsSection;
 
 export function isSettingsSection(page: Page): page is SettingsSection {
     return SETTINGS_SECTIONS.some((section) => section === page);

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE meeting_speakers SET name = ?1 WHERE id = ?2 AND meeting_id = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "02c4f917ea7303eb6c5e5fa15303cc2e09c8cc022612982f6d7d0f664b471c14"
+}

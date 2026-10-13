@@ -82,26 +82,71 @@ enum AudioLoader {
     }
 }
 
-/// Hands the converter the whole input once, then reports end of stream. The converter calls the
-/// input block synchronously on the calling thread, so the lock only satisfies Sendable checking.
-private final class SingleBufferFeeder: @unchecked Sendable {
+/// Hands the converter the whole input once, then reports `afterwards` (end of stream for a
+/// whole file, "no data yet" for a live stream whose converter keeps its resampling state). The
+/// converter calls the input block synchronously on the calling thread, so the lock only
+/// satisfies Sendable checking.
+final class SingleBufferFeeder: @unchecked Sendable {
     private let buffer: AVAudioPCMBuffer
+    private let afterwards: AVAudioConverterInputStatus
     private let lock = NSLock()
     private var delivered = false
 
-    init(_ buffer: AVAudioPCMBuffer) {
+    init(_ buffer: AVAudioPCMBuffer, afterwards: AVAudioConverterInputStatus = .endOfStream) {
         self.buffer = buffer
+        self.afterwards = afterwards
     }
 
     func next(_ status: UnsafeMutablePointer<AVAudioConverterInputStatus>) -> AVAudioBuffer? {
         lock.lock()
         defer { lock.unlock() }
         if delivered {
-            status.pointee = .endOfStream
+            status.pointee = afterwards
             return nil
         }
         delivered = true
         status.pointee = .haveData
         return buffer
+    }
+}
+
+/// Converts consecutive 16 kHz mono chunks into another format with one converter, so the
+/// resampler's filter state carries across chunk boundaries. Not thread-safe: owned by one actor.
+final class StreamingConverter {
+    private let target: AVAudioFormat
+    private let converter: AVAudioConverter?
+
+    init(target: AVAudioFormat) throws {
+        self.target = target
+        guard let source = AudioLoader.targetFormat else {
+            throw EngineError("cannot describe 16 kHz mono audio")
+        }
+        if source == target {
+            converter = nil
+        } else {
+            guard let converter = AVAudioConverter(from: source, to: target) else {
+                throw EngineError("unsupported audio format: \(target)")
+            }
+            self.converter = converter
+        }
+    }
+
+    func convert(_ samples: [Float]) throws -> AVAudioPCMBuffer {
+        let input = try AudioLoader.makeBuffer(samples)
+        guard let converter else { return input }
+        let ratio = target.sampleRate / AudioLoader.sampleRate
+        let capacity = AVAudioFrameCount((Double(samples.count) * ratio).rounded(.up)) + 256
+        guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else {
+            throw EngineError("cannot allocate a conversion buffer")
+        }
+        let feeder = SingleBufferFeeder(input, afterwards: .noDataNow)
+        var conversionError: NSError?
+        let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
+            feeder.next(inputStatus)
+        }
+        if status == .error {
+            throw EngineError("audio conversion failed: \(conversionError.map(describe) ?? "unknown error")")
+        }
+        return output
     }
 }

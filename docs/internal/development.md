@@ -132,15 +132,16 @@ the expected text in `<category>-<name>.txt`; record your own dictations for rea
 
 ```sh
 just engine
-GROQ_API_KEY=... scripts/eval/transcription-eval.sh --clips ~/sv-clips \
-    --models groq-whisper,whisper-hinglish,whisper-large-v3-turbo,parakeet-tdt-v3 --out eval.tsv
+scripts/eval/transcription-eval.sh --clips ~/sv-clips \
+    --models whisper-hinglish,whisper-large-v3-turbo,parakeet-tdt-v3 --out eval.tsv
 ```
 
 Engine models are read from `~/.simplevoice-dev/models`, where `just dev` downloads them
 (`--models-dir` to change). The first run of a Whisper model includes its one-time Core ML compile.
 
 The run that chose Smart Select's models used 36 macOS `say` clips (English, Hindi and Hinglish
-voices, some with white noise) plus two real dictations:
+voices, some with white noise) plus two real dictations. Groq Whisper was still measured then;
+the app has since become local-only and the eval no longer runs it:
 
 | Model            | English WER | Hindi | Hinglish romanised | Warm time per clip |
 | ---------------- | ----------- | ----- | ------------------ | ------------------ |
@@ -149,13 +150,14 @@ voices, some with white noise) plus two real dictations:
 | Hinglish Whisper | 8.6%        | romanised            | 16 of 16     | ~1.9 s             |
 | Parakeet TDT v3  | 4.3%        | unusable             | —            | ~0.1 s             |
 
-Groq's average log-probability stayed above -0.52 on every clip, including wrong ones, so the
-Whisper floor stays at -1.0; Groq writing Hinglish half in Devanagari is caught by the mixed-script
-check instead.
+Groq's average log-probability stayed above -0.52 on every clip, including wrong ones, which is
+why the Whisper floor stays at -1.0 and Whisper writing Hinglish half in Devanagari is caught by
+the mixed-script check instead.
 
 ## Permissions during development
 
-macOS remembers Microphone, Accessibility and Speech Recognition grants per code signature.
+macOS remembers Microphone, Accessibility, Speech Recognition and Screen & System Audio Recording
+grants per code signature.
 Development builds are ad-hoc signed, and their signature changes with every rebuild, so macOS
 may forget a grant or show a stale entry that no longer matches:
 

@@ -10,7 +10,7 @@
 #
 # Usage: scripts/eval/transcription-eval.sh --clips DIR --models id[,id...] [--languages en,hi]
 #            [--prompt TEXT] [--models-dir DIR] [--engine PATH] [--out FILE]
-# Model ids are engine model ids, plus `groq-whisper` (needs GROQ_API_KEY in the environment).
+# Model ids are engine model ids; everything runs on this Mac through the engine helper.
 # Output: one TSV row per clip and model (to --out, default stdout), then a per-model,
 # per-category summary on stderr.
 set -euo pipefail
@@ -40,7 +40,7 @@ if [[ -z "$clips" || -z "$models" ]]; then
     echo "usage: $0 --clips DIR --models id[,id...] [--languages en,hi] [--prompt TEXT]" >&2
     exit 2
 fi
-for tool in jq awk curl; do
+for tool in jq awk; do
     command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 
@@ -70,43 +70,6 @@ word_errors() {
             }
             printf "%d\t%d\n", d[rn, hn], rn
         }'
-}
-
-# Aggregates Whisper segments exactly as Smart Select does: token-weighted means of
-# avg_logprob and no_speech_prob, the maximum compression ratio.
-read -r -d '' groq_quality <<'JQ' || true
-(.segments // []) as $s
-    | if ($s | length) == 0 then {} else
-        ($s | map((.tokens // []) | length | if . == 0 then 1 else . end)) as $w
-        | ($w | add) as $total
-        | {avgLogprob: ([range($s | length)] | map($s[.].avg_logprob * $w[.]) | add / $total),
-           noSpeechProb: ([range($s | length)] | map($s[.].no_speech_prob * $w[.]) | add / $total),
-           compressionRatio: ($s | map(.compression_ratio) | max)}
-      end
-JQ
-
-transcribe_groq() {
-    local wav="$1" body code attempt
-    : "${GROQ_API_KEY:?groq-whisper needs GROQ_API_KEY}"
-    body=$(mktemp)
-    # The free tier allows about 20 requests a minute; wait out a rate limit instead of failing.
-    for attempt in 1 2 3 4 5 6; do
-        code=$(curl -sS -o "$body" -w '%{http_code}' \
-            https://api.groq.com/openai/v1/audio/transcriptions \
-            -H "Authorization: Bearer ${GROQ_API_KEY}" \
-            -F model=whisper-large-v3-turbo -F response_format=verbose_json \
-            -F "prompt=${prompt}" -F "file=@${wav}")
-        [[ "$code" != "429" ]] && break
-        sleep $((attempt * 10))
-    done
-    if [[ "$code" != "200" ]]; then
-        echo "groq-whisper $(basename "$wav"): HTTP $code $(<"$body")" >&2
-        rm -f "$body"
-        return 1
-    fi
-    jq -c "{text: (.text // \"\" | gsub(\"^\\\\s+|\\\\s+$\"; \"\")),
-            language: .language, quality: (${groq_quality})}" "$body"
-    rm -f "$body"
 }
 
 row() {
@@ -141,14 +104,6 @@ printf 'model\tcategory\tclip\tms\terrors\twords\tromanised\tlanguage\tavg_logpr
 
 IFS=',' read -r -a model_list <<<"$models"
 for model in "${model_list[@]}"; do
-    if [[ "$model" == "groq-whisper" ]]; then
-        for wav in "${wavs[@]}"; do
-            start=$(now_ms)
-            result=$(transcribe_groq "$wav")
-            row "$model" "$wav" $(($(now_ms) - start)) "$result" >>"$tsv"
-        done
-        continue
-    fi
     [[ -x "$engine" ]] || { echo "engine helper not built: $engine (run: just engine)" >&2; exit 1; }
     coproc ENGINE { "$engine" --models-dir "$models_dir" 2>/dev/null; }
     id=0

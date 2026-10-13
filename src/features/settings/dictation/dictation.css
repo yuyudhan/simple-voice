@@ -37,3 +37,58 @@
     border-radius: var(--radius-control);
     background: var(--surface);
 }
+
+/* Context: excluded apps sit under the toggles as removable chips plus an add form. */
+.sv-context__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sv-context__warning {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.sv-context__excluded {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.sv-context__label {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.sv-context__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sv-context__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 2px 2px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    font-size: 12.5px;
+}
+
+.sv-context__add {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sv-context__add > .sv-field {
+    flex: 1;
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE meetings SET ended_at = ?1, duration_ms = ?2 WHERE id = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e06239241363f3cd624afe706363a2a0ffe4ce2e00b1e0476d932989ca428420"
+}

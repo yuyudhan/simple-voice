@@ -34,6 +34,7 @@
         ],
         "macOS": {
             "minimumSystemVersion": "14.0",
+            "frameworks": ["binaries/llama.framework"],
             "entitlements": "Entitlements.plist",
             "hardenedRuntime": true
         }

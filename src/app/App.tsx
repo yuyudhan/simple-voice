@@ -8,9 +8,12 @@ import { HistoryPage } from "../features/history/HistoryPage";
 import { InsightsPage } from "../features/insights/InsightsPage";
 import { DictionaryPage } from "../features/dictionary/DictionaryPage";
 import { StylePage } from "../features/style/StylePage";
+import { SnippetsPage } from "../features/snippets/SnippetsPage";
+import { MeetingsPage } from "../features/meetings/MeetingsPage";
 import { AccessibilityWarning } from "../features/settings/permissions/AccessibilityWarning";
 import { UpdateBanner } from "../features/updates/UpdateBanner";
 import { useToast } from "../ui";
+import { LiveTranscript } from "./LiveTranscript";
 import { useSettings } from "./SettingsContext";
 import { isSettingsSection, ShellContext, type Page } from "./ShellContext";
 import { Sidebar } from "./Sidebar";
@@ -69,12 +72,15 @@ export function App() {
                     <div className="sv-shell__notices">
                         <AccessibilityWarning placement="shell" />
                         <UpdateBanner />
+                        <LiveTranscript />
                     </div>
                     <div className="sv-shell__content" key={page}>
                         {page === "home" && <HistoryPage />}
                         {page === "insights" && <InsightsPage />}
                         {page === "dictionary" && <DictionaryPage />}
+                        {page === "snippets" && <SnippetsPage />}
                         {page === "style" && <StylePage />}
+                        {page === "meetings" && <MeetingsPage />}
                         {isSettingsSection(page) && <SettingsPage section={page} />}
                     </div>
                 </main>

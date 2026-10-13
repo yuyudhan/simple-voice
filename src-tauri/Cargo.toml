@@ -1,7 +1,7 @@
 # FilePath: src-tauri/Cargo.toml
 [package]
 name = "simple-voice"
-description = "System-wide dictation for macOS: speak, and polished text lands in the focused app."
+description = "Private, on-device dictation and meetings for macOS: speak, and polished text lands in the focused app."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,7 +21,6 @@ tauri-build.workspace = true
 sv-domain.workspace = true
 sv-storage.workspace = true
 sv-text.workspace = true
-sv-cloud.workspace = true
 sv-audio.workspace = true
 sv-engine.workspace = true
 tauri.workspace = true

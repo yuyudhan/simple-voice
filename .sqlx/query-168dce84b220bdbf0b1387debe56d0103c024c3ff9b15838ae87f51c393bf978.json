@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM meeting_translations WHERE meeting_id = ?1 AND language = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "168dce84b220bdbf0b1387debe56d0103c024c3ff9b15838ae87f51c393bf978"
+}

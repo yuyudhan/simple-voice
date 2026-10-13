@@ -32,6 +32,9 @@ const LEVEL_CEILING_DB: f32 = -10.0;
 const STREAM_OPEN_TIMEOUT: Duration = Duration::from_secs(5);
 
 type SharedBuffer = Arc<Mutex<Vec<f32>>>;
+/// Receives each new stretch of 16 kHz mono PCM16 (about every 33 ms) on the capture worker
+/// thread, never on the audio callback.
+pub type ChunkSink = Box<dyn FnMut(&[i16]) + Send + 'static>;
 
 /// A finished capture: 16 kHz mono PCM16.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,12 +59,31 @@ impl Recorder {
         device: Option<&str>,
         on_level: Box<dyn Fn(f32) + Send + 'static>,
     ) -> AppResult<Recorder> {
+        Self::start_with(device, on_level, None, true)
+    }
+
+    /// Like [`Recorder::start`], and also hands every new stretch of audio to `on_chunk` while
+    /// recording (live transcription, meeting files). With `keep_samples` false the finished
+    /// [`Recording`] has no samples, only its duration, so an hour-long meeting written to disk
+    /// by `on_chunk` is never held in memory.
+    pub fn start_with(
+        device: Option<&str>,
+        on_level: Box<dyn Fn(f32) + Send + 'static>,
+        on_chunk: Option<ChunkSink>,
+        keep_samples: bool,
+    ) -> AppResult<Recorder> {
         let requested = device.map(str::to_owned);
         let (ready_tx, ready_rx) = mpsc::sync_channel::<AppResult<()>>(1);
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
         let worker = thread::Builder::new()
             .name("sv-audio-capture".to_owned())
-            .spawn(move || run_capture(requested.as_deref(), on_level, &ready_tx, &stop_rx))
+            .spawn(move || {
+                let sink = Sink {
+                    on_chunk,
+                    keep_samples,
+                };
+                run_capture(requested.as_deref(), on_level, sink, &ready_tx, &stop_rx)
+            })
             .map_err(|error| {
                 AppError::Audio(format!("Could not start the recording thread: {error}"))
             })?;
@@ -91,9 +113,16 @@ fn crashed() -> AppError {
     AppError::Audio("The recording thread stopped unexpectedly.".to_owned())
 }
 
+/// Where captured audio goes besides the level meter.
+struct Sink {
+    on_chunk: Option<ChunkSink>,
+    keep_samples: bool,
+}
+
 fn run_capture(
     requested: Option<&str>,
     on_level: Box<dyn Fn(f32) + Send + 'static>,
+    sink: Sink,
     ready_tx: &mpsc::SyncSender<AppResult<()>>,
     stop_rx: &mpsc::Receiver<()>,
 ) -> AppResult<Recording> {
@@ -108,7 +137,7 @@ fn run_capture(
     };
     let _ = ready_tx.send(Ok(()));
 
-    let mut pipeline = Pipeline::new(input_rate);
+    let mut pipeline = Pipeline::with_sink(input_rate, sink);
     let mut pending: Vec<f32> = Vec::with_capacity(input_rate as usize / 10);
     let mut fatal: Option<AppError> = None;
     loop {
@@ -240,22 +269,44 @@ where
 }
 
 /// Resampling, PCM16 conversion and metering, kept free of cpal so it is testable.
-#[derive(Debug)]
 struct Pipeline {
     resampler: Resampler,
     scratch: Vec<f32>,
+    /// PCM16 of the latest push, handed to the chunk sink.
+    chunk: Vec<i16>,
     samples: Vec<i16>,
+    /// Samples converted so far, kept or not.
+    total: u64,
     meter: LevelMeter,
+    sink: Sink,
+}
+
+impl std::fmt::Debug for Pipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Pipeline")
+            .field("total", &self.total)
+            .field("keep_samples", &self.sink.keep_samples)
+            .field("streams", &self.sink.on_chunk.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Pipeline {
-    fn new(input_rate: u32) -> Self {
+    fn with_sink(input_rate: u32, sink: Sink) -> Self {
+        let kept = if sink.keep_samples {
+            // One minute up front; longer dictations grow the buffer a handful of times.
+            TARGET_SAMPLE_RATE as usize * 60
+        } else {
+            0
+        };
         Self {
             resampler: Resampler::new(input_rate, TARGET_SAMPLE_RATE),
             scratch: Vec::with_capacity(TARGET_SAMPLE_RATE as usize / 10),
-            // One minute up front; longer dictations grow the buffer a handful of times.
-            samples: Vec::with_capacity(TARGET_SAMPLE_RATE as usize * 60),
+            chunk: Vec::with_capacity(TARGET_SAMPLE_RATE as usize / 10),
+            samples: Vec::with_capacity(kept),
+            total: 0,
             meter: LevelMeter::default(),
+            sink,
         }
     }
 
@@ -269,7 +320,7 @@ impl Pipeline {
         self.scratch.clear();
         self.resampler.flush(&mut self.scratch);
         self.absorb();
-        let millis = self.samples.len() as u64 * 1000 / u64::from(TARGET_SAMPLE_RATE);
+        let millis = self.total * 1000 / u64::from(TARGET_SAMPLE_RATE);
         Recording {
             duration_ms: i64::try_from(millis).unwrap_or(i64::MAX),
             samples: self.samples,
@@ -277,9 +328,19 @@ impl Pipeline {
     }
 
     fn absorb(&mut self) {
+        self.chunk.clear();
         for &sample in &self.scratch {
             self.meter.add(sample);
-            self.samples.push(to_i16(sample));
+            self.chunk.push(to_i16(sample));
+        }
+        self.total += self.chunk.len() as u64;
+        if self.sink.keep_samples {
+            self.samples.extend_from_slice(&self.chunk);
+        }
+        if let Some(on_chunk) = self.sink.on_chunk.as_mut() {
+            if !self.chunk.is_empty() {
+                on_chunk(&self.chunk);
+            }
         }
     }
 }
@@ -322,6 +383,16 @@ fn level_from_rms(rms: f32) -> f32 {
 mod tests {
     use super::*;
 
+    fn kept_pipeline(input_rate: u32) -> Pipeline {
+        Pipeline::with_sink(
+            input_rate,
+            Sink {
+                on_chunk: None,
+                keep_samples: true,
+            },
+        )
+    }
+
     #[test]
     fn level_mapping_is_bounded() {
         assert_eq!(level_from_rms(0.0), 0.0);
@@ -357,7 +428,7 @@ mod tests {
 
     #[test]
     fn pipeline_turns_48k_into_16k_pcm16_with_duration() {
-        let mut pipeline = Pipeline::new(48_000);
+        let mut pipeline = kept_pipeline(48_000);
         let tone: Vec<f32> = (0..48_000)
             .map(|i| 0.25 * (2.0 * std::f32::consts::PI * 300.0 * i as f32 / 48_000.0).sin())
             .collect();
@@ -378,5 +449,30 @@ mod tests {
             .max()
             .unwrap_or(0);
         assert!((8_000..8_600).contains(&peak), "{peak}");
+    }
+
+    #[test]
+    fn chunks_reach_the_sink_and_unkept_audio_only_counts_its_duration() {
+        let received = Arc::new(Mutex::new(Vec::<i16>::new()));
+        let seen = Arc::clone(&received);
+        let mut pipeline = Pipeline::with_sink(
+            16_000,
+            Sink {
+                on_chunk: Some(Box::new(move |chunk: &[i16]| {
+                    seen.lock().extend_from_slice(chunk);
+                })),
+                keep_samples: false,
+            },
+        );
+        let tone: Vec<f32> = (0..32_000)
+            .map(|i| 0.25 * (2.0 * std::f32::consts::PI * 300.0 * i as f32 / 16_000.0).sin())
+            .collect();
+        for chunk in tone.chunks(533) {
+            pipeline.push(chunk);
+        }
+        let recording = pipeline.finish();
+        assert!(recording.samples.is_empty());
+        assert_eq!(recording.duration_ms, 2_000);
+        assert_eq!(received.lock().len(), 32_000);
     }
 }

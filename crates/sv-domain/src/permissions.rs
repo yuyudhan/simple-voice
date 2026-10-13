@@ -12,6 +12,8 @@ pub enum PermissionKind {
     Accessibility,
     /// Speech Recognition. Required only for the Apple Speech model.
     Speech,
+    /// Screen & System Audio Recording. Required only for meetings that record system audio.
+    SystemAudio,
 }
 
 impl PermissionKind {
@@ -20,6 +22,7 @@ impl PermissionKind {
             Self::Microphone => "microphone",
             Self::Accessibility => "accessibility",
             Self::Speech => "speech",
+            Self::SystemAudio => "system_audio",
         }
     }
 }
@@ -39,4 +42,5 @@ pub struct Permissions {
     pub microphone: PermissionStatus,
     pub accessibility: PermissionStatus,
     pub speech: PermissionStatus,
+    pub system_audio: PermissionStatus,
 }

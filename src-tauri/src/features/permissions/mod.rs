@@ -1,5 +1,6 @@
 // FilePath: src-tauri/src/features/permissions/mod.rs
-//! Microphone, Accessibility and Speech Recognition permissions. The engine helper owns the
+//! Microphone, Accessibility, Speech Recognition and (for meetings) Screen & System Audio
+//! Recording permissions. The engine helper owns the
 //! checks (they need Apple frameworks); this slice caches the last answer and tells the UI when
 //! it changes.
 

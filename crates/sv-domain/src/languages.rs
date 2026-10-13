@@ -123,7 +123,7 @@ pub struct Language {
     pub tag: &'static str,
     /// English name shown in the UI.
     pub name: &'static str,
-    /// ISO 639-1 code speech models (Groq, Whisper, Apple Speech) receive.
+    /// ISO 639-1 code speech models (Whisper, Apple Speech) receive.
     pub base: &'static str,
     /// How the app writes this language.
     pub script: Script,

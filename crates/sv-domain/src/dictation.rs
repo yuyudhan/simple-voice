@@ -52,6 +52,19 @@ impl DictationState {
     }
 }
 
+/// Payload of the `dictation-partial` event: the live transcript of the recording in progress,
+/// from a streaming voice model. Transient: never stored; the final text comes from the
+/// finished stream.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DictationPartial {
+    pub session_id: u64,
+    /// Text the model will not revise any more.
+    pub text: String,
+    /// The model's current guess for the words after `text`; may still change.
+    pub tentative: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelProgressStatus {

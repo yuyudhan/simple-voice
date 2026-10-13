@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO history (\n                created_at, status, raw_text, final_text, error, model, format_model, language,\n                style, audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,\n                app_name, bundle_id, app_category, audio_path, transcribe_ms, format_ms,\n                source_text, first_model, retry_reason, style_source\n             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,\n                ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 24
+    },
+    "nullable": []
+  },
+  "hash": "aad202198026c4390c4381cde90a83160ca5372ef904c15723a21e3c3b619619"
+}

@@ -1,18 +1,14 @@
 // FilePath: src/features/settings/formatting/FormattingProviders.tsx
-// Post-processing provider choice plus the fields each provider needs and a live test that
-// formats a fixed sample through the configured provider.
-import { useState, type SyntheticEvent, type ReactNode } from "react";
-import { Apple, CircleSlash, Eye, EyeOff, Server, Zap } from "lucide-react";
-import {
-    api,
-    errorMessage,
-    type ModelInfo,
-    type PostProcessing,
-    type PostProcessingTest,
-} from "../../../lib/api";
+// Post-processing provider choice: Apple Intelligence, a downloaded local language model, or off.
+// Every provider runs on this Mac. The local option lists the downloadable language models with
+// their size, source and licence, and a live test formats a fixed sample through the provider.
+import { useState, type ReactNode } from "react";
+import { Apple, Brain, CircleSlash } from "lucide-react";
+import { api, errorMessage, type PostProcessing, type PostProcessingTest } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import { Button, IconButton, TextField } from "../../../ui";
-import { SettingTextField } from "../SettingTextField";
+import { Button } from "../../../ui";
+import type { ModelsState } from "../models/useModels";
+import { ModelList } from "../models/VoiceModelList";
 import "../common.css";
 import "../models/models.css";
 
@@ -25,22 +21,16 @@ interface ProviderOption {
 
 const PROVIDERS: ProviderOption[] = [
     {
-        id: "groq",
-        name: "Groq",
-        description: "Remote, fastest. The default.",
-        icon: <Zap size={16} />,
-    },
-    {
         id: "apple",
         name: "Apple Intelligence",
-        description: "On-device, macOS 26+.",
+        description: "Built into macOS 26+. The default.",
         icon: <Apple size={16} />,
     },
     {
-        id: "custom",
-        name: "Custom",
-        description: "OpenAI-compatible: Ollama, LM Studio or any remote.",
-        icon: <Server size={16} />,
+        id: "local",
+        name: "Local model",
+        description: "A language model you download once.",
+        icon: <Brain size={16} />,
     },
     {
         id: "off",
@@ -50,83 +40,7 @@ const PROVIDERS: ProviderOption[] = [
     },
 ];
 
-function CustomKeyField() {
-    const { settings, refresh } = useSettings();
-    const [key, setKey] = useState("");
-    const [reveal, setReveal] = useState(false);
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const apply = async (value: string | null) => {
-        setBusy(true);
-        setError(null);
-        try {
-            await api.setCustomApiKey(value);
-            await refresh();
-            setKey("");
-        } catch (e) {
-            setError(errorMessage(e));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const submit = (event: SyntheticEvent) => {
-        event.preventDefault();
-        const trimmed = key.trim();
-        if (trimmed !== "") void apply(trimmed);
-    };
-
-    return (
-        <div className="sv-formatting__keyblock">
-            <span className="sv-formatting__label">API key (optional)</span>
-            <form className="sv-keycard__form" onSubmit={submit}>
-                <TextField
-                    aria-label="Custom endpoint API key"
-                    error={error ?? undefined}
-                    type={reveal ? "text" : "password"}
-                    value={key}
-                    placeholder={settings.customApiKeyPresent ? "Saved — enter to replace" : ""}
-                    autoComplete="off"
-                    spellCheck={false}
-                    onChange={(event) => {
-                        setKey(event.target.value);
-                    }}
-                />
-                <IconButton
-                    type="button"
-                    label={reveal ? "Hide key" : "Show key"}
-                    icon={reveal ? <EyeOff size={15} /> : <Eye size={15} />}
-                    onClick={() => {
-                        setReveal((r) => !r);
-                    }}
-                />
-                <Button type="submit" variant="secondary" loading={busy && key !== ""}>
-                    Save
-                </Button>
-                {settings.customApiKeyPresent && (
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        loading={busy && key === ""}
-                        onClick={() => {
-                            void apply(null);
-                        }}
-                    >
-                        Remove
-                    </Button>
-                )}
-            </form>
-            <p className="sv-inline-note">
-                {settings.customApiKeyPresent
-                    ? "A key is saved for this endpoint."
-                    : "Local servers such as Ollama and LM Studio need no key."}
-            </p>
-        </div>
-    );
-}
-
-function TestFormatting() {
+function TestFormatting({ disabled }: { disabled: boolean }) {
     const [running, setRunning] = useState(false);
     const [result, setResult] = useState<PostProcessingTest | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -151,6 +65,7 @@ function TestFormatting() {
                     variant="secondary"
                     size="sm"
                     loading={running}
+                    disabled={disabled}
                     onClick={() => {
                         void run();
                     }}
@@ -162,7 +77,7 @@ function TestFormatting() {
                 <>
                     <pre className="sv-formatting__output">{result.output}</pre>
                     <span className="sv-formatting__latency">
-                        Formatted in {result.latencyMs} ms
+                        Formatted on this Mac in {result.latencyMs} ms
                     </span>
                 </>
             )}
@@ -175,15 +90,23 @@ function TestFormatting() {
     );
 }
 
-export function FormattingProviders({ appleIntelligence }: { appleIntelligence?: ModelInfo }) {
+export function FormattingProviders({ models }: { models: ModelsState }) {
     const { settings, update } = useSettings();
+    const list = models.models ?? [];
+    const appleIntelligence = list.find((m) => m.id === "apple-intelligence");
     const appleUnavailable = appleIntelligence?.status === "unsupported";
+    const localModels = list.filter((m) => m.kind === "post_processing" && m.provider === "llm");
+    const localModel = localModels.find((m) => m.id === settings.localLlmModel);
+    const localReady = localModel?.status === "ready";
+
+    let providerReady = true;
+    if (settings.postProcessing === "apple") providerReady = appleIntelligence?.status === "ready";
+    if (settings.postProcessing === "local") providerReady = localReady;
 
     return (
         <div className="sv-formatting__detail">
             <p className="sv-formatting__note">
-                Any voice model works with any formatting provider. Pair Parakeet or Apple Speech
-                with Apple Intelligence (or a local Ollama) to stay fully offline.
+                Formatting runs on this Mac. Your text is never sent anywhere.
             </p>
             <div className="sv-providers" role="radiogroup" aria-label="Formatting provider">
                 {PROVIDERS.map((provider) => {
@@ -216,16 +139,6 @@ export function FormattingProviders({ appleIntelligence }: { appleIntelligence?:
                 })}
             </div>
 
-            {settings.postProcessing === "groq" && (
-                <SettingTextField
-                    label="Groq formatting model"
-                    hint="Default qwen/qwen3.8-27b. Any Groq chat model id works."
-                    value={settings.groqFormattingModel}
-                    spellCheck={false}
-                    onCommit={(groqFormattingModel) => update({ groqFormattingModel })}
-                />
-            )}
-
             {settings.postProcessing === "apple" && appleIntelligence && (
                 <p className={appleUnavailable ? "sv-inline-warning" : "sv-inline-note"}>
                     {appleUnavailable
@@ -234,34 +147,31 @@ export function FormattingProviders({ appleIntelligence }: { appleIntelligence?:
                 </p>
             )}
 
-            {settings.postProcessing === "custom" && (
+            {settings.postProcessing === "local" && (
                 <>
-                    <SettingTextField
-                        label="Base URL"
-                        hint="The OpenAI-compatible root, e.g. http://localhost:11434/v1 for Ollama."
-                        value={settings.customBaseUrl}
-                        spellCheck={false}
-                        placeholder="http://localhost:11434/v1"
-                        onCommit={(customBaseUrl) => update({ customBaseUrl })}
+                    {!localReady && (
+                        <p className="sv-inline-warning" role="status">
+                            {localModel === undefined
+                                ? "Pick a local model below. Until one is downloaded, dictations are pasted without formatting."
+                                : `${localModel.name} is not downloaded yet. Until it is, dictations are pasted without formatting.`}
+                        </p>
+                    )}
+                    <ModelList
+                        state={models}
+                        models={localModels}
+                        label="Local language model"
+                        activeId={settings.localLlmModel}
                     />
-                    <SettingTextField
-                        label="Model"
-                        hint="The model name the endpoint expects, e.g. qwen3:8b."
-                        value={settings.customModel}
-                        spellCheck={false}
-                        onCommit={(customModel) => update({ customModel })}
-                    />
-                    <CustomKeyField />
                 </>
             )}
 
             {settings.postProcessing === "off" ? (
                 <p className="sv-inline-note">
-                    Only your dictionary rules, brand casing, spacing and capitalisation are
-                    applied.
+                    Only your dictionary rules, snippets, brand casing, spacing and capitalisation
+                    are applied.
                 </p>
             ) : (
-                <TestFormatting />
+                <TestFormatting disabled={!providerReady} />
             )}
         </div>
     );

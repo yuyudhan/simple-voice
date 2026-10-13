@@ -31,6 +31,12 @@ func describe(_ error: any Error) -> String {
     if let text = bridged.userInfo[NSLocalizedDescriptionKey] as? String, !text.isEmpty {
         return text
     }
+    // Errors from system frameworks without a message (a refused connection surfaces as a bare
+    // NSPOSIXErrorDomain error) still have a readable generated description.
+    let systemDomains = [NSPOSIXErrorDomain, NSURLErrorDomain, NSCocoaErrorDomain, NSOSStatusErrorDomain]
+    if systemDomains.contains(bridged.domain) {
+        return bridged.localizedDescription
+    }
     return String(describing: error)
 }
 
@@ -93,8 +99,10 @@ struct TranscribeParams: Decodable {
     let language: String?
     /// Languages Whisper may pick from when `language` is absent (ISO 639-1 codes).
     let languages: [String]?
-    /// Whisper conditioning prompt (the personal dictionary).
+    /// Whisper conditioning prompt (language lead, product name, personal dictionary, packs).
     let prompt: String?
+    /// Adds timed `segments` to the result (meetings, long recordings).
+    let timestamps: Bool?
 }
 
 struct KindParams: Decodable {
@@ -116,9 +124,25 @@ struct PolishShot: Decodable, Sendable {
 }
 
 struct PolishParams: Decodable, Sendable {
+    /// `apple-intelligence` (the default) or a downloaded local language model.
+    let model: String?
     let system: String
     let shots: [PolishShot]
     let user: String
+}
+
+/// `polish` with an explicit model and output budget: summaries, chat answers, translations.
+struct GenerateParams: Decodable, Sendable {
+    let model: String
+    let system: String
+    let shots: [PolishShot]?
+    let user: String
+    let maxTokens: Int?
+    let temperature: Double?
+}
+
+struct CancelParams: Decodable {
+    let target: Int64
 }
 
 enum ModelID: String, Sendable, CaseIterable {
@@ -129,6 +153,23 @@ enum ModelID: String, Sendable, CaseIterable {
     case whisperHinglish = "whisper-hinglish"
     case appleSpeech = "apple-speech"
     case appleIntelligence = "apple-intelligence"
+    /// Local text generation (llama.cpp, Qwen3 4B Instruct 2507, Apache-2.0).
+    case qwen3Instruct = "qwen3-4b-instruct"
+    /// Speaker diarization (FluidAudio offline pipeline, pyannote Community-1, CC-BY-4.0).
+    case speakerDiarization = "speaker-diarization"
+    /// Translation (llama.cpp T5 encoder-decoder, Google MADLAD-400 3B MT, Apache-2.0).
+    case madlad = "madlad400-3b-mt"
+
+    /// Models that recognise audio incrementally while it is recorded (`stream_start`).
+    var streams: Bool {
+        switch self {
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .appleSpeech:
+            true
+        case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
+            .madlad:
+            false
+        }
+    }
 
     static func parse(_ raw: String) throws -> ModelID {
         guard let id = ModelID(rawValue: raw) else {
@@ -142,6 +183,8 @@ enum PermissionKind: String, Sendable {
     case microphone
     case accessibility
     case speech
+    /// System audio for meetings, captured through ScreenCaptureKit (Screen & System Audio Recording).
+    case systemAudio = "system_audio"
 
     static func parse(_ raw: String) throws -> PermissionKind {
         guard let kind = PermissionKind(rawValue: raw) else {
@@ -180,8 +223,17 @@ enum ModelAvailability: String, Encodable, Sendable {
 
 struct ModelStatusResult: Encodable, Sendable {
     let status: ModelAvailability
-    let sizeBytes: Int64?
+    /// Bytes on disk when ready; the download size when not downloaded and the size is known.
+    var sizeBytes: Int64?
     let reason: String?
+    /// Whether `stream_start` accepts this model.
+    var streaming = false
+    /// Prompt plus output token budget of a language model.
+    var contextTokens: Int?
+    /// Licence and origin of a downloadable model, shown before the user downloads it.
+    var license: String?
+    var source: String?
+    var revision: String?
 
     static func ready(sizeBytes: Int64? = nil) -> ModelStatusResult {
         ModelStatusResult(status: .ready, sizeBytes: sizeBytes, reason: nil)
@@ -204,6 +256,15 @@ struct TranscriptResult: Encodable, Sendable {
     let text: String
     let language: String?
     var quality: TranscriptQuality? = nil
+    /// Present when the request asked for `timestamps`.
+    var segments: [TimedSegment]? = nil
+}
+
+/// A stretch of transcript and where it sits in the audio, in milliseconds from the start.
+struct TimedSegment: Encodable, Sendable, Equatable {
+    let startMs: Int64
+    let endMs: Int64
+    let text: String
 }
 
 /// How sure the model was of a transcript; which fields are present depends on the model family.
@@ -225,6 +286,7 @@ struct PermissionsResult: Encodable, Sendable {
     let microphone: PermissionState
     let accessibility: PermissionState
     let speech: PermissionState
+    let systemAudio: PermissionState
 }
 
 struct FrontmostAppResult: Encodable, Sendable {
@@ -251,6 +313,11 @@ struct MutedResult: Encodable, Sendable {
 struct PolishResult: Encodable, Sendable {
     let text: String
     let finished: Bool
+}
+
+struct CancelResult: Encodable, Sendable {
+    /// False when no request with that id was running any more.
+    let cancelled: Bool
 }
 
 // MARK: - Output
@@ -319,6 +386,11 @@ actor Output {
 
     func fnKey(_ action: FnKeyAction) {
         emit(FnKeyLine(action: action))
+    }
+
+    /// An unsolicited line (no request id) whose type carries its own `event` field.
+    func event(_ line: some Encodable & Sendable) {
+        emit(line)
     }
 
     private func emit(_ line: some Encodable) {

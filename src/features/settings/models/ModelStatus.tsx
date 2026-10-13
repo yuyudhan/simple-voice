@@ -13,10 +13,13 @@ function StatusBadge({ model, fraction }: { model: ModelInfo; fraction: number |
         return <Badge tone="accent">Downloading {Math.round(value * 100)}%</Badge>;
     }
     switch (model.status) {
-        case "cloud":
-            return <Badge tone="neutral">Cloud</Badge>;
         case "ready":
-            return <Badge tone="success">Downloaded</Badge>;
+            // Apple's models ship with macOS: available, never downloaded.
+            return (
+                <Badge tone="success">
+                    {model.provider === "apple" ? "Available" : "Downloaded"}
+                </Badge>
+            );
         case "not_downloaded":
             return <Badge tone="neutral">Not downloaded</Badge>;
         case "unsupported":
@@ -27,19 +30,20 @@ function StatusBadge({ model, fraction }: { model: ModelInfo; fraction: number |
 interface SideProps {
     model: ModelInfo;
     state: ModelsState;
-    /** Offer Delete for a downloaded local model. */
+    /** Offer Delete for a downloaded model. */
     deletable: boolean;
 }
 
 /** Status badge plus the Download (or Delete) action; sits in a row's `.sv-model__side`. */
 export function ModelSide({ model, state, deletable }: SideProps) {
-    const local = model.provider !== "groq";
+    // Models built into macOS (Apple Speech, Apple Intelligence) have nothing to download.
+    const downloadable = model.provider !== "apple";
     const fraction = state.progress[model.id];
     const downloading = fraction !== undefined || model.status === "downloading";
     return (
         <div className="sv-model__side">
             <StatusBadge model={model} fraction={fraction} />
-            {local && model.status === "not_downloaded" && !downloading && (
+            {downloadable && model.status === "not_downloaded" && !downloading && (
                 <Button
                     size="sm"
                     variant="secondary"
@@ -51,7 +55,7 @@ export function ModelSide({ model, state, deletable }: SideProps) {
                     Download
                 </Button>
             )}
-            {local && model.status === "ready" && deletable && (
+            {downloadable && model.status === "ready" && deletable && (
                 <IconButton
                     label={`Delete ${model.name}`}
                     icon={<Trash2 size={15} />}

@@ -13,9 +13,19 @@ export interface SelectProps<T extends string> {
     onChange: (value: T) => void;
     options: SelectOption<T>[];
     label?: string;
+    /** Accessible name when no visible label is shown (e.g. inside a titled setting row). */
+    ariaLabel?: string;
+    disabled?: boolean;
 }
 
-export function Select<T extends string>({ value, onChange, options, label }: SelectProps<T>) {
+export function Select<T extends string>({
+    value,
+    onChange,
+    options,
+    label,
+    ariaLabel,
+    disabled,
+}: SelectProps<T>) {
     const id = useId();
     return (
         <div className="sv-field sv-field--inline">
@@ -28,6 +38,8 @@ export function Select<T extends string>({ value, onChange, options, label }: Se
                 <select
                     id={id}
                     value={value}
+                    aria-label={label ? undefined : ariaLabel}
+                    disabled={disabled}
                     onChange={(event) => {
                         // Map back through the typed options instead of trusting the DOM string.
                         const picked = options.find(

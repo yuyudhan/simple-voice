@@ -1,0 +1,120 @@
+/* FilePath: src/features/snippets/snippets.css */
+.snippets-toolbar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.snippets-search {
+    position: relative;
+    flex: 1;
+    max-width: 360px;
+}
+
+.snippets-search__icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    z-index: 1;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    color: var(--faint);
+    pointer-events: none;
+}
+
+.snippets-search .sv-input {
+    padding-left: 31px;
+}
+
+.snippets-search .sv-input::-webkit-search-cancel-button {
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.snippets-loading {
+    display: flex;
+    justify-content: center;
+    padding: 40px 0;
+    color: var(--muted);
+}
+
+/* Hairline list: trigger, arrow, the multi-line text as written, then date and actions. */
+.snippets-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--border-strong);
+}
+
+.snippet-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 88px 64px;
+    align-items: start;
+    gap: 12px;
+    padding: 10px 4px 10px 12px;
+    border-bottom: 1px solid var(--border);
+    transition: background-color var(--dur) var(--ease);
+}
+
+.snippet-row:hover {
+    background: var(--surface);
+}
+
+.snippet-row__main {
+    display: grid;
+    grid-template-columns: minmax(80px, max-content) 14px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+}
+
+.snippet-row__trigger {
+    font-weight: 600;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+
+.snippet-row__arrow {
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    color: var(--faint);
+}
+
+/* Shown as stored: whitespace and line breaks are the snippet. */
+.snippet-row__text {
+    margin: 0;
+    max-height: 7.5em;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.snippet-row__date {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.snippet-row__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+.snippet-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.snippets-confirm {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+}

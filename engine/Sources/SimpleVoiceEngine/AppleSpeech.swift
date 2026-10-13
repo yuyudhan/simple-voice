@@ -64,9 +64,11 @@ enum AppleSpeech {
         }
     }
 
-    static func transcribe(path: String, language: String?) async throws -> TranscriptResult {
+    /// SpeechTranscriber has no server path: recognition always runs on this Mac with the locale
+    /// assets installed through AssetInventory, which is what keeps Apple Speech offline.
+    static func transcribe(path: String, language: String?, timestamps: Bool) async throws -> TranscriptResult {
         let locale = try await requireLocale(language)
-        let transcriber = SpeechTranscriber(locale: locale, preset: .transcription)
+        let transcriber = makeTranscriber(locale: locale, volatile: false, timestamps: timestamps)
         try await prepareAssets(for: transcriber, locale: locale)
         let file: AVAudioFile
         do {
@@ -78,14 +80,14 @@ enum AppleSpeech {
         let analyzer = SpeechAnalyzer(modules: [transcriber])
         // Results must be consumed while the analyzer runs; the stream ends when it finishes.
         let collector = Task {
-            var parts: [String] = []
+            var parts: [TimedSegment] = []
             for try await result in transcriber.results where result.isFinal {
                 let text = String(result.text.characters).trimmingCharacters(in: .whitespacesAndNewlines)
                 if !text.isEmpty {
-                    parts.append(text)
+                    parts.append(segment(text, result.range))
                 }
             }
-            return parts.joined(separator: " ")
+            return parts
         }
         do {
             if let lastSample = try await analyzer.analyzeSequence(from: file) {
@@ -98,8 +100,43 @@ enum AppleSpeech {
             await analyzer.cancelAndFinishNow()
             throw error
         }
-        let text = try await collector.value
-        return TranscriptResult(text: text, language: locale.language.languageCode?.identifier)
+        let parts = try await collector.value
+        return TranscriptResult(
+            text: parts.map(\.text).joined(separator: " "),
+            language: locale.language.languageCode?.identifier,
+            segments: timestamps ? parts : nil
+        )
+    }
+
+    static func makeTranscriber(locale: Locale, volatile: Bool, timestamps: Bool) -> SpeechTranscriber {
+        if !volatile, !timestamps {
+            return SpeechTranscriber(locale: locale, preset: .transcription)
+        }
+        return SpeechTranscriber(
+            locale: locale,
+            transcriptionOptions: [],
+            reportingOptions: volatile ? [.volatileResults] : [],
+            attributeOptions: timestamps ? [.audioTimeRange] : []
+        )
+    }
+
+    private static func segment(_ text: String, _ range: CMTimeRange) -> TimedSegment {
+        let start = range.start.isNumeric ? range.start.seconds : 0
+        let end = range.end.isNumeric ? range.end.seconds : start
+        return TimedSegment(
+            startMs: Timeline.milliseconds(start), endMs: Timeline.milliseconds(max(end, start)), text: text)
+    }
+
+    /// Starts on-device live recognition with volatile results for the locale.
+    static func live(language: String?) async throws -> AppleSpeechLive {
+        let locale = try await requireLocale(language)
+        let transcriber = makeTranscriber(locale: locale, volatile: true, timestamps: false)
+        try await prepareAssets(for: transcriber, locale: locale)
+        guard let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber]) else {
+            throw EngineError("Apple Speech has no audio format for \(label(locale))")
+        }
+        return try await AppleSpeechLive.start(
+            transcriber: transcriber, format: format, language: locale.language.languageCode?.identifier)
     }
 
     /// `AssetInventory.status` stays below `.installed` until this app reserves the locale, even
@@ -178,5 +215,115 @@ enum AppleSpeech {
         let name = Locale(identifier: "en-US").localizedString(forIdentifier: locale.identifier)
         let tag = locale.identifier(.bcp47)
         return name.map { "\($0) (\(tag))" } ?? tag
+    }
+}
+
+/// SpeechAnalyzer fed from the live audio queue. Final results are committed; the latest
+/// volatile result is the changing tail.
+@available(macOS 26, *)
+actor AppleSpeechLive: LiveRecognizer {
+    private let analyzer: SpeechAnalyzer
+    private let input: AsyncStream<AnalyzerInput>.Continuation
+    private let converter: StreamingConverter
+    private let results: Task<Void, any Error>
+    private let state: AppleSpeechText
+    private let language: String?
+
+    private init(
+        analyzer: SpeechAnalyzer,
+        input: AsyncStream<AnalyzerInput>.Continuation,
+        converter: StreamingConverter,
+        results: Task<Void, any Error>,
+        state: AppleSpeechText,
+        language: String?
+    ) {
+        self.analyzer = analyzer
+        self.input = input
+        self.converter = converter
+        self.results = results
+        self.state = state
+        self.language = language
+    }
+
+    static func start(
+        transcriber: SpeechTranscriber, format: AVAudioFormat, language: String?
+    ) async throws
+        -> AppleSpeechLive
+    {
+        let converter = try StreamingConverter(target: format)
+        let (stream, input) = AsyncStream.makeStream(of: AnalyzerInput.self)
+        let analyzer = SpeechAnalyzer(modules: [transcriber])
+        try await analyzer.prepareToAnalyze(in: format)
+        let state = AppleSpeechText()
+        let results = Task {
+            for try await result in transcriber.results {
+                let text = String(result.text.characters)
+                if result.isFinal {
+                    state.commit(text)
+                } else {
+                    state.setVolatile(text)
+                }
+            }
+        }
+        do {
+            try await analyzer.start(inputSequence: stream)
+        } catch {
+            results.cancel()
+            input.finish()
+            throw error
+        }
+        return AppleSpeechLive(
+            analyzer: analyzer, input: input, converter: converter, results: results, state: state, language: language)
+    }
+
+    func append(_ samples: [Float]) async throws {
+        let buffer = try converter.convert(samples)
+        input.yield(AnalyzerInput(buffer: buffer))
+    }
+
+    func hypothesis() async -> LiveHypothesis {
+        state.snapshot()
+    }
+
+    func finish() async throws -> TranscriptResult {
+        input.finish()
+        try await analyzer.finalizeAndFinishThroughEndOfInput()
+        try await results.value
+        return TranscriptResult(text: state.finalText(), language: language)
+    }
+
+    func cancel() async {
+        input.finish()
+        await analyzer.cancelAndFinishNow()
+        results.cancel()
+    }
+}
+
+/// Committed and volatile Apple Speech text, written by the results task.
+private final class AppleSpeechText: @unchecked Sendable {
+    private let lock = NSLock()
+    private var finals: [String] = []
+    private var volatile = ""
+
+    func commit(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        lock.withLock {
+            if !trimmed.isEmpty {
+                finals.append(trimmed)
+            }
+            volatile = ""
+        }
+    }
+
+    func setVolatile(_ text: String) {
+        lock.withLock { volatile = text }
+    }
+
+    func snapshot() -> LiveHypothesis {
+        lock.withLock { LiveHypothesis.joining(stable: finals.joined(separator: " "), volatile: volatile) }
+    }
+
+    func finalText() -> String {
+        lock.withLock { finals.joined(separator: " ") }
     }
 }

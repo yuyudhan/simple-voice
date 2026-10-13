@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO meeting_chat (meeting_id, role, body, citations, created_at)\n             VALUES (?1, ?2, ?3, ?4, ?5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "69eb29105818e5c9b92d1caa693c198bd75c17837eb1180048951fcd9233830b"
+}

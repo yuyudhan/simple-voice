@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE meeting_segments SET text = ?1 WHERE id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f4e1a3f8cdd6920bdeb44fa7f4acec42906ed4b1cb5c8988e5794d4ebe939912"
+}

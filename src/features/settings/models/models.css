@@ -1,6 +1,6 @@
 /* FilePath: src/features/settings/models/models.css */
-/* Voice model table, provider marks, key cards and the formatting provider picker. Selection
-   follows docs/internal/design.md: a signal marker and outline, never a flooded row or card. */
+/* Model tables, provider marks and the formatting provider picker. Selection follows
+   docs/internal/design.md: a signal marker and outline, never a flooded row or card. */
 
 .sv-models {
     display: flex;
@@ -66,6 +66,10 @@
     box-shadow: var(--focus-ring);
 }
 
+.sv-model__pick--static {
+    cursor: default;
+}
+
 .sv-model__radio {
     flex: none;
     width: 16px;
@@ -92,6 +96,9 @@
 }
 
 .sv-model__name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13.5px;
     font-weight: 600;
     color: var(--text);
@@ -124,6 +131,15 @@
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    color: var(--faint);
+}
+
+/* Where a model comes from and under which licence: the user decides before downloading. */
+.sv-model__provenance {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-size: 11.5px;
     color: var(--faint);
 }
 
@@ -172,8 +188,8 @@
     font-weight: 700;
 }
 
-/* NVIDIA and Groq marks are third-party brand marks, so they keep their brands' own colours
-   in both themes instead of Signal tokens. The values live only in these two rules. */
+/* The NVIDIA mark is a third-party brand mark, so it keeps the brand's own colours in both
+   themes instead of Signal tokens. The values live only in this rule. */
 .sv-provider--nvidia {
     --brand-nvidia: #76b900;
     --brand-nvidia-ink: #ffffff;
@@ -182,119 +198,26 @@
     letter-spacing: -0.02em;
 }
 
-.sv-provider--groq {
-    --brand-groq: #f55036;
-    --brand-groq-ink: #ffffff;
-    background: var(--brand-groq);
-    color: var(--brand-groq-ink);
-}
-
 .sv-provider--apple {
     background: var(--ink);
     color: var(--on-ink);
 }
 
-/* Whisper runs on this Mac through WhisperKit: a neutral hairline mark, not a vendor colour. */
-.sv-provider--whisper {
+/* Models that run on this Mac with no vendor colour: a neutral hairline mark. */
+.sv-provider--whisper,
+.sv-provider--llm,
+.sv-provider--diarizer,
+.sv-provider--translator {
     border: 1px solid var(--border-strong);
     background: var(--surface);
     color: var(--text);
-}
-
-.sv-provider--custom {
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--muted);
-}
-
-/* Groq key and custom endpoint cards */
-
-.sv-keycard {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    background: var(--surface);
-}
-
-.sv-keycard__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.sv-keycard__title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-}
-
-.sv-keycard__desc {
-    margin: 2px 0 0;
-    font-size: 12.5px;
-    line-height: 1.45;
-    color: var(--muted);
-}
-
-.sv-keycard__form {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-}
-
-.sv-keycard__form > :first-child {
-    flex: 1;
-}
-
-.sv-keycard__saved {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-    color: var(--success);
-}
-
-.sv-keycard__actions {
-    display: flex;
-    gap: 8px;
-    margin-left: auto;
-}
-
-.sv-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--accent-text);
-    font: inherit;
-    font-size: 12.5px;
-    font-weight: 500;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.sv-link:hover {
-    text-decoration: underline;
-}
-
-.sv-link:focus-visible {
-    outline: none;
-    border-radius: 4px;
-    box-shadow: var(--focus-ring);
 }
 
 /* Formatting providers */
 
 .sv-providers {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
 }
 
@@ -413,18 +336,6 @@
     color: var(--muted);
 }
 
-.sv-formatting__keyblock {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.sv-formatting__label {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--text);
-}
-
 .sv-models-section {
     display: flex;
     flex-direction: column;
@@ -450,17 +361,4 @@
 
 .sv-models-section__flush .sv-model {
     padding: 12px 16px;
-}
-
-.sv-models-section__key {
-    padding: 16px;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-}
-
-.sv-models-section__key .sv-keycard {
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: none;
 }

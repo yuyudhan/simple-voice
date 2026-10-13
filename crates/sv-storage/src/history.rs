@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use sv_domain::models::model_name;
 use sv_domain::{
     categorize, text_stats, AppCategory, AppError, AppResult, HistoryEntry, HistoryStatus,
-    NewHistory, RetryReason, Style,
+    KnownApp, NewHistory, RetryReason, Style, StyleSource,
 };
 
 use crate::db::Db;
@@ -29,6 +29,7 @@ struct HistoryRow {
     format_model: Option<String>,
     language: Option<String>,
     style: String,
+    style_source: Option<String>,
     audio_ms: i64,
     latency_ms: i64,
     transcribe_ms: Option<i64>,
@@ -66,6 +67,7 @@ impl HistoryRow {
             model: self.model,
             language: self.language,
             style: parse_style(&self.style),
+            style_source: self.style_source.as_deref().and_then(StyleSource::parse),
             audio_ms: self.audio_ms,
             latency_ms: self.latency_ms,
             transcribe_ms: self.transcribe_ms,
@@ -86,6 +88,7 @@ impl HistoryRow {
 struct Derived {
     status: &'static str,
     style: &'static str,
+    style_source: Option<&'static str>,
     word_count: i64,
     words_corrected: i64,
     app_category: &'static str,
@@ -107,6 +110,7 @@ impl Derived {
         Self {
             status: entry.status.as_str(),
             style: style_str(entry.style),
+            style_source: entry.style_source.map(StyleSource::as_str),
             word_count: saturating_i64(text_stats::word_count(spoken)),
             words_corrected: saturating_i64(words_corrected),
             app_category: categorize(entry.bundle_id.as_deref(), entry.app_name.as_deref())
@@ -125,53 +129,9 @@ impl Db {
                 created_at, status, raw_text, final_text, error, model, format_model, language,
                 style, audio_ms, latency_ms, word_count, dictionary_fixes, words_corrected,
                 app_name, bundle_id, app_category, audio_path, transcribe_ms, format_ms,
-                source_text, first_model, retry_reason
+                source_text, first_model, retry_reason, style_source
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                ?18, ?19, ?20, ?21, ?22, ?23)",
-            entry.created_at,
-            derived.status,
-            entry.raw_text,
-            entry.final_text,
-            entry.error,
-            entry.model,
-            entry.format_model,
-            entry.language,
-            derived.style,
-            entry.audio_ms,
-            entry.latency_ms,
-            derived.word_count,
-            entry.dictionary_fixes,
-            derived.words_corrected,
-            entry.app_name,
-            entry.bundle_id,
-            derived.app_category,
-            entry.audio_path,
-            entry.transcribe_ms,
-            entry.format_ms,
-            entry.source_text,
-            entry.first_model,
-            derived.retry_reason
-        )
-        .execute(&inner.pool)
-        .await
-        .map_err(AppError::database)?
-        .last_insert_rowid();
-        stored_entry(&inner.pool, id).await
-    }
-
-    /// Replaces every field of an existing row, e.g. after a successful retry.
-    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
-        let inner = self.read().await;
-        let derived = Derived::of(&entry);
-        let updated = sqlx::query!(
-            "UPDATE history SET
-                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
-                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
-                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
-                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,
-                transcribe_ms = ?19, format_ms = ?20, source_text = ?21, first_model = ?22,
-                retry_reason = ?23
-             WHERE id = ?24",
+                ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             entry.created_at,
             derived.status,
             entry.raw_text,
@@ -195,6 +155,52 @@ impl Db {
             entry.source_text,
             entry.first_model,
             derived.retry_reason,
+            derived.style_source
+        )
+        .execute(&inner.pool)
+        .await
+        .map_err(AppError::database)?
+        .last_insert_rowid();
+        stored_entry(&inner.pool, id).await
+    }
+
+    /// Replaces every field of an existing row, e.g. after a successful retry.
+    pub async fn update_history(&self, id: i64, entry: NewHistory) -> AppResult<HistoryEntry> {
+        let inner = self.read().await;
+        let derived = Derived::of(&entry);
+        let updated = sqlx::query!(
+            "UPDATE history SET
+                created_at = ?1, status = ?2, raw_text = ?3, final_text = ?4, error = ?5,
+                model = ?6, format_model = ?7, language = ?8, style = ?9, audio_ms = ?10,
+                latency_ms = ?11, word_count = ?12, dictionary_fixes = ?13, words_corrected = ?14,
+                app_name = ?15, bundle_id = ?16, app_category = ?17, audio_path = ?18,
+                transcribe_ms = ?19, format_ms = ?20, source_text = ?21, first_model = ?22,
+                retry_reason = ?23, style_source = ?24
+             WHERE id = ?25",
+            entry.created_at,
+            derived.status,
+            entry.raw_text,
+            entry.final_text,
+            entry.error,
+            entry.model,
+            entry.format_model,
+            entry.language,
+            derived.style,
+            entry.audio_ms,
+            entry.latency_ms,
+            derived.word_count,
+            entry.dictionary_fixes,
+            derived.words_corrected,
+            entry.app_name,
+            entry.bundle_id,
+            derived.app_category,
+            entry.audio_path,
+            entry.transcribe_ms,
+            entry.format_ms,
+            entry.source_text,
+            entry.first_model,
+            derived.retry_reason,
+            derived.style_source,
             id
         )
         .execute(&inner.pool)
@@ -266,6 +272,7 @@ impl Db {
                 first_model AS "first_model?: String", retry_reason AS "retry_reason?: String",
                 format_model AS "format_model?: String",
                 language AS "language?: String", style AS "style!: String",
+                style_source AS "style_source?: String",
                 audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
                 transcribe_ms AS "transcribe_ms?: i64", format_ms AS "format_ms?: i64",
                 word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
@@ -330,6 +337,48 @@ impl Db {
     }
 }
 
+impl Db {
+    /// Apps dictated into, most recently used first, one per bundle id (ignoring case), with
+    /// the latest name seen for it. For the per-app style picker.
+    pub async fn known_apps(&self, limit: i64) -> AppResult<Vec<KnownApp>> {
+        let inner = self.read().await;
+        let rows = sqlx::query!(
+            r#"SELECT bundle_id AS "bundle_id!: String", app_name AS "app_name?: String"
+               FROM history
+               WHERE bundle_id IS NOT NULL AND TRIM(bundle_id) <> ''
+               ORDER BY created_at DESC, id DESC"#
+        )
+        .fetch_all(&inner.pool)
+        .await
+        .map_err(AppError::database)?;
+        let limit = usize::try_from(limit.clamp(0, MAX_PAGE_SIZE)).unwrap_or(0);
+        let mut apps: Vec<KnownApp> = Vec::new();
+        for row in rows {
+            if apps.len() >= limit {
+                break;
+            }
+            let bundle_id = row.bundle_id.trim();
+            if apps
+                .iter()
+                .any(|app| app.bundle_id.eq_ignore_ascii_case(bundle_id))
+            {
+                continue;
+            }
+            let app_name = row
+                .app_name
+                .map(|name| name.trim().to_owned())
+                .filter(|name| !name.is_empty())
+                .unwrap_or_else(|| bundle_id.to_owned());
+            apps.push(KnownApp {
+                category: categorize(Some(bundle_id), Some(&app_name)),
+                bundle_id: bundle_id.to_owned(),
+                app_name,
+            });
+        }
+        Ok(apps)
+    }
+}
+
 async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntry>> {
     let row = sqlx::query_as!(
         HistoryRow,
@@ -341,6 +390,7 @@ async fn fetch_entry(pool: &SqlitePool, id: i64) -> AppResult<Option<HistoryEntr
             first_model AS "first_model?: String", retry_reason AS "retry_reason?: String",
             format_model AS "format_model?: String",
             language AS "language?: String", style AS "style!: String",
+            style_source AS "style_source?: String",
             audio_ms AS "audio_ms!: i64", latency_ms AS "latency_ms!: i64",
             transcribe_ms AS "transcribe_ms?: i64", format_ms AS "format_ms?: i64",
             word_count AS "word_count!: i64", dictionary_fixes AS "dictionary_fixes!: i64",
@@ -415,6 +465,7 @@ mod tests {
             format_model: None,
             language: Some("en".to_owned()),
             style: Style::Formal,
+            style_source: None,
             audio_ms: 4_000,
             latency_ms: 300,
             transcribe_ms: Some(200),
@@ -440,6 +491,7 @@ mod tests {
                 raw_text: "um I gonna go".to_owned(),
                 final_text: "I am going to go.".to_owned(),
                 style: Style::Casual,
+                style_source: Some(StyleSource::Category),
                 app_name: Some("Slack".to_owned()),
                 bundle_id: Some("com.tinyspeck.slackmacgap".to_owned()),
                 ..entry("")
@@ -450,6 +502,7 @@ mod tests {
         assert_eq!(stored.words_corrected, 4);
         assert_eq!(stored.app_category, AppCategory::WorkMessages);
         assert_eq!(stored.style, Style::Casual);
+        assert_eq!(stored.style_source, Some(StyleSource::Category));
         assert_eq!(stored.text, "I am going to go.");
         assert!(!stored.can_retry);
         assert_eq!(db.history_entry(stored.id).await.unwrap(), Some(stored));
@@ -543,7 +596,8 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(cloud.model_name, "Groq Whisper");
+        // A row the removed cloud model produced keeps its model, labelled as removed.
+        assert_eq!(cloud.model_name, "Groq Whisper (removed)");
         assert_eq!(cloud.format_model_name.as_deref(), Some("qwen/qwen3.8-27b"));
 
         let unformatted = db.update_history(local.id, entry("Ship it")).await.unwrap();
@@ -727,5 +781,32 @@ mod tests {
 
         let missing = db.set_history_edited_text(stored.id + 1, "x").await;
         assert!(matches!(missing, Err(AppError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn known_apps_are_unique_newest_first_and_categorized() {
+        let (_dir, db) = open().await;
+        for (at, bundle, name) in [
+            (1, Some("com.apple.mail"), Some("Mail")),
+            (2, Some("com.tinyspeck.slackmacgap"), Some("Slack")),
+            (3, None, Some("Unknown")),
+            (4, Some("COM.APPLE.MAIL"), Some("Mail 2")),
+        ] {
+            db.insert_history(NewHistory {
+                created_at: at,
+                bundle_id: bundle.map(str::to_owned),
+                app_name: name.map(str::to_owned),
+                ..entry("Hello there")
+            })
+            .await
+            .unwrap();
+        }
+        let apps = db.known_apps(10).await.unwrap();
+        let ids: Vec<&str> = apps.iter().map(|app| app.bundle_id.as_str()).collect();
+        assert_eq!(ids, vec!["COM.APPLE.MAIL", "com.tinyspeck.slackmacgap"]);
+        assert_eq!(apps[0].app_name, "Mail 2");
+        assert_eq!(apps[0].category, AppCategory::Email);
+        assert_eq!(apps[1].category, AppCategory::WorkMessages);
+        assert_eq!(db.known_apps(1).await.unwrap().len(), 1);
     }
 }

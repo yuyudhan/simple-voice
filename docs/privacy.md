@@ -4,20 +4,19 @@
 
 ## What leaves your Mac
 
-Only what the providers you choose need:
+Nothing you say or write. Every speech, formatting, meeting and translation model runs on your
+Mac, and Simple Voice works the same with the network off once its models are downloaded.
 
-| Choice                 | What is sent, and where                                                                                                 |
+| What                   | What is sent, and where                                                                                                 |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Groq Whisper           | The recording and your dictionary words (as a recognition hint), to Groq.                                               |
-| Groq formatting        | The transcript and your dictionary words, to Groq. For an edit, also the text you selected.                             |
-| Custom endpoint        | The transcript and your dictionary words (and the selected text of an edit), to the URL you configure. A local Ollama or LM Studio keeps this on your Mac. |
-| Parakeet, Whisper, Apple Speech | Nothing. Models are downloaded once, then everything runs on-device.                                           |
-| Smart Select           | Without a Groq key, nothing. With a key, the same as Groq Whisper; the on-device model runs when Groq fails or looks unclear. |
-| Apple Intelligence     | Nothing. Runs on-device.                                                                                                |
-| Formatting off         | Nothing.                                                                                                                |
+| Speech to text         | Nothing. Parakeet, Whisper and Apple Speech run on-device; Apple Speech is always used in on-device-only mode.           |
+| Formatting, edits, learning | Nothing. Apple Intelligence and the downloaded Qwen3 4B model run on-device.                                       |
+| Context from the text field | Nothing. A short stretch of the focused field is read only when you turned it on, used for that one dictation, and never stored. |
+| Meetings               | Nothing. Recordings, transcripts, speaker names, summaries, chat and translations stay on your Mac.                     |
+| Model downloads        | Only when you click Download: the model files are fetched from Hugging Face (Settings shows the size, license and source first). The request carries nothing about you or your use. |
 | Update checks          | A request for the latest release, to GitHub, once a day. It carries the app version and nothing about you or your use.  |
 
-There is no telemetry and no account. Update checks can be turned off in Settings → App. The
+There is no telemetry, no account and no API key. Update checks can be turned off in Settings → App. The
 name of the app you dictated into is stored in your local history to power Insights; it never
 leaves your Mac. History also keeps the text each edit replaced, locally.
 
@@ -27,9 +26,10 @@ Everything is stored locally in `~/.simplevoice/`:
 
 | Path              | Contents                                                                                                 |
 | ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `simple-voice.db` | Settings, history, dictionary and insights (SQLite, readable only by you). API keys are stored here too. |
+| `simple-voice.db` | Settings, history, dictionary, snippets, meetings and insights (SQLite, readable only by you).           |
 | `models/`         | Downloaded on-device models.                                                                             |
 | `audio/`          | Audio of failed dictations, kept so they can be retried; removed once retried or deleted.                |
+| `meetings/`       | Meeting recordings (one folder per meeting); removed when you delete the meeting.                        |
 | `backups/`        | A copy of the database taken before each upgrade migrates it (the last three are kept).                  |
 
 You can move the database to another folder in Settings → Privacy & data; Simple Voice remembers

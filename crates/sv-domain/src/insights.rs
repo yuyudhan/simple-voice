@@ -89,7 +89,7 @@ pub struct Insights {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelTiming {
-    /// Model id as recorded, e.g. `groq-whisper` or `qwen/qwen3.8-27b`.
+    /// Model id as recorded, e.g. `parakeet-tdt-v3` or `apple-intelligence`.
     pub model: String,
     pub name: String,
     pub runs: i64,

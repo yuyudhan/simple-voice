@@ -1,16 +1,58 @@
 // FilePath: src/features/settings/transcription/TranscriptionSection.tsx
-// Settings → Transcription: the voice model and the languages it is allowed to detect. With
-// Smart Select the languages sit inside the Smart Select panel (they decide the model); with a
-// chosen model they get their own group.
-import { SettingsGroup } from "../../../ui";
-import { GroqKeyField } from "../models/GroqKeyField";
-import { useModels } from "../models/useModels";
+// Settings → Transcription: the voice model, the languages it is allowed to detect, and the live
+// transcript. With Smart Select the languages sit inside the Smart Select panel (they decide the
+// model); with a chosen model they get their own group.
+import { useSettings } from "../../../app/SettingsContext";
+import { SettingRow, SettingsGroup, Toggle } from "../../../ui";
+import { useModels, type ModelsState } from "../models/useModels";
 import { VoiceModelList } from "../models/VoiceModelList";
 import { LanguagePicker } from "./LanguagePicker";
 import { SmartSelectPanel, VoiceModelModeSwitch } from "./SmartSelectPanel";
-import { useSmartSelect } from "./useSmartSelect";
+import { useSmartSelect, type SmartSelectState } from "./useSmartSelect";
+import "../common.css";
 import "../models/models.css";
 import "./smartSelect.css";
+
+const LIVE_TITLE = "Live transcript";
+
+/** Streaming is a property of the model that runs, so the note names the model in use. */
+function LiveTranscriptRow({ models, smart }: { models: ModelsState; smart: SmartSelectState }) {
+    const { settings, update } = useSettings();
+    const list = models.models ?? [];
+    const activeId = smart.mode === "smart" ? smart.plan?.local : settings.transcriptionModel;
+    const active = list.find((m) => m.id === activeId);
+    const anyStreams = list.some((m) => m.kind === "transcription" && m.streaming);
+    let note: string;
+    if (active === undefined) {
+        note = "Pick a voice model first.";
+    } else if (active.streaming) {
+        note = `${active.name} shows words while you talk. The pasted text still comes from the whole recording.`;
+    } else if (anyStreams) {
+        note = `${active.name} transcribes after you stop. Pick a model marked Live to see words as you speak.`;
+    } else {
+        note = `${active.name} transcribes after you stop. No voice model here shows words as you speak.`;
+    }
+    return (
+        <SettingRow
+            title={LIVE_TITLE}
+            description={
+                <>
+                    Shows the words in the dictation bar and the app while you are still speaking.
+                    <p className="sv-inline-note">{note}</p>
+                </>
+            }
+        >
+            <Toggle
+                label={LIVE_TITLE}
+                checked={settings.liveTranscript}
+                disabled={active?.streaming !== true}
+                onChange={(liveTranscript) => {
+                    void update({ liveTranscript });
+                }}
+            />
+        </SettingRow>
+    );
+}
 
 export function TranscriptionSection() {
     const models = useModels();
@@ -31,17 +73,14 @@ export function TranscriptionSection() {
                 ) : (
                     <>
                         <p className="sv-models-section__intro">
-                            Turns your speech into text. Cloud models need a Groq key; local models
-                            run entirely on this Mac once downloaded.
+                            Turns your speech into text, entirely on this Mac. A model downloads
+                            once; after that dictation works with no network.
                         </p>
                         <div className="sv-models-section__flush">
                             <VoiceModelList state={models} />
                         </div>
                     </>
                 )}
-                <div className="sv-models-section__key">
-                    <GroqKeyField />
-                </div>
             </SettingsGroup>
 
             {smart.mode === "choose" && (
@@ -49,6 +88,10 @@ export function TranscriptionSection() {
                     <LanguagePicker />
                 </SettingsGroup>
             )}
+
+            <SettingsGroup title="While you speak">
+                <LiveTranscriptRow models={models} smart={smart} />
+            </SettingsGroup>
         </>
     );
 }

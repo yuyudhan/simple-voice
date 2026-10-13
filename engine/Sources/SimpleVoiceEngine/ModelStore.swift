@@ -7,114 +7,6 @@
 
 import Foundation
 
-/// The files of one Hugging Face repository folder that a local model needs.
-struct HubSource: Sendable {
-    let repo: String
-    /// Repository folder holding the variant (empty for the repository root).
-    let subdirectory: String
-    /// Files or `.mlmodelc` directories, relative to `subdirectory`.
-    let entries: [String]
-
-    /// Maps a repository path to its path inside the model directory, or nil when not needed.
-    func localPath(forRepoPath repoPath: String) -> String? {
-        let prefix = subdirectory.isEmpty ? "" : subdirectory + "/"
-        guard repoPath.hasPrefix(prefix) else { return nil }
-        let relative = String(repoPath.dropFirst(prefix.count))
-        let wanted = entries.contains { relative == $0 || relative.hasPrefix($0 + "/") }
-        return wanted ? relative : nil
-    }
-}
-
-/// Everything one local model needs, possibly gathered from several repositories. Every source
-/// lands at the top of the same model directory, so their local paths must not overlap.
-struct HubModel: Sendable {
-    let id: ModelID
-    let sources: [HubSource]
-
-    static func forModel(_ id: ModelID) -> HubModel? {
-        switch id {
-        case .parakeetTdtV3:
-            HubModel(
-                id: id,
-                sources: [
-                    HubSource(
-                        repo: "FluidInference/parakeet-tdt-0.6b-v3-coreml",
-                        subdirectory: "",
-                        entries: [
-                            "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
-                            "JointDecisionv3.mlmodelc", "parakeet_vocab.json",
-                        ]
-                    )
-                ])
-        case .parakeetTdtV2:
-            HubModel(
-                id: id,
-                sources: [
-                    HubSource(
-                        repo: "FluidInference/parakeet-tdt-0.6b-v2-coreml",
-                        subdirectory: "",
-                        entries: [
-                            "Preprocessor.mlmodelc", "Encoder.mlmodelc", "Decoder.mlmodelc",
-                            "JointDecision.mlmodelc", "parakeet_vocab.json",
-                        ]
-                    )
-                ])
-        case .parakeetFlash:
-            // The 1280 ms variant: the helper transcribes whole recordings, where the largest
-            // chunk gives the best accuracy and throughput.
-            HubModel(
-                id: id,
-                sources: [
-                    HubSource(
-                        repo: "FluidInference/parakeet-realtime-eou-120m-coreml",
-                        subdirectory: "1280ms",
-                        entries: [
-                            "streaming_encoder.mlmodelc", "decoder.mlmodelc", "joint_decision.mlmodelc", "vocab.json",
-                        ]
-                    )
-                ])
-        case .whisperLargeV3Turbo:
-            HubModel(
-                id: id,
-                sources: [
-                    HubSource(
-                        repo: "argmaxinc/whisperkit-coreml",
-                        subdirectory: "openai_whisper-large-v3-v20240930_turbo",
-                        entries: [
-                            "AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc",
-                            "TextDecoderContextPrefill.mlmodelc", "config.json", "generation_config.json",
-                        ]
-                    ),
-                    whisperTokenizer,
-                ])
-        case .whisperHinglish:
-            HubModel(
-                id: id,
-                sources: [
-                    HubSource(
-                        repo: "vbhar/whisperkit-hindi2hinglish-prime-coreml",
-                        subdirectory: "Oriserve_Whisper-Hindi2Hinglish-Prime_fp16",
-                        entries: [
-                            "AudioEncoder.mlmodelc", "MelSpectrogram.mlmodelc", "TextDecoder.mlmodelc",
-                            "config.json", "generation_config.json",
-                        ]
-                    ),
-                    whisperTokenizer,
-                ])
-        case .appleSpeech, .appleIntelligence:
-            nil
-        }
-    }
-
-    /// WhisperKit looks for `tokenizer.json` at the top of the model folder before it would
-    /// fetch one, so bundling the large-v3 tokenizer keeps loading offline.
-    private static let whisperTokenizer = HubSource(
-        repo: "openai/whisper-large-v3",
-        subdirectory: "",
-        entries: ["tokenizer.json", "tokenizer_config.json"]
-    )
-}
-
 actor ModelStore {
     private static let markerName = ".simple-voice-complete"
 
@@ -130,15 +22,28 @@ actor ModelStore {
     }
 
     nonisolated func status(of model: HubModel) -> ModelStatusResult {
-        guard let size = completedSize(of: model) else { return .notDownloaded() }
-        return .ready(sizeBytes: size)
+        var result: ModelStatusResult
+        if let size = completedSize(of: model) {
+            result = .ready(sizeBytes: size)
+        } else {
+            result = .notDownloaded()
+            result.sizeBytes = model.catalog.downloadBytes
+        }
+        result.license = model.catalog.license
+        result.source = model.catalog.source
+        result.revision = model.catalog.revision
+        return result
     }
 
     /// The model directory, or an error telling the user to download the model first.
     nonisolated func readyDirectory(for model: HubModel) throws -> URL {
         guard completedSize(of: model) != nil else {
-            throw EngineError(
-                "\(model.id.rawValue) is not downloaded; download it in Settings → Transcription")
+            let pane =
+                switch model.id {
+                case .qwen3Instruct, .speakerDiarization, .madlad: "Settings → Models"
+                default: "Settings → Transcription"
+                }
+            throw EngineError("\(model.id.rawValue) is not downloaded; download it in \(pane)")
         }
         return directory(for: model.id)
     }
@@ -158,11 +63,19 @@ actor ModelStore {
         }
         downloads[model.id] = task
         do {
-            try await task.value
+            // Cancelling the request that started the transfer stops it.
+            try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
             downloads[model.id] = nil
         } catch {
             downloads[model.id] = nil
-            throw error
+            if Task.isCancelled || error is CancellationError || error is EngineError {
+                throw error
+            }
+            throw EngineError("Downloading \(model.id.rawValue) failed: \(describe(error))")
         }
     }
 
@@ -206,6 +119,7 @@ private struct HubEntry: Decodable {
 
 private struct PlannedFile {
     let repo: String
+    let revision: String
     let remotePath: String
     let localPath: String
     let size: Int64
@@ -238,7 +152,7 @@ private struct HubDownload {
                 continue
             }
             try Task.checkCancellation()
-            let url = try resolveURL(repo: file.repo, path: file.remotePath)
+            let url = try resolveURL(repo: file.repo, revision: file.revision, path: file.remotePath)
             try await transfer.fetch(url, to: target, using: session)
             counter.finishFile(file.size)
         }
@@ -276,7 +190,9 @@ private struct HubDownload {
 
         let files = entries.compactMap { entry -> PlannedFile? in
             guard entry.type == "file", let local = source.localPath(forRepoPath: entry.path) else { return nil }
-            return PlannedFile(repo: source.repo, remotePath: entry.path, localPath: local, size: entry.byteCount)
+            return PlannedFile(
+                repo: source.repo, revision: source.revision, remotePath: entry.path, localPath: local,
+                size: entry.byteCount)
         }
         for required in source.entries {
             let present = files.contains { $0.localPath == required || $0.localPath.hasPrefix(required + "/") }
@@ -289,14 +205,14 @@ private struct HubDownload {
 
     private func listingURL(_ source: HubSource) throws -> URL {
         let folder = source.subdirectory.isEmpty ? "" : "/" + source.subdirectory
-        let text = "https://huggingface.co/api/models/\(source.repo)/tree/main\(folder)?recursive=true"
+        let text = "https://huggingface.co/api/models/\(source.repo)/tree/\(source.revision)\(folder)?recursive=true"
         guard let url = URL(string: text) else { throw EngineError("invalid listing URL \(text)") }
         return url
     }
 
-    private func resolveURL(repo: String, path: String) throws -> URL {
+    private func resolveURL(repo: String, revision: String, path: String) throws -> URL {
         let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
-        let text = "https://huggingface.co/\(repo)/resolve/main/\(encoded)"
+        let text = "https://huggingface.co/\(repo)/resolve/\(revision)/\(encoded)"
         guard let url = URL(string: text) else { throw EngineError("invalid download URL \(text)") }
         return url
     }
@@ -368,19 +284,27 @@ private final class FileTransfer: NSObject, URLSessionDownloadDelegate, @uncheck
     private var continuation: CheckedContinuation<Void, any Error>?
     private var destination: URL?
     private var failure: (any Error)?
+    private var current: URLSessionDownloadTask?
 
     init(counter: ByteCounter) {
         self.counter = counter
     }
 
+    /// A cancelled request (`cancel`) stops the transfer; the partial directory stays for a retry.
     func fetch(_ url: URL, to destination: URL, using session: URLSession) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            lock.withLock {
-                self.continuation = continuation
-                self.destination = destination
-                self.failure = nil
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                let task = session.downloadTask(with: url)
+                lock.withLock {
+                    self.continuation = continuation
+                    self.destination = destination
+                    self.failure = nil
+                    self.current = task
+                }
+                task.resume()
             }
-            session.downloadTask(with: url).resume()
+        } onCancel: {
+            lock.withLock { current }?.cancel()
         }
     }
 

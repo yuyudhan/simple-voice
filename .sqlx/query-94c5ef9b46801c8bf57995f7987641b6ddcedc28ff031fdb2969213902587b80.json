@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE snippets SET trigger_phrase = ?1, body = ?2, updated_at = ?3 WHERE id = ?4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "94c5ef9b46801c8bf57995f7987641b6ddcedc28ff031fdb2969213902587b80"
+}

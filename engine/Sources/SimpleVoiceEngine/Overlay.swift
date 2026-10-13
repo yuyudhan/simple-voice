@@ -90,10 +90,25 @@ final class OverlayController {
         }
     }
 
+    /// The latest live-dictation hypothesis of stream `stream`, shown while recording. A newer
+    /// stream replaces an older one; a stale stream's late update is ignored.
+    func setLive(_ text: String, stream: UInt64) {
+        guard stream >= (model.liveStream ?? 0) else { return }
+        model.liveStream = stream
+        model.live = text
+    }
+
+    func clearLive(stream: UInt64) {
+        guard model.liveStream == stream else { return }
+        model.liveStream = nil
+        model.live = ""
+    }
+
     private func apply(_ state: PillState, doneHold: Duration) {
         if state.phase == .recording, model.phase != .recording || model.sessionId != state.sessionId {
             model.startedAt = state.startedAt.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? .now
             model.meter.reset()
+            model.live = ""
         }
         withAnimation(PillStyle.ease) {
             model.phase = state.phase

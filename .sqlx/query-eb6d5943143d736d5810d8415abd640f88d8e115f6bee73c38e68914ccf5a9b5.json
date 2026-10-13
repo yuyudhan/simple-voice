@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT bundle_id AS \"bundle_id!: String\", app_name AS \"app_name?: String\"\n               FROM history\n               WHERE bundle_id IS NOT NULL AND TRIM(bundle_id) <> ''\n               ORDER BY created_at DESC, id DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "bundle_id!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "bundle_id"
+          }
+        }
+      },
+      {
+        "name": "app_name?: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "history",
+            "name": "app_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "eb6d5943143d736d5810d8415abd640f88d8e115f6bee73c38e68914ccf5a9b5"
+}

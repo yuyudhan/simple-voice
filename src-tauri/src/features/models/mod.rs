@@ -1,6 +1,6 @@
 // FilePath: src-tauri/src/features/models/mod.rs
-//! Settings → Transcription and Settings → Formatting: the model catalog with live status,
-//! downloads and deletion of local models, and Smart Select's plan and preloading.
+//! Settings → Transcription and Settings → Formatting: the on-device model catalog with live
+//! status, user-initiated downloads and deletion, and Smart Select's plan and preloading.
 
 mod catalog;
 pub(crate) mod smart_select;
@@ -8,10 +8,12 @@ pub(crate) mod smart_select;
 use std::time::Duration;
 
 use sv_domain::languages::model_language;
-use sv_domain::models::{model_name, APPLE_SPEECH, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT};
+use sv_domain::models::{
+    model_name, APPLE_SPEECH, DOWNLOADABLE_MODELS, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT,
+};
 use sv_domain::{
-    AppError, AppResult, ModelInfo, ModelProgress, ModelProgressStatus, ModelStatus, Settings,
-    SmartSelectPlan,
+    AppError, AppResult, ModelInfo, ModelKind, ModelProgress, ModelProgressStatus, ModelProvider,
+    ModelStatus, Settings, SmartSelectPlan,
 };
 use tauri::{AppHandle, Manager, State};
 
@@ -32,6 +34,31 @@ pub(crate) async fn list_models(state: State<'_, AppState>) -> AppResult<Vec<Mod
     Ok(models)
 }
 
+/// Live status of one model id, as `list_models` reports it. An id outside the catalog is
+/// unsupported.
+pub(crate) async fn model_status(state: &AppState, settings: &Settings, id: &str) -> ModelInfo {
+    match CATALOG.iter().find(|entry| entry.id == id) {
+        Some(entry) => model_info(state, settings, entry).await,
+        None => ModelInfo {
+            id: id.to_owned(),
+            kind: ModelKind::PostProcessing,
+            provider: ModelProvider::Llm,
+            name: model_name(id).unwrap_or(id).to_owned(),
+            subtitle: String::new(),
+            speed: 0,
+            accuracy: 0,
+            languages: String::new(),
+            size_mb: None,
+            status: ModelStatus::Unsupported,
+            reason: Some(format!("{id} is not an on-device model")),
+            progress: None,
+            license: None,
+            source: None,
+            streaming: false,
+        },
+    }
+}
+
 async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry) -> ModelInfo {
     let mut info = ModelInfo {
         id: entry.id.to_owned(),
@@ -43,19 +70,14 @@ async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry)
         accuracy: entry.accuracy,
         languages: entry.languages.to_owned(),
         size_mb: entry.size_mb,
-        status: ModelStatus::Cloud,
+        status: ModelStatus::Unsupported,
         reason: None,
         progress: None,
+        license: None,
+        source: None,
+        streaming: false,
     };
-    if entry.cloud {
-        return info;
-    }
     let downloading = lock(&state.downloads).get(entry.id).copied();
-    if let Some(fraction) = downloading {
-        info.status = ModelStatus::Downloading;
-        info.progress = Some(fraction);
-        return info;
-    }
     let language = engine_language(settings, entry.id);
     let status = tokio::time::timeout(
         STATUS_TIMEOUT,
@@ -66,18 +88,25 @@ async fn model_info(state: &AppState, settings: &Settings, entry: &CatalogEntry)
         Ok(Ok(status)) => {
             info.status = status.status;
             info.reason = status.reason;
+            info.license = status.license;
+            info.source = status.source;
+            info.streaming = status.streaming;
             if let Some(bytes) = status.size_bytes {
-                info.size_mb = u32::try_from(bytes / 1_000_000).ok().or(info.size_mb);
+                info.size_mb = u32::try_from(bytes.div_ceil(1_000_000))
+                    .ok()
+                    .or(info.size_mb);
             }
         }
         Ok(Err(error)) => {
-            info.status = ModelStatus::Unsupported;
             info.reason = Some(format!("The on-device engine is unavailable: {error}"));
         }
         Err(_) => {
-            info.status = ModelStatus::Unsupported;
             info.reason = Some("The on-device engine did not respond".to_owned());
         }
+    }
+    if let Some(fraction) = downloading {
+        info.status = ModelStatus::Downloading;
+        info.progress = Some(fraction);
     }
     info
 }
@@ -106,10 +135,15 @@ pub(crate) async fn is_ready(state: &AppState, settings: &Settings, model: &str)
 #[tauri::command]
 pub(crate) async fn smart_select_plan(state: State<'_, AppState>) -> AppResult<SmartSelectPlan> {
     let settings = state.db()?.settings().await?;
-    Ok(smart_select::plan(
-        &settings.languages,
-        settings.groq_api_key_present,
-    ))
+    let mut ready = Vec::new();
+    for model in smart_select::route(&settings.languages) {
+        if is_ready(&state, &settings, model).await {
+            ready.push(model);
+        }
+    }
+    Ok(smart_select::plan(&settings.languages, |model| {
+        ready.contains(&model)
+    }))
 }
 
 #[tauri::command]
@@ -118,7 +152,7 @@ pub(crate) async fn download_model(
     state: State<'_, AppState>,
     id: String,
 ) -> AppResult<()> {
-    if !LOCAL_TRANSCRIPTION_MODELS.contains(&id.as_str()) {
+    if !DOWNLOADABLE_MODELS.contains(&id.as_str()) {
         return Err(AppError::invalid(format!("{id} cannot be downloaded")));
     }
     let settings = state.db()?.settings().await?;
@@ -159,12 +193,13 @@ pub(crate) async fn download_model(
         match result {
             Ok(()) => {
                 progress(&app, &id, 1.0, ModelProgressStatus::Ready, None);
+                events::emit(&app, events::MODELS_CHANGED, ());
                 // A freshly downloaded model the next dictation will use should be warm for it.
                 if let Ok(db) = state.db() {
                     if db
                         .settings()
                         .await
-                        .is_ok_and(|s| preload_target(&s) == Some(id.as_str()))
+                        .is_ok_and(|s| preload_target(&s, |model| model == id) == Some(id.as_str()))
                     {
                         preload(&app, &id).await;
                     }
@@ -186,40 +221,77 @@ pub(crate) async fn download_model(
 }
 
 #[tauri::command]
-pub(crate) async fn delete_model(state: State<'_, AppState>, id: String) -> AppResult<()> {
-    if !LOCAL_TRANSCRIPTION_MODELS.contains(&id.as_str()) {
+pub(crate) async fn delete_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<()> {
+    if !DOWNLOADABLE_MODELS.contains(&id.as_str()) {
         return Err(AppError::invalid(format!(
             "{id} has no local files to delete"
         )));
     }
+    let settings = state.db()?.settings().await?;
     // Smart Select is never a model id, so its models stay deletable; it skips missing ones.
-    if state.db()?.settings().await?.transcription_model == id {
+    if settings.transcription_model == id {
         return Err(AppError::invalid(
             "This model is in use. Choose another transcription model before deleting it.",
+        ));
+    }
+    if crate::features::llm::post_processing_model(&settings) == Some(id.as_str()) {
+        return Err(AppError::invalid(
+            "This model formats your dictations. Choose another formatting option first.",
         ));
     }
     if lock(&state.downloads).contains_key(&id) {
         return Err(AppError::invalid("This model is still downloading"));
     }
-    state.engine.delete_model(&id).await
+    state.engine.delete_model(&id).await?;
+    lock(&state.llm_used).remove(&id);
+    events::emit(&app, events::MODELS_CHANGED, ());
+    Ok(())
 }
 
-/// The local model the next dictation will use: the chosen model, or Smart Select's local
-/// model for the languages. `None` for Groq Whisper.
-pub(crate) fn preload_target(settings: &Settings) -> Option<&str> {
+/// The voice model the next dictation runs: the chosen model, or the first model of Smart
+/// Select's route that `is_ready` (`None` when none is).
+pub(crate) fn preload_target(settings: &Settings, is_ready: impl Fn(&str) -> bool) -> Option<&str> {
     let model = settings.transcription_model.as_str();
     if model == SMART_SELECT {
-        Some(smart_select::local_model(&settings.languages))
+        smart_select::ready_route(&settings.languages, is_ready)
+            .ok()
+            .map(|route| route.first)
     } else {
         LOCAL_TRANSCRIPTION_MODELS.contains(&model).then_some(model)
     }
 }
 
+/// The voice models that are ready right now among those the settings could run.
+async fn ready_models(state: &AppState, settings: &Settings) -> Vec<&'static str> {
+    let candidates: Vec<&'static str> = if settings.transcription_model == SMART_SELECT {
+        smart_select::route(&settings.languages)
+    } else {
+        Vec::new()
+    };
+    let mut ready = Vec::with_capacity(candidates.len());
+    for model in candidates {
+        if is_ready(state, settings, model).await {
+            ready.push(model);
+        }
+    }
+    ready
+}
+
+/// The voice model the next dictation (or meeting) runs, judged by what is ready now.
+pub(crate) async fn active_model(state: &AppState, settings: &Settings) -> Option<String> {
+    let ready = ready_models(state, settings).await;
+    preload_target(settings, |model| ready.contains(&model)).map(str::to_owned)
+}
+
 /// Loads the local model the settings will start with, so the first dictation does not pay
 /// the load time.
 pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
-    if let Some(model) = preload_target(settings) {
-        preload(app, model).await;
+    if let Some(model) = active_model(&app.state::<AppState>(), settings).await {
+        preload(app, &model).await;
     }
 }
 
@@ -251,6 +323,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_catalog_offers_only_on_device_models_and_every_download_is_listed() {
+        for entry in CATALOG {
+            assert!(
+                entry.id == sv_domain::models::APPLE_INTELLIGENCE
+                    || DOWNLOADABLE_MODELS.contains(&entry.id),
+                "{} is neither built in nor downloadable",
+                entry.id
+            );
+        }
+        for id in DOWNLOADABLE_MODELS {
+            assert!(
+                CATALOG.iter().any(|entry| entry.id == *id),
+                "{id} not listed"
+            );
+        }
+        assert!(!CATALOG
+            .iter()
+            .any(|entry| entry.id == sv_domain::models::LEGACY_GROQ_WHISPER));
+    }
+
+    #[test]
     fn every_catalog_entry_has_a_display_name() {
         for entry in CATALOG {
             assert!(
@@ -271,19 +364,32 @@ mod tests {
 
     #[test]
     fn preload_follows_the_chosen_model_or_the_smart_select_route() {
-        use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+        use sv_domain::models::{
+            PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH, WHISPER_TURBO,
+        };
+        let all = |_: &str| true;
         assert_eq!(
-            preload_target(&settings(PARAKEET_TDT_V3, &["en"])),
+            preload_target(&settings(PARAKEET_TDT_V3, &["en"]), all),
             Some(PARAKEET_TDT_V3)
         );
-        assert_eq!(preload_target(&settings(GROQ_WHISPER, &["en"])), None);
         assert_eq!(
-            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"])),
+            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"]), all),
             Some(WHISPER_HINGLISH)
         );
         assert_eq!(
-            preload_target(&settings(SMART_SELECT, &["en"])),
+            preload_target(&settings(SMART_SELECT, &["en"]), all),
             Some(PARAKEET_TDT_V2)
+        );
+        // The QA install: Hinglish Whisper not downloaded, Parakeet v3 and Turbo ready. The
+        // model that actually runs is preloaded, never the missing recommendation.
+        let qa = |model: &str| model == PARAKEET_TDT_V3 || model == WHISPER_TURBO;
+        assert_eq!(
+            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"]), qa),
+            Some(WHISPER_TURBO)
+        );
+        assert_eq!(
+            preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"]), |_| false),
+            None
         );
     }
 

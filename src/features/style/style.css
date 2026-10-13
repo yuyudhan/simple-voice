@@ -173,3 +173,73 @@
     margin-left: 2px;
     vertical-align: -2px;
 }
+
+.style-section-title {
+    margin: 0 0 10px;
+}
+
+/* Overrides: per kind of app, then per app; the note states the precedence once. */
+.style-overrides {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 28px;
+}
+
+.style-overrides__note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.style-category {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-category__icon {
+    display: inline-flex;
+    color: var(--muted);
+}
+
+.style-category__icon svg {
+    width: 15px;
+    height: 15px;
+    stroke-width: 1.75;
+}
+
+.style-app__id {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
+
+.style-app__control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.style-add__wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+}
+
+.style-add {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.style-add__row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.style-add__row > .sv-field {
+    flex: 1;
+}

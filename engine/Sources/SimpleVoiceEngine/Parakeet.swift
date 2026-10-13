@@ -9,7 +9,7 @@ import Foundation
 /// the streaming manager behind Parakeet Flash holds per-session state.
 actor ParakeetEngine {
     private enum Loaded: Sendable {
-        case tdt(AsrManager, AsrModelVersion)
+        case tdt(AsrManager, AsrModelVersion, AsrModels)
         case flash(FlashTranscriber)
     }
 
@@ -30,7 +30,7 @@ actor ParakeetEngine {
         loading.removeValue(forKey: id)?.cancel()
         guard let model = loaded.removeValue(forKey: id) else { return }
         switch model {
-        case .tdt(let manager, _):
+        case .tdt(let manager, _, _):
             await manager.cleanup()
         case .flash(let flash):
             await flash.cleanup()
@@ -38,23 +38,44 @@ actor ParakeetEngine {
         Log.info("unloaded \(id.rawValue)")
     }
 
-    func transcribe(_ id: ModelID, samples: [Float], language: String?) async throws -> TranscriptResult {
+    /// The resident TDT models, shared with the sliding-window streaming recogniser so a live
+    /// dictation does not load the weights a second time.
+    func tdtModels(_ id: ModelID) async throws -> (AsrModels, AsrModelVersion) {
+        switch try await model(for: id) {
+        case .tdt(_, let version, let models):
+            return (models, version)
+        case .flash:
+            throw EngineError("\(id.rawValue) is not a Parakeet TDT model")
+        }
+    }
+
+    func transcribe(
+        _ id: ModelID,
+        samples: [Float],
+        language: String?,
+        timestamps: Bool
+    ) async throws -> TranscriptResult {
         let model = try await model(for: id)
         let code = LanguageCode.primary(language)
         switch model {
-        case .tdt(let manager, let version):
-            let (text, confidence) = try await gate.run {
+        case .tdt(let manager, let version, _):
+            let decoded = try await gate.run {
                 try await Self.transcribeTdt(manager: manager, version: version, samples: samples, code: code)
             }
             // v2 is English only; v3 detects the language itself and only reports what was asked.
             return TranscriptResult(
-                text: text,
+                text: decoded.text,
                 language: version == .v2 ? "en" : code,
-                quality: confidence.map { TranscriptQuality(confidence: $0) }
+                quality: decoded.confidence.map { TranscriptQuality(confidence: $0) },
+                segments: timestamps ? Timeline.segments(from: decoded.words) : nil
             )
         case .flash(let flash):
-            let text = try await gate.run { try await flash.transcribe(samples) }
-            return TranscriptResult(text: text, language: "en")
+            let decoded = try await gate.run { try await flash.transcribe(samples) }
+            return TranscriptResult(
+                text: decoded.text,
+                language: "en",
+                segments: timestamps ? Timeline.segments(from: decoded.words) : nil
+            )
         }
     }
 
@@ -93,25 +114,32 @@ actor ParakeetEngine {
             let models = try AsrModels.loadLocal(from: directory, version: version)
             let manager = AsrManager(config: .default)
             try await manager.loadModels(models)
-            model = .tdt(manager, version)
+            model = .tdt(manager, version, models)
         case .parakeetFlash:
             model = .flash(try await FlashTranscriber.load(from: directory))
-        case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence:
+        case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence, .qwen3Instruct,
+            .speakerDiarization, .madlad:
             throw EngineError("\(id.rawValue) is not a Parakeet model")
         }
         Log.info("loaded \(id.rawValue) in \(ContinuousClock.now - started)")
         return model
     }
 
-    /// The transcript and FluidAudio's confidence for it (absent for an empty clip, and when not
-    /// a finite number, which JSON cannot carry).
+    private struct TdtDecoded: Sendable {
+        let text: String
+        /// FluidAudio's confidence (absent for an empty clip, and when not a finite number, which
+        /// JSON cannot carry).
+        let confidence: Float?
+        let words: [TimedWord]
+    }
+
     private static func transcribeTdt(
         manager: AsrManager,
         version: AsrModelVersion,
         samples: [Float],
         code: String?
-    ) async throws -> (String, Float?) {
-        guard !samples.isEmpty else { return ("", nil) }
+    ) async throws -> TdtDecoded {
+        guard !samples.isEmpty else { return TdtDecoded(text: "", confidence: nil, words: []) }
         // The model rejects clips under its minimum length; a short word padded with silence
         // still transcribes.
         let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
@@ -121,11 +149,19 @@ actor ParakeetEngine {
         let hint = version == .v3 ? code.flatMap { Language(rawValue: $0) } : nil
         let result = try await manager.transcribe(audio, decoderState: &state, language: hint)
         let confidence = result.confidence.isFinite ? result.confidence : nil
-        return (result.text.trimmingCharacters(in: .whitespacesAndNewlines), confidence)
+        let words = buildWordTimings(from: result.tokenTimings ?? []).map {
+            TimedWord(text: $0.word, start: $0.startTime, end: $0.endTime)
+        }
+        return TdtDecoded(
+            text: result.text.trimmingCharacters(in: .whitespacesAndNewlines),
+            confidence: confidence,
+            words: words
+        )
     }
 }
 
-/// Runs async operations strictly one after another, in submission order.
+/// Runs async operations strictly one after another, in submission order. Cancelling a caller
+/// cancels its operation, and an operation whose caller is gone before its turn never starts.
 actor SerialGate {
     private var tail: Task<Void, Never>?
 
@@ -133,9 +169,14 @@ actor SerialGate {
         let previous = tail
         let task = Task<T, any Error> {
             await previous?.value
+            try Task.checkCancellation()
             return try await operation()
         }
         tail = Task { _ = try? await task.value }
-        return try await task.value
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }

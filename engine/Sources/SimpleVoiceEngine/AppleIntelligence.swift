@@ -6,11 +6,16 @@ import FoundationModels
 
 @available(macOS 26, *)
 enum AppleIntelligence {
+    /// The system model's context on macOS 26 (instructions, examples, prompt and answer).
+    static let contextTokens = 4_096
+
     static func status() -> ModelStatusResult {
         if let reason = unavailableReason() {
             return .unsupported(reason)
         }
-        return .ready()
+        var result = ModelStatusResult.ready()
+        result.contextTokens = contextTokens
+        return result
     }
 
     /// Loads the system model ahead of the first polish request.
@@ -21,22 +26,34 @@ enum AppleIntelligence {
         LanguageModelSession().prewarm()
     }
 
+    static func polish(_ params: PolishParams) async throws -> PolishResult {
+        try await generate(
+            system: params.system, shots: params.shots, user: params.user, maxTokens: nil, temperature: 0)
+    }
+
     /// Few-shot examples go into the session transcript as real prompt/response turns, which the
     /// model follows more reliably than examples pasted into the instructions.
-    static func polish(_ params: PolishParams) async throws -> PolishResult {
+    static func generate(
+        system: String,
+        shots: [PolishShot],
+        user: String,
+        maxTokens: Int?,
+        temperature: Double
+    ) async throws -> PolishResult {
         if let reason = unavailableReason() {
             throw EngineError(reason)
         }
         var entries: [Transcript.Entry] = [
-            .instructions(Transcript.Instructions(segments: [text(params.system)], toolDefinitions: []))
+            .instructions(Transcript.Instructions(segments: [text(system)], toolDefinitions: []))
         ]
-        for shot in params.shots {
+        for shot in shots {
             entries.append(.prompt(Transcript.Prompt(segments: [text(shot.user)])))
             entries.append(.response(Transcript.Response(assetIDs: [], segments: [text(shot.assistant)])))
         }
         let session = LanguageModelSession(transcript: Transcript(entries: entries))
+        let options = GenerationOptions(temperature: temperature, maximumResponseTokens: maxTokens)
         do {
-            let response = try await session.respond(to: params.user, options: GenerationOptions(temperature: 0))
+            let response = try await session.respond(to: user, options: options)
             return PolishResult(text: response.content, finished: true)
         } catch let error as LanguageModelSession.GenerationError {
             throw EngineError(message(for: error))
@@ -72,7 +89,7 @@ enum AppleIntelligence {
             return "The Apple Intelligence model is unavailable right now"
         case .unsupportedLanguageOrLocale:
             return "Apple Intelligence does not support this language (Hindi and Hinglish included); "
-                + "use Groq or Custom formatting"
+                + "choose the local Qwen model for formatting instead"
         case .rateLimited:
             return "Apple Intelligence is busy; try again"
         case .concurrentRequests:

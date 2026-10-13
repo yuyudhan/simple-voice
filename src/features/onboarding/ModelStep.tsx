@@ -1,14 +1,12 @@
 // FilePath: src/features/onboarding/ModelStep.tsx
-// Voice model choice, with Smart Select (beta) one switch away. A local model leads with its
-// download card (a new install: Parakeet TDT v3) and the full list sits one click away.
-// Continuing requires a usable model: Groq with a verified key or a downloaded local model (plus
-// Speech Recognition access for Apple Speech); for Smart Select, a saved Groq key or every local
-// model of its plan downloaded.
+// Voice model choice, with Smart Select (beta) one switch away. A downloadable model leads with
+// its download card (a new install: Parakeet TDT v3) and the full list sits one click away.
+// Continuing requires a usable model on this Mac: a downloaded model (plus Speech Recognition
+// access for Apple Speech); for Smart Select, a plan whose model runs now.
 import { useState } from "react";
 import { AudioLines, ChevronDown, ChevronUp } from "lucide-react";
 import { useSettings } from "../../app/SettingsContext";
 import { Button } from "../../ui";
-import { GroqKeyField } from "../settings/models/GroqKeyField";
 import { useModels } from "../settings/models/useModels";
 import { VoiceModelList } from "../settings/models/VoiceModelList";
 import { PermissionAction, StatusBadge } from "../settings/permissions/PermissionsGroup";
@@ -30,7 +28,6 @@ export function ModelStep({ onBack, onNext }: Props) {
     const { permissions, busy, request, openSettings } = usePermissions(1500);
     const isSmart = smart.mode === "smart";
     const active = models.models?.find((m) => m.id === settings.transcriptionModel);
-    const isGroq = !isSmart && settings.transcriptionModel === "groq-whisper";
     const isAppleSpeech = !isSmart && active?.provider === "apple";
     const speech = permissions?.speech;
     const [listOpen, setListOpen] = useState(false);
@@ -38,24 +35,14 @@ export function ModelStep({ onBack, onNext }: Props) {
     const target = isSmart
         ? undefined
         : models.models?.find((m) => m.id === (models.pendingUse ?? settings.transcriptionModel));
-    const featured =
-        target !== undefined && target.provider !== "groq" && target.sizeMb !== null
-            ? target
-            : undefined;
+    const featured = target !== undefined && target.sizeMb !== null ? target : undefined;
     const showList = featured === undefined || listOpen;
 
     let ready = false;
     let blocker = "";
     if (isSmart) {
-        const plan = smart.plan;
-        ready =
-            plan !== null &&
-            (plan.groq ||
-                (models.models ?? []).some((m) => m.id === plan.local && m.status === "ready"));
-        blocker = "Download the model above, or save a Groq API key.";
-    } else if (isGroq) {
-        ready = settings.groqApiKeyPresent;
-        blocker = "Save a Groq API key to continue, or pick a local model.";
+        ready = smart.plan?.ready === true;
+        blocker = "Download the model above to continue.";
     } else if (active === undefined && models.pendingUse === null) {
         blocker = "Pick a model to continue.";
     } else if (active?.status !== "ready") {
@@ -80,7 +67,7 @@ export function ModelStep({ onBack, onNext }: Props) {
             <h1 className="sv-onb__title">Set up your voice model</h1>
             <p className="sv-onb__lead">
                 Parakeet turns your speech into text right on this Mac: fast, private and offline
-                once downloaded. Prefer Groq in the cloud, or dictate in Hindi or Hinglish? Choose a
+                once downloaded. Dictate in Hindi or Hinglish, or want another size? Choose a
                 different model. You can change this any time in Settings.
             </p>
             <div className="sv-onb__wide">
@@ -122,7 +109,6 @@ export function ModelStep({ onBack, onNext }: Props) {
                         {showList && <VoiceModelList state={models} />}
                     </>
                 )}
-                {(isSmart || isGroq) && <GroqKeyField />}
                 {isAppleSpeech && speech !== undefined && speech !== "granted" && (
                     <div className="sv-onb__perm-row">
                         <span>Speech Recognition</span>

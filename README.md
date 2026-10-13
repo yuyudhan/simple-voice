@@ -48,7 +48,9 @@ Releases are signed with the project's own certificate, so macOS keeps Simple Vo
 ## Why Simple Voice
 
 - **Works everywhere.** Mail, chat, your editor, a terminal: the text is pasted where your cursor is.
-- **Cloud or on-device, your pick.** Smart Select picks the model from the languages you speak. Groq in the cloud, or Parakeet, Whisper (Hindi and Hinglish too), Apple Speech and Apple Intelligence on your Mac. Any OpenAI-compatible endpoint, like a local Ollama or LM Studio, works too.
+- **Entirely on your Mac.** Smart Select picks the model from the languages you speak: Parakeet, Whisper (Hindi and Hinglish too) or Apple Speech, with Apple Intelligence or a downloaded Qwen3 4B model for clean-up. No cloud, no account, works offline.
+- **Personal touches.** A style per app, snippets you trigger by voice, optional spelling hints from the text around your cursor and your code editor, and a live transcript while you speak.
+- **Meetings.** Record a meeting (and optionally what your Mac plays), get a timestamped transcript split by speaker, a summary with action items, answers grounded in the transcript, and translations, all on-device.
 - **Reads like you wrote it.** Fillers and false starts are dropped, lists get laid out, and your dictionary spells names and jargon your way.
 - **Yours alone.** No account, no telemetry. History, dictionary and insights stay on your Mac.
 
@@ -66,13 +68,14 @@ To change text you already wrote, select it in any app, press **Option+/**, say 
 
 ![Selecting a note, pressing Option+/ and saying "make this more formal", then the note rewritten in place](docs/images/edit-by-voice.gif)
 
-|                | Cloud                                   | On-device                                                                                            |
-| -------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Speech to text | Groq Whisper (100+ languages)           | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech |
-| Clean up       | Groq, or any OpenAI-compatible endpoint | Apple Intelligence, or a local Ollama or LM Studio                                                   |
-| You need       | A Groq API key                          | A one-time model download (250 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26      |
+|                | On-device                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------- |
+| Speech to text | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech |
+| Clean up       | Apple Intelligence, or Qwen3 4B Instruct (llama.cpp, any Apple Silicon Mac)                          |
+| Meetings       | Your voice model with timestamps, a 22 MB speaker diarization model, and your clean-up model          |
+| You need       | A one-time model download (22 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26       |
 
-Mix and match: any speech engine works with any clean-up provider, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost.
+Mix and match: any speech engine works with any clean-up model, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost.
 
 ## A look inside
 
@@ -81,14 +84,16 @@ Mix and match: any speech engine works with any clean-up provider, and clean-up 
 - **History.** Every dictation with the time, the app it went to and the text. Search, copy, retry.
 - **Insights.** Speaking speed, words, streaks and where you dictate.
 - **Dictionary.** Names, jargon and `heard -> written` rules.
-- **Style.** Formal or Casual, applied everywhere.
-- **Transcription.** Pick a cloud or on-device voice model.
+- **Style.** Formal or Casual, overall, per kind of app, or per app.
+- **Snippets.** Spoken triggers for text you use often.
+- **Meetings.** Recordings, speakers, summaries, questions and translations.
+- **Transcription.** Pick an on-device voice model.
 
 ## Your data stays yours
 
 ![No account, no telemetry, and everything stored in ~/.simplevoice on your Mac](docs/images/privacy.gif)
 
-Everything lives in `~/.simplevoice` on your Mac: settings, history, dictionary, insights and downloaded models. There is no account and no telemetry. Only what the providers you pick need leaves your Mac: the recording goes to Groq if you use Groq Whisper, and the transcript goes to your clean-up provider, each with your dictionary words as a hint. With an on-device setup, your words never leave your Mac. Read more in [Privacy and your data](docs/privacy.md).
+Everything lives in `~/.simplevoice` on your Mac: settings, history, dictionary, snippets, meetings, insights and downloaded models. There is no account, no API key and no telemetry, and nothing you say or write leaves your Mac; the only network use is a model download you start and the daily update check. Read more in [Privacy and your data](docs/privacy.md).
 
 ## Build from source
 

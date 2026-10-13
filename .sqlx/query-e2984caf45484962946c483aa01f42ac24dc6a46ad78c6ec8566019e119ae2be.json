@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT audio_dir AS \"audio_dir!: String\" FROM meetings WHERE id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "audio_dir!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "audio_dir"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e2984caf45484962946c483aa01f42ac24dc6a46ad78c6ec8566019e119ae2be"
+}

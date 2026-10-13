@@ -1,12 +1,14 @@
 // FilePath: src/features/settings/dictation/DictationSection.tsx
 // Settings → Dictation: everything between pressing a shortcut and the text landing in the app:
-// how a recording starts, what it records, how the text is pasted, and the cues along the way.
+// how a recording starts, what it records, what context it may read, how the text is pasted,
+// and the cues along the way.
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type Microphone } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
 import { Select, SettingRow, SettingsGroup, Toggle } from "../../../ui";
 import { AccessibilityWarning } from "../permissions/AccessibilityWarning";
 import { ShortcutRecorder } from "../shortcuts/ShortcutRecorder";
+import { ContextGroup } from "./ContextGroup";
 import { FeedbackGroup } from "./FeedbackGroup";
 import { EscapeCancelsRow } from "./EscapeCancelsRow";
 import "../common.css";
@@ -158,6 +160,8 @@ export function DictationSection() {
             <AccessibilityWarning placement="inline" />
 
             <RecordingGroup />
+
+            <ContextGroup />
 
             <SettingsGroup title="Pasting">
                 <SettingRow

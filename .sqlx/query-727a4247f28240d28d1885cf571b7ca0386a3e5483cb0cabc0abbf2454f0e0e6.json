@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM meetings WHERE id = ?1 RETURNING audio_dir AS \"audio_dir!: String\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "audio_dir!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meetings",
+            "name": "audio_dir"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "727a4247f28240d28d1885cf571b7ca0386a3e5483cb0cabc0abbf2454f0e0e6"
+}

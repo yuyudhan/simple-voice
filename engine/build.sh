@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # FilePath: engine/build.sh
 # Builds the Swift engine helper and installs it where Tauri expects the sidecar:
-# src-tauri/binaries/simple-voice-engine-<target-triple> (bundle.externalBin naming rule).
+# src-tauri/binaries/simple-voice-engine-<target-triple> (bundle.externalBin naming rule), next
+# to llama.framework (llama.cpp ships only as a dynamic framework; tauri.conf.json bundles it).
 #
 # Usage: engine/build.sh [debug|release]   (default: debug)
 set -euo pipefail
@@ -26,4 +27,7 @@ bin_dir="$(swift build --package-path "$engine_dir" -c "$configuration" --arch a
 mkdir -p "$binaries"
 cp "$bin_dir/simple-voice-engine" "$target"
 chmod 755 "$target"
-echo "installed $target ($configuration)"
+# ditto keeps the framework's version symlinks intact.
+rm -rf "$binaries/llama.framework"
+ditto "$bin_dir/llama.framework" "$binaries/llama.framework"
+echo "installed $target and $binaries/llama.framework ($configuration)"

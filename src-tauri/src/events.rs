@@ -12,6 +12,13 @@ pub(crate) const MODEL_PROGRESS: &str = "model-progress";
 pub(crate) const PERMISSIONS_CHANGED: &str = "permissions-changed";
 pub(crate) const NAVIGATE: &str = "navigate";
 pub(crate) const UPDATE_STATUS: &str = "update-status";
+pub(crate) const DICTATION_PARTIAL: &str = "dictation-partial";
+pub(crate) const SNIPPETS_CHANGED: &str = "snippets-changed";
+pub(crate) const MEETING_STATE: &str = "meeting-state";
+pub(crate) const MEETING_PROGRESS: &str = "meeting-progress";
+pub(crate) const MEETINGS_CHANGED: &str = "meetings-changed";
+/// A model was downloaded or deleted; readiness shown anywhere is stale.
+pub(crate) const MODELS_CHANGED: &str = "models-changed";
 
 /// Emits to every window. A failed emit only means no webview is listening, so it is logged.
 pub(crate) fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {

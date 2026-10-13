@@ -10,10 +10,13 @@ mod devices;
 mod resample;
 mod wav;
 
-pub use capture::{Recorder, Recording};
+pub use capture::{ChunkSink, Recorder, Recording};
 pub use cues::{Cue, CuePlayer};
 pub use devices::{list_microphones, Microphone};
-pub use wav::{decode_wav, encode_wav};
+pub use wav::{
+    copy_wav_range, decode_wav, encode_wav, mix_wav_files, samples_to_ms, wav_sample_count,
+    WavWriter,
+};
 
 /// Sample rate of every recording handed to transcription.
 pub const TARGET_SAMPLE_RATE: u32 = 16_000;

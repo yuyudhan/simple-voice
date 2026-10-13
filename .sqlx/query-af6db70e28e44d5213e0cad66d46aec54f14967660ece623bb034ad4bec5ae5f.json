@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ts.translation_id AS \"translation_id!: i64\",\n                      ts.segment_id AS \"segment_id!: i64\", ts.body AS \"body!: String\"\n               FROM meeting_translation_segments ts\n               JOIN meeting_translations t ON t.id = ts.translation_id\n               JOIN meeting_segments s ON s.id = ts.segment_id\n               WHERE t.meeting_id = ?1\n               ORDER BY ts.translation_id, s.start_ms, s.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "translation_id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_translation_segments",
+            "name": "translation_id"
+          }
+        }
+      },
+      {
+        "name": "segment_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "meeting_translation_segments",
+            "name": "segment_id"
+          }
+        }
+      },
+      {
+        "name": "body!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "meeting_translation_segments",
+            "name": "body"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "af6db70e28e44d5213e0cad66d46aec54f14967660ece623bb034ad4bec5ae5f"
+}

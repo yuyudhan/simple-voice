@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO snippets (trigger_phrase, body, created_at, updated_at)\n             VALUES (?1, ?2, ?3, ?4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9041c0a169684d1496b421f58568b593b3d87ef4446d0f50036f88366f7f694d"
+}
