@@ -5,7 +5,7 @@
 
 # Format everything in place: Rust, TOML, TypeScript/CSS, and Swift when swift-format exists.
 [group('quality')]
-fmt:
+fmt: deps-present
     #!/usr/bin/env bash
     set -euo pipefail
     cargo fmt --all
@@ -21,7 +21,7 @@ fmt:
 
 # Check formatting without writing anything.
 [group('quality')]
-fmt-check:
+fmt-check: deps-present
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/lib/status.sh
@@ -43,7 +43,7 @@ fmt-check:
 
 # Lint everything: clippy with warnings as errors, eslint, tsc, typos, shellcheck.
 [group('quality')]
-lint: engine-present
+lint: deps-present engine-present
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/lib/status.sh
