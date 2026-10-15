@@ -49,6 +49,7 @@ const RETRY_LABEL: Record<RetryReason, string> = {
     failed: "failed",
     low_confidence: "low confidence",
     mixed_script: "mixed script",
+    wrong_script: "wrong script",
 };
 
 const STYLE_SOURCE: Record<StyleSource, string> = {
@@ -76,7 +77,12 @@ function ModelsUsed({ entry }: { entry: HistoryEntry }) {
     );
     const only = variants.length === 1 ? variants[0] : undefined;
     const mixed = only ? `wrote ${only.name} partly in another script` : "mixed two scripts";
-    const why = entry.retryReason === "mixed_script" ? mixed : reason;
+    const why =
+        entry.retryReason === "mixed_script"
+            ? mixed
+            : entry.retryReason === "wrong_script"
+              ? "wrote in a script you did not choose"
+              : reason;
     // The first model's name equals the final one when the retry did not help and its result
     // was kept, so there is no route to draw.
     const kept = first === model;

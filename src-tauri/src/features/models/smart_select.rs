@@ -1,11 +1,12 @@
 // FilePath: src-tauri/src/features/models/smart_select.rs
 //! Smart Select: which on-device voice model runs a dictation, and when a second one
 //! double-checks it. The user's languages rank the local models by how many of them each writes
-//! as chosen; the best ready one runs. At most one retry follows, on the next ready model that
+//! as chosen; the best ready one runs. At most one retry follows: on the next ready model that
 //! writes every selected language the first one does, when the first model errored or its result
-//! fell below that model's confidence floor. Routing reads the language
-//! registry and each catalog model's coverage, so nothing here names a language. Nothing here
-//! does I/O, so the whole policy is unit-tested.
+//! fell below that model's confidence floor; or on another ready model that writes the chosen
+//! script, when the result was not written in it. Routing reads the language registry and each
+//! catalog model's coverage, so nothing here names a language. Nothing here does I/O, so the
+//! whole policy is unit-tested.
 
 use sv_domain::languages::{language, Language, Script};
 use sv_domain::models::{model_name, WHISPER_TURBO};
@@ -113,8 +114,8 @@ pub(crate) fn ready_route(
     })
 }
 
-/// Whether a successful first result should be double-checked by the retry model. Only
-/// Whisper reports the numbers read here; Parakeet results pass unless their script is mixed.
+/// Whether a successful first result should be double-checked by another model. Only Whisper
+/// reports the confidence numbers read here; every result's script is checked.
 pub(crate) fn gate(
     text: &str,
     quality: &TranscriptQuality,
@@ -137,19 +138,86 @@ pub(crate) fn gate(
             return Some(RetryReason::LowConfidence);
         }
     }
+    script_violation(text, &selected(languages)).map(|(reason, _)| reason)
+}
+
+/// Why `text` is not written the way the selected languages are, and the languages it got
+/// wrong. English words in Roman script inside Hindi text are how Hindi is written, so Roman
+/// letters only count against Hindi when the text has no Devanagari at all.
+fn script_violation<'a>(
+    text: &str,
+    selected: &[&'a Language],
+) -> Option<(RetryReason, Vec<&'a Language>)> {
     // Whisper can write a romanised variant half in the base language's own script with full
-    // confidence ("कल का stand up"); the retry model writes it the chosen way. Text in one
-    // script passes: it is either the base language or the variant.
-    let mixed = selected(languages).iter().any(|variant| {
-        variant.is_variant()
-            && has_letters(text, variant.native)
-            && has_letters(text, variant.script)
-    });
-    mixed.then_some(RetryReason::MixedScript)
+    // confidence ("कल का stand up"). Text in one script is either the base language or the
+    // variant, which the checks below tell apart.
+    let mixed: Vec<&Language> = selected
+        .iter()
+        .copied()
+        .filter(|variant| {
+            variant.is_variant()
+                && has_letters(text, variant.native)
+                && has_letters(text, variant.script)
+        })
+        .collect();
+    if !mixed.is_empty() {
+        return Some((RetryReason::MixedScript, mixed));
+    }
+    // A variant's native script, which no selected language is written in (Hinglish chosen,
+    // Devanagari heard back).
+    let written = |script: Script| selected.iter().any(|language| language.script == script);
+    let native: Vec<&Language> = selected
+        .iter()
+        .copied()
+        .filter(|variant| {
+            variant.is_variant() && !written(variant.native) && has_letters(text, variant.native)
+        })
+        .collect();
+    if !native.is_empty() {
+        return Some((RetryReason::WrongScript, native));
+    }
+    // Letters, none of them in a selected script (Hindi chosen, all Roman script heard back).
+    let mut letters = text.chars().filter(|c| c.is_alphabetic()).peekable();
+    let foreign = !selected.is_empty()
+        && letters.peek().is_some()
+        && letters.all(|c| !selected.iter().any(|language| language.script.contains(c)));
+    foreign.then(|| (RetryReason::WrongScript, selected.to_vec()))
 }
 
 fn has_letters(text: &str, script: Script) -> bool {
     text.chars().any(|c| script.contains(c))
+}
+
+/// The models that could redo a result [`gate`] found in the wrong script, best first: models
+/// other than `first` that write at least one language the result got wrong, those writing more
+/// of them first, then more of the selected languages, then the more accurate model and the
+/// smaller download. Unlike [`ReadyRoute::retry`] such a model may write another selected
+/// language worse: the first result already missed the chosen script. The caller runs the first
+/// one that is ready.
+pub(crate) fn script_retry(text: &str, languages: &[String], first: &str) -> Vec<&'static str> {
+    let selected = selected(languages);
+    let Some((_, wrong)) = script_violation(text, &selected) else {
+        return Vec::new();
+    };
+    let count = |coverage: Coverage, of: &[&Language]| {
+        of.iter()
+            .filter(|language| coverage.covers(language))
+            .count()
+    };
+    let mut candidates: Vec<(&'static CatalogEntry, Coverage)> = CATALOG
+        .iter()
+        .filter(|entry| entry.id != first)
+        .filter_map(|entry| entry.covers.map(|coverage| (entry, coverage)))
+        .filter(|(_, coverage)| count(*coverage, &wrong) > 0)
+        .collect();
+    candidates.sort_by(|(a, a_covers), (b, b_covers)| {
+        count(*b_covers, &wrong)
+            .cmp(&count(*a_covers, &wrong))
+            .then(count(*b_covers, &selected).cmp(&count(*a_covers, &selected)))
+            .then(b.accuracy.cmp(&a.accuracy))
+            .then(size(a).cmp(&size(b)))
+    });
+    candidates.into_iter().map(|(entry, _)| entry.id).collect()
 }
 
 /// What Smart Select runs for `languages` given what `is_ready`, for its card in Settings →
@@ -459,6 +527,72 @@ mod tests {
             gated(mixed, &TranscriptQuality::default(), DEFAULT_SET),
             Some(RetryReason::MixedScript)
         );
+    }
+
+    #[test]
+    fn wrong_script_flags_text_outside_the_chosen_script_both_ways() {
+        let confident = whisper(-0.1, 1.1, 0.01);
+        let hindi = "कल की मीटिंग ग्यारह बजे है";
+        let hindi_with_english = "कल की meeting ग्यारह बजे है";
+        let romanised = "kal ki meeting gyarah baje hai";
+        let cases: &[(&str, &[&str], Option<RetryReason>)] = &[
+            // Hinglish chosen: any Devanagari is wrong unless Hindi is chosen too.
+            (hindi, &["hi-Latn"], Some(RetryReason::WrongScript)),
+            (hindi, &["en", "hi-Latn"], Some(RetryReason::WrongScript)),
+            (romanised, &["hi-Latn"], None),
+            // Hindi chosen: Roman-only text is wrong; English words inside Devanagari are not.
+            (romanised, &["hi"], Some(RetryReason::WrongScript)),
+            (hindi_with_english, &["hi"], None),
+            (hindi, &["hi"], None),
+            // With English chosen too, Roman text may be English.
+            (romanised, &["en", "hi"], None),
+            (hindi, DEFAULT_SET, None),
+            // Only English chosen: Devanagari without a Roman letter is in no chosen script.
+            (hindi, &["en"], Some(RetryReason::WrongScript)),
+        ];
+        for (text, languages, expected) in cases {
+            assert_eq!(
+                gated(text, &confident, languages),
+                *expected,
+                "{text} {languages:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn script_retries_go_to_another_model_writing_what_was_wrong() {
+        let hindi = "कल की मीटिंग ग्यारह बजे है";
+        let romanised = "kal ki meeting gyarah baje hai";
+        let mixed = "कल का stand up 11 बजे shift कर दो.";
+        let cases: &[(&str, &[&str], &str, &[&str])] = &[
+            (
+                hindi,
+                &["en", "hi-Latn"],
+                WHISPER_TURBO,
+                &[WHISPER_HINGLISH],
+            ),
+            (mixed, DEFAULT_SET, WHISPER_TURBO, &[WHISPER_HINGLISH]),
+            (romanised, &["hi"], WHISPER_HINGLISH, &[WHISPER_TURBO]),
+            // The first model is never its own retry.
+            (romanised, &["hi"], WHISPER_TURBO, &[]),
+            (mixed, DEFAULT_SET, WHISPER_HINGLISH, &[]),
+            // Several candidates: most accurate first, then the smaller download.
+            (
+                hindi,
+                &["en"],
+                WHISPER_TURBO,
+                &[PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH],
+            ),
+            // Written as chosen: nothing to retry.
+            (romanised, &["hi-Latn"], PARAKEET_TDT_V3, &[]),
+        ];
+        for (text, languages, first, expected) in cases {
+            assert_eq!(
+                script_retry(text, &langs(languages), first),
+                *expected,
+                "{text} {languages:?} {first}"
+            );
+        }
     }
 
     #[test]

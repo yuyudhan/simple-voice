@@ -110,8 +110,9 @@ export interface Microphone {
 export type HistoryStatus = "pasted" | "unformatted" | "failed" | "dropped" | "not_pasted";
 
 /** Why Smart Select retried; "mixed_script" = the model wrote a romanised language (e.g.
- * Hinglish) partly in that language's own script. */
-export type RetryReason = "failed" | "low_confidence" | "mixed_script";
+ * Hinglish) partly in that language's own script; "wrong_script" = the text was not in the
+ * chosen script (Devanagari for Hinglish, or no Devanagari at all for Hindi). */
+export type RetryReason = "failed" | "low_confidence" | "mixed_script" | "wrong_script";
 
 export type AppCategory =
     "work_messages" | "personal_messages" | "email" | "documents" | "ai_prompts" | "code" | "other";

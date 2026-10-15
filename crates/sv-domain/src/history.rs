@@ -56,6 +56,9 @@ pub enum RetryReason {
     LowConfidence,
     /// A selected script variant (e.g. romanised Hindi) came back half in its native script.
     MixedScript,
+    /// The result was not written in the chosen script: Devanagari for Hinglish, or no
+    /// Devanagari at all for Hindi.
+    WrongScript,
 }
 
 impl RetryReason {
@@ -64,6 +67,7 @@ impl RetryReason {
             Self::Failed => "failed",
             Self::LowConfidence => "low_confidence",
             Self::MixedScript => "mixed_script",
+            Self::WrongScript => "wrong_script",
         }
     }
 
@@ -72,6 +76,7 @@ impl RetryReason {
             "failed" => Some(Self::Failed),
             "low_confidence" => Some(Self::LowConfidence),
             "mixed_script" => Some(Self::MixedScript),
+            "wrong_script" => Some(Self::WrongScript),
             _ => None,
         }
     }

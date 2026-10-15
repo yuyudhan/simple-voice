@@ -20,7 +20,9 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   the one download those languages need (Parakeet for English and many European languages,
   Hinglish Whisper for Hinglish, Whisper Turbo for Hindi and other languages). It runs the best
   downloaded model for your languages and, when that one fails or sounds unsure, double-checks
-  with another downloaded model that writes the same languages. If the model can't write one of
+  with another downloaded model that writes the same languages. A result in the wrong script
+  (Devanagari when you chose Hinglish, Roman script when you chose Hindi) is redone once on
+  another downloaded model that writes the script you chose. If the model can't write one of
   your languages the way you chose (Hindi and Hinglish together, for example), it tells you.
 - **Or choose the speech engine yourself** (the default).
     - **Parakeet** on-device models (TDT v3 multilingual, TDT v2 English, and Parakeet Flash),
@@ -78,8 +80,9 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   through Accessibility; it never opens files or runs anything. Editors that expose no text
   simply get no hints.
 - **Languages.** English, Hindi and Hinglish out of the box, each its own choice, on-device
-  too. Hinglish is written in Roman script, Hindi in Devanagari; when two choices share a
-  language, the picker shows which script each one is written in. The allowed languages are
+  too. Hinglish is written in Roman script; Hindi in Devanagari, with the English words you
+  mix in usually kept in Roman script ("कल की meeting"). When two choices share a language,
+  the picker shows which script each one is written in. The allowed languages are
   configurable.
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
   your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file,

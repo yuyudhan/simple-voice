@@ -133,8 +133,9 @@ pub(super) async fn transcribe(
     }
 }
 
-/// Runs the first ready model of the route, then at most one retry when it errored or was
-/// unsure (see [`settle`] for which result wins).
+/// Runs the first ready model of the route, then at most one retry: on the route's next model
+/// when the first errored or was unsure, on another ready model that writes the chosen script
+/// when the result came back in the wrong one (see [`settle`] for which result wins).
 async fn smart_transcribe(
     state: &AppState,
     settings: &Settings,
@@ -155,7 +156,15 @@ async fn smart_transcribe(
         ),
         Err(_) => Some(RetryReason::Failed),
     };
-    let retry = reason.zip(route.retry);
+    let second = match (reason, &first_result) {
+        (Some(RetryReason::MixedScript | RetryReason::WrongScript), Ok(result)) => {
+            let candidates = smart_select::script_retry(&result.text, &settings.languages, first);
+            first_ready(state, settings, &candidates).await
+        }
+        (Some(_), _) => route.retry,
+        (None, _) => None,
+    };
+    let retry = reason.zip(second);
     let Some((reason, second)) = retry else {
         log_choice(first, &first_result, None, None);
         return match first_result {
@@ -213,6 +222,19 @@ pub(super) async fn ready_route(
         }
     }
     smart_select::ready_route(&settings.languages, |model| ready.contains(&model))
+}
+
+async fn first_ready(
+    state: &AppState,
+    settings: &Settings,
+    models: &[&'static str],
+) -> Option<&'static str> {
+    for &model in models {
+        if is_ready(state, settings, model).await {
+            return Some(model);
+        }
+    }
+    None
 }
 
 /// One line per Smart Select dictation: models, their quality numbers and why a retry ran.

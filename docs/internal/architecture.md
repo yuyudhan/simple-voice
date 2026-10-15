@@ -165,7 +165,7 @@ CREATE TABLE history (
     audio_path       TEXT,               -- set only while a failed entry can be retried
     edited_text      TEXT,               -- the pasted text after the user corrected it in place (0006)
     first_model      TEXT,               -- Smart Select: model tried first when a retry happened (0007)
-    retry_reason     TEXT,               -- 'failed' | 'low_confidence' | 'mixed_script' (0007)
+    retry_reason     TEXT,               -- 'failed' | 'low_confidence' | 'mixed_script' | 'wrong_script' (0007)
     style_source     TEXT                -- 'app' | 'category' | 'global'; NULL before 0010
 );
 CREATE INDEX history_created_at ON history(created_at);
@@ -288,8 +288,9 @@ for live transcript and meetings are the only users of `Recorder::start_with`.
 // MeetingJob = Transcribe | Diarize | Summarize | Chat | Translate, MeetingProgress,
 // ExportFormat = Markdown | Text | Json (wire shapes in § 3 and § 4).
 // Settings.smartRetry (default true). TranscriptQuality { avg_logprob, compression_ratio, no_speech_prob,
-// confidence } (all Option<f32>). RetryReason = Failed | LowConfidence | MixedScript, wire "failed" |
-// "low_confidence" | "mixed_script"; NewHistory.first_model / retry_reason, HistoryEntry.firstModelName /
+// confidence } (all Option<f32>). RetryReason = Failed | LowConfidence | MixedScript | WrongScript,
+// wire "failed" | "low_confidence" | "mixed_script" | "wrong_script"; NewHistory.first_model /
+// retry_reason, HistoryEntry.firstModelName /
 // retryReason: model is the one that produced raw_text; first_model == model means the retry
 // did not help and the first result was kept. ModelTiming.retries: rows with first_model = model.
 // languages (languages.rs): the language registry. Script (Latin, Devanagari, ...) with name(),
@@ -410,12 +411,15 @@ pub fn whisper_prompt(languages: &[String], vocabulary: &Vocabulary) -> String;
     // vocabulary terms joined by ", ", ≤ PROMPT_MAX_CHARS chars and ≤ PROMPT_MAX_TOKENS
     // estimated tokens (tokens.rs: per case segment ceil(len/3) lowercase or capitalised,
     // ceil(len/2) all caps; 1 per digit or ASCII symbol; 2 per other character; calibrated
-    // to run high against Whisper's multilingual tokenizer)
+    // to run high against Whisper's multilingual tokenizer). A tag whose romanised variant is
+    // selected too sends no lead (en, hi, hi-Latn → only the Hinglish lead).
 pub fn vocabulary_pack_infos() -> Vec<VocabularyPackInfo>;       // every pack's words, then rule targets
 // Language prompt table (language_prompts.rs), keyed by registry tag: an optional Whisper lead
-// (hi-Latn: the romanised-Hinglish lead) and few-shot shots per style (hi-Latn: the Hinglish
-// formal and casual shots). A tag's content reaches a prompt only when that tag is selected, so
-// an English-only user gets neither. Adding a language's prompt content is one table entry.
+// (hi: a Devanagari sentence with English words in Roman script, which keeps Whisper Turbo
+// writing those words in Roman script; hi-Latn: the romanised-Hinglish lead) and few-shot shots
+// per style (hi-Latn: the Hinglish formal and casual shots). A tag's content reaches a prompt
+// only when that tag is selected, so an English-only user gets neither. Adding a language's
+// prompt content is one table entry.
 pub struct Formatted { pub text: String, pub rule_hits: u32 }
 pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
 // Post-processing ("polish"). One prompt shape, two on-device backends, both through the engine
@@ -919,18 +923,25 @@ get Devanagari offline."); otherwise "{model} can't transcribe {A, B and C} offl
 Tags reach the helper as their base (`hi-Latn` → `hi`). The route is the ranking narrowed to
 ready models (`ready_route`); nothing ready is the error "No voice model is ready. Download one
 in Settings → Transcription". The first ready model runs. At most one retry follows, once and
-sequentially, on the next ready model in the ranking that covers every selected tag the first
-one covers (a retry never writes a chosen language worse; for `en, hi, hi-Latn` with Hinglish
-Whisper first there is none, since Whisper Turbo cannot write Hinglish). It runs when the first
-model fails, or (`smartRetry` on, 3+ words) when the first result is unsure: Whisper quality
-below the floor (`avgLogprob < -1.0` or `compressionRatio > 2.4`, except silence: `noSpeechProb
-> 0.6` with `avgLogprob < -1.0`), or, for any selected romanised variant, text that mixes
-letters of the variant's native script with letters of its romanised script (`mixed_script`,
-e.g. Hinglish written half in Devanagari; scripts come from `Script::contains`). A retry with
-text replaces the first result; otherwise a successful first result is kept; history records
-both models and the reason. Under Choose model the chosen model runs alone, with no retry.
-The top-ranked model (or the chosen one) is preloaded at launch, after its download, and when
-the model or languages change.
+sequentially. The next ready model in the ranking that covers every selected tag the first one
+covers (a retry never writes a chosen language worse; for `en, hi, hi-Latn` with Hinglish
+Whisper first there is none, since Whisper Turbo cannot write Hinglish) runs when the first
+model fails, or (`smartRetry` on, 3+ words) when its Whisper quality is below the floor
+(`avgLogprob < -1.0` or `compressionRatio > 2.4`, except silence: `noSpeechProb > 0.6` with
+`avgLogprob < -1.0`). A result of 3+ words (`smartRetry` on) in the wrong script retries on
+another ready model instead: `mixed_script` when, for a selected romanised variant, the text
+mixes letters of the variant's native script with letters of its romanised script (e.g.
+Hinglish written half in Devanagari); `wrong_script` when it has letters of a variant's native
+script that no selected tag is written in (Hinglish chosen without Hindi, Devanagari back), or
+has letters but none in any selected tag's script (Hindi chosen alone, only Roman script back;
+English words in Roman script inside Devanagari text pass). Scripts come from
+`Script::contains`. `script_retry` lists the candidates: catalog models other than the first
+that cover at least one tag the text got wrong, ordered by how many of those they cover, then
+how many selected tags, accuracy and download size; the first ready one runs, and with none
+ready the first result stands. A retry with text replaces the first result; otherwise a
+successful first result is kept; history records both models and the reason. Under Choose
+model the chosen model runs alone, with no retry. The top-ranked model (or the chosen one) is
+preloaded at launch, after its download, and when the model or languages change.
 
 Launch at login: `settings.launchAtLogin` mirrors `login_item`. `update_settings` changes the
 login item before saving and stores nothing when macOS refuses; the core re-reads the status

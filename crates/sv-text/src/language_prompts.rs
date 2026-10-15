@@ -24,24 +24,36 @@ pub(crate) struct LanguagePrompt {
 // The romanised Hindi shots pin what the rules alone did not hold in evaluation: mixed speech
 // kept word for word, in Roman script. They go to chat models only, because the on-device Apple
 // model rejects any request containing Hindi as "unsupported language".
-const PROMPTS: &[LanguagePrompt] = &[LanguagePrompt {
-    tag: "hi-Latn",
-    // Without it Whisper flips mixed Hindi-English speech to Devanagari.
-    whisper_lead: Some("Haan, toh main ab yeh code check karta hoon. "),
-    fillers: &["matlab", "na"],
-    formal_shots: &[Shot {
-        user: "yaar ye wala query actually bahut slow hai, matlab we need to add an index first, \
-phir deploy karenge",
-        reply: "Ye wala query bahut slow hai; we need to add an index first, phir deploy karenge.",
-        only: Some(PolishTarget::Chat),
-    }],
-    casual_shots: &[Shot {
-        user: "um yaar ye build phir se fail ho gaya, basically I think we need to clear the \
+const PROMPTS: &[LanguagePrompt] = &[
+    LanguagePrompt {
+        tag: "hi",
+        // Without it Whisper Turbo writes most English words in Hindi speech in Devanagari
+        // ("मीटिंग"); with it it keeps them in Roman script, as Hindi mode promises.
+        whisper_lead: Some("ठीक है, मैं अभी email पढ़कर reply भेजता हूँ। "),
+        fillers: &[],
+        formal_shots: &[],
+        casual_shots: &[],
+    },
+    LanguagePrompt {
+        tag: "hi-Latn",
+        // Without it Whisper flips mixed Hindi-English speech to Devanagari.
+        whisper_lead: Some("Haan, toh main ab yeh code check karta hoon. "),
+        fillers: &["matlab", "na"],
+        formal_shots: &[Shot {
+            user: "yaar ye wala query actually bahut slow hai, matlab we need to add an index \
+first, phir deploy karenge",
+            reply: "Ye wala query bahut slow hai; we need to add an index first, phir deploy \
+karenge.",
+            only: Some(PolishTarget::Chat),
+        }],
+        casual_shots: &[Shot {
+            user: "um yaar ye build phir se fail ho gaya, basically I think we need to clear the \
 cache pehle",
-        reply: "Yaar ye build phir se fail ho gaya, I think we need to clear the cache pehle",
-        only: Some(PolishTarget::Chat),
-    }],
-}];
+            reply: "Yaar ye build phir se fail ho gaya, I think we need to clear the cache pehle",
+            only: Some(PolishTarget::Chat),
+        }],
+    },
+];
 
 /// Prompt content of the selected tags, in selection order, each tag once.
 pub(crate) fn selected(languages: &[String]) -> impl Iterator<Item = &'static LanguagePrompt> + '_ {
@@ -56,6 +68,27 @@ pub(crate) fn selected(languages: &[String]) -> impl Iterator<Item = &'static La
         }
         seen.push(prompt.tag);
         Some(prompt)
+    })
+}
+
+/// Whisper leads of the selected tags, in selection order. A language whose romanised variant
+/// is selected too gives up its lead: Smart Select writes the variant offline then, and leads in
+/// two scripts would pull Whisper both ways.
+pub(crate) fn whisper_leads(languages: &[String]) -> impl Iterator<Item = &'static str> + '_ {
+    let variant_selected = |base: &str| {
+        languages
+            .iter()
+            .filter_map(|tag| language(tag))
+            .any(|other| other.is_variant() && other.base == base)
+    };
+    selected(languages).filter_map(move |prompt| {
+        let own = language(prompt.tag)?;
+        let outvoted = !own.is_variant() && variant_selected(own.base);
+        if outvoted {
+            None
+        } else {
+            prompt.whisper_lead
+        }
     })
 }
 
@@ -127,6 +160,18 @@ mod tests {
             .map(|prompt| prompt.tag)
             .collect();
         assert_eq!(found, vec!["hi-Latn"]);
-        assert_eq!(selected(&tags(&["en", "hi"])).count(), 0);
+        assert_eq!(selected(&tags(&["en", "de"])).count(), 0);
+    }
+
+    #[test]
+    fn a_language_gives_up_its_lead_to_its_selected_romanised_variant() {
+        let leads = |selected: &[&str]| whisper_leads(&tags(selected)).collect::<Vec<_>>();
+        let hindi = "ठीक है, मैं अभी email पढ़कर reply भेजता हूँ। ";
+        let hinglish = "Haan, toh main ab yeh code check karta hoon. ";
+        assert_eq!(leads(&["en", "hi"]), vec![hindi]);
+        assert_eq!(leads(&["hi-Latn"]), vec![hinglish]);
+        assert_eq!(leads(&["en", "hi", "hi-Latn"]), vec![hinglish]);
+        assert_eq!(leads(&["hi-Latn", "hi"]), vec![hinglish]);
+        assert!(leads(&["en"]).is_empty());
     }
 }

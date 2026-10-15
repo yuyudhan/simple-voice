@@ -160,7 +160,7 @@ impl Vocabulary {
 pub fn whisper_prompt(languages: &[String], vocabulary: &Vocabulary) -> String {
     let mut prompt = String::new();
     let mut size = Size::default();
-    for lead in language_prompts::selected(languages).filter_map(|lang| lang.whisper_lead) {
+    for lead in language_prompts::whisper_leads(languages) {
         let next = size.plus(Size::of(lead));
         if !next.within(PROMPT_MAX_TOKENS) {
             break;
