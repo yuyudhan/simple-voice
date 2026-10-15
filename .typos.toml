@@ -25,3 +25,7 @@ Shure = "Shure"
 # design app, both spelled as their owners write them.
 CMO = "CMO"
 Canva = "Canva"
+# Romanised Hindi in the eval corpus (scripts/eval/say-corpus.tsv): "tak" (until), "chalenge"
+# (will go).
+tak = "tak"
+chalenge = "chalenge"

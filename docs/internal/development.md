@@ -126,18 +126,34 @@ FoundationModels; the binary links FoundationModels weakly and still runs on mac
 ## Transcription eval
 
 `scripts/eval/transcription-eval.sh` runs a folder of labelled clips through transcription models
-and prints word error rate, the share of romanised output, speed and the quality numbers Smart
-Select gates on (requirement M-11). Clips are `<category>-<name>.wav` (16 kHz mono PCM16) with
-the expected text in `<category>-<name>.txt`; record your own dictations for real numbers.
+and prints word error rate, skeleton WER, the share of wrong-script output, speed and the quality
+numbers Smart Select gates on (requirement M-11). Clips are `<category>-<name>.wav` (16 kHz mono
+PCM16) with the expected text in `<category>-<name>.txt`. The script header defines the scores:
+WER folds case, punctuation, nukta and chandrabindu; skeleton WER compares consonant skeletons
+that read alike in Devanagari and Roman script, so romanised Hinglish is scored without one
+spelling convention winning; category `hi` must contain Devanagari and every other category
+must contain none.
+
+`scripts/eval/make-clips.sh` builds one clip folder per dictation language (`en`, `hi`, `hing`)
+from `scripts/eval/say-corpus.tsv`, spoken by the macOS voices Rishi and Lekha (plain Hindi,
+Hindi with English words, and Indian-accented English), plus `--fleurs N` real Hindi recordings
+from Google FLEURS (CC BY 4.0) at a pinned revision. Run each folder with the languages and
+prompt the app sends for that choice; record your own dictations for real numbers.
 
 ```sh
 just engine
-scripts/eval/transcription-eval.sh --clips ~/sv-clips \
-    --models whisper-hinglish,whisper-large-v3-turbo,parakeet-tdt-v3 --out eval.tsv
+scripts/eval/make-clips.sh --out ~/sv-clips --fleurs 150
+scripts/eval/transcription-eval.sh --clips ~/sv-clips/hi --languages hi --prompt "" \
+    --models whisper-large-v3-turbo --out hi.tsv
+scripts/eval/transcription-eval.sh --clips ~/sv-clips/hing --languages hi \
+    --prompt "Haan, toh main ab yeh code check karta hoon." --models whisper-hinglish --out hing.tsv
 ```
 
 Engine models are read from `~/.simplevoice-dev/models`, where `just dev` downloads them
 (`--models-dir` to change). The first run of a Whisper model includes its one-time Core ML compile.
+To try a candidate, put its WhisperKit folder (with a `.simple-voice-complete` marker) under an
+existing model id in another `--models-dir` and name it with `--label`; it then runs through that
+id's decoding path.
 
 The run that chose Smart Select's models used 36 macOS `say` clips (English, Hindi and Hinglish
 voices, some with white noise) plus two real dictations. Groq Whisper was still measured then;
@@ -153,6 +169,29 @@ the app has since become local-only and the eval no longer runs it:
 Groq's average log-probability stayed above -0.52 on every clip, including wrong ones, which is
 why the Whisper floor stays at -1.0 and Whisper writing Hinglish half in Devanagari is caught by
 the mixed-script check instead.
+
+The October 2026 language run (190 Hindi clips: 150 FLEURS sentences plus 40 `say` clips, 16 of
+them plain Hindi and 24 Hindi with English words; the same audio for Hinglish; 20 English clips)
+compared candidates for Hindi and Hinglish on WhisperKit:
+
+| Hindi mode (`hi`)                       | FLEURS WER | Plain Hindi WER | Hindi + English WER | English words in Roman |
+| --------------------------------------- | ---------- | --------------- | ------------------- | ---------------------- |
+| Whisper Turbo, no prompt (before)       | 38.6%      | 28.4%           | 38.4%               | 27%                    |
+| Whisper Turbo with the Hindi lead (now) | 38.6%      | 27.8%           | 21.8%               | 73%                    |
+| IndicWhisper Hindi (AI4Bharat, medium)  | 15.7%      | 14.9%           | 42.5%               | 0%                     |
+
+| Hinglish mode (`hi-Latn`) | FLEURS skeleton WER | `say` skeleton WER | `say` WER | Warm time per clip |
+| ------------------------- | ------------------- | ------------------ | --------- | ------------------ |
+| Hinglish Whisper (Prime)  | 16.4%               | 13.6%              | 24.2%     | ~3.6 s             |
+| Hindi2Hinglish Apex       | 17.3%               | 13.2%              | 25.0%     | ~1.1 s             |
+
+Neither candidate replaced a catalog model: Apex did not beat Prime, and IndicWhisper writes every
+English word in Devanagari, needs a self-hosted Core ML conversion and is about twice as slow.
+In their own modes every model wrote the chosen script on at least 96% of clips. Whisper Turbo
+returned empty text for 2–6 of the 150 FLEURS clips per run (a repetition loop that WhisperKit's
+fallbacks drop), so its FLEURS WER moves by several points between identical runs. Whisper
+Turbo wrote Devanagari for 81–100% of Hinglish clips even with the Hinglish lead; the
+wrong-script retry hands such results to Hinglish Whisper.
 
 ## Permissions during development
 

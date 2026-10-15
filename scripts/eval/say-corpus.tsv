@@ -1,0 +1,36 @@
+# FilePath: scripts/eval/say-corpus.tsv
+# Sentences scripts/eval/make-clips.sh speaks with macOS `say`. Columns (tab-separated):
+# id, text as written in its language's own script, romanised text. English rows (`en-*`) leave
+# the romanised column empty. Hindi rows (`pure-*` plain Hindi, `mix-*` Hindi with English words)
+# keep English words in Roman script inside the Devanagari text, which is how Hindi mode writes
+# them; the romanised column is the Hinglish reference.
+en-01	Please schedule the design review for Thursday afternoon and invite the whole platform team.	
+en-02	The deployment failed again because the database migration timed out on staging.	
+en-03	Can you send me the latest invoice and the payment receipt by tomorrow morning?	
+en-04	I think we should cache the user profile and refresh it every ten minutes.	
+en-05	Let's move the standup to eleven thirty since half the team is travelling today.	
+en-06	Remind me to call the bank about the credit card statement after lunch.	
+en-07	The new onboarding flow looks great, but the button colours need more contrast.	
+en-08	Open a ticket for the login bug and assign it to Priya with high priority.	
+en-09	We need to update the documentation before we publish the next release.	
+en-10	Book a table for four people at the Italian restaurant near the office.	
+pure-01	मुझे कल सुबह दिल्ली जाना है, इसलिए आज जल्दी सोना पड़ेगा।	Mujhe kal subah Dilli jaana hai, isliye aaj jaldi sona padega.
+pure-02	आज मौसम बहुत अच्छा है, चलो शाम को बाहर घूमने चलते हैं।	Aaj mausam bahut accha hai, chalo shaam ko bahar ghoomne chalte hain.
+pure-03	माँ ने कहा है कि खाना तैयार है और सब लोग जल्दी आ जाओ।	Maa ne kaha hai ki khana taiyar hai aur sab log jaldi aa jao.
+pure-04	मैं अभी रास्ते में हूँ, थोड़ी देर में पहुँच जाऊँगा।	Main abhi raaste mein hoon, thodi der mein pahunch jaunga.
+pure-05	क्या तुमने आज का अख़बार पढ़ा, उसमें चुनाव की बड़ी ख़बर है।	Kya tumne aaj ka akhbaar padha, usmein chunaav ki badi khabar hai.
+pure-06	हमें अगले हफ़्ते तक यह काम पूरा करना होगा, वरना बहुत देर हो जाएगी।	Hamein agle hafte tak yeh kaam poora karna hoga, warna bahut der ho jayegi.
+pure-07	बच्चों की छुट्टियाँ शुरू हो गई हैं, इसलिए घर में बहुत शोर है।	Bachchon ki chhuttiyan shuru ho gayi hain, isliye ghar mein bahut shor hai.
+pure-08	कृपया मुझे बताइए कि सबसे नज़दीकी दवाई की दुकान कहाँ है।	Kripya mujhe bataiye ki sabse nazdeeki dawai ki dukaan kahan hai.
+mix-01	कल की meeting को postpone कर दो, client ने अभी तक feedback नहीं भेजा।	Kal ki meeting ko postpone kar do, client ne abhi tak feedback nahi bheja.
+mix-02	यह bug production में आ रहा है, जल्दी से hotfix deploy करना पड़ेगा।	Yeh bug production mein aa raha hai, jaldi se hotfix deploy karna padega.
+mix-03	मैंने pull request raise कर दिया है, please इसको review कर देना।	Maine pull request raise kar diya hai, please isko review kar dena.
+mix-04	आज का standup थोड़ा late होगा क्योंकि manager अभी call पर हैं।	Aaj ka standup thoda late hoga kyunki manager abhi call par hain.
+mix-05	Database का backup हर रात को automatically लेना चाहिए।	Database ka backup har raat ko automatically lena chahiye.
+mix-06	मैं laptop का charger घर पर भूल गया, क्या तुम्हारे पास extra है?	Main laptop ka charger ghar par bhool gaya, kya tumhare paas extra hai?
+mix-07	इस feature का design ठीक है, लेकिन performance थोड़ा slow लग रहा है।	Is feature ka design theek hai, lekin performance thoda slow lag raha hai.
+mix-08	Weekend पर हम सब movie देखने चलेंगे, tickets मैं book कर दूँगा।	Weekend par hum sab movie dekhne chalenge, tickets main book kar doonga.
+mix-09	Server का CPU usage बहुत high है, logs check करके बताओ।	Server ka CPU usage bahut high hai, logs check karke batao.
+mix-10	Invoice का payment अभी pending है, accounts team को एक reminder भेज दो।	Invoice ka payment abhi pending hai, accounts team ko ek reminder bhej do.
+mix-11	मैंने सारे unit tests pass कर लिए हैं, अब बस documentation update करना बाकी है।	Maine saare unit tests pass kar liye hain, ab bas documentation update karna baaki hai.
+mix-12	Office से निकलने से पहले मुझे एक message कर देना।	Office se nikalne se pehle mujhe ek message kar dena.
