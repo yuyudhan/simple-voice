@@ -84,11 +84,12 @@ just check           # tsc, eslint, prettier, clippy for the mobile crates
 
 On Android the keyboard is enabled under Settings → System → Keyboard → On-screen keyboard
 (or `adb shell ime enable dev.yuyudhan.simplevoice.mobile/.keyboard.KeyboardService`). Dictating
-needs a Groq key (Settings tab) and the microphone. Without either, the keyboard's status line
-says so; tapping it opens the app at that step (`adb shell pm revoke
-dev.yuyudhan.simplevoice.mobile android.permission.RECORD_AUDIO` reproduces a lapsed grant). The
-emulator's microphone hears silence unless host audio is enabled (`adb emu avd hostmicon`), and
-Whisper may invent a word for silence.
+needs a Groq key and the microphone; a fresh install opens on the setup guide for both
+(`adb shell pm clear dev.yuyudhan.simplevoice.mobile` shows it again; Settings → Open guide
+reopens it). Without either, the keyboard's status line says so; tapping it opens the app at
+that step (`adb shell pm revoke dev.yuyudhan.simplevoice.mobile android.permission.RECORD_AUDIO`
+reproduces a lapsed grant). The emulator's microphone hears silence unless host audio is enabled
+(`adb emu avd hostmicon`), and Whisper may invent a word for silence.
 
 On iPhone, add the keyboard under Settings → General → Keyboard → Keyboards → Add New Keyboard →
 Simple Voice, then turn on Allow Full Access (the App Group needs it). The first mic tap opens

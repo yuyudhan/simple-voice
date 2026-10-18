@@ -688,8 +688,15 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   `import_vocabulary`, `get_insights`, `get_model_insights`. Events: `settings-changed`,
   `history-changed`. The keyboard writes history outside Tauri, so the shell reloads the open
   tab whenever the app comes back to the foreground.
-- **Keyboard setup.** The Settings tab opens with a checklist (`mobile/src/features/setup/`):
-  keyboard added, Full Access (iPhone) or current keyboard (Android), microphone, Groq key.
+- **Keyboard setup.** `mobile/src/features/setup/`: `setupSteps` lists the steps in order (Groq
+  key, keyboard added, Full Access (iPhone) or current keyboard (Android), microphone) with their
+  copy, live state and action; `useKeyboardSetup` reads the phone's status (again after each
+  action, on each return to the app, and every 1.5 s while a step is left, since Android's
+  keyboard picker is a dialog the WebView gets no event from) and runs keyboard requests. Two
+  views use them, one mounted at a time: `SetupGuide`, the first-launch guide (welcome, then
+  one step per screen with the desktop onboarding's look and `StepFooter`), shown by the shell
+  while `onboardingComplete` is false or after "Open guide" (Finish or a skip saves it as
+  `true`); and `KeyboardSetupGroup`, the checklist the Settings tab opens with.
   Phone-only commands `get_keyboard_setup` → `{enabled, fullAccess, selected, microphone}`,
   `open_keyboard_settings`, `choose_keyboard`, `request_microphone` run through the sv-native
   plugin (`src/setup.rs`; Swift `SvNativePlugin.swift`, Kotlin `android/…/SvNativePlugin.kt`).
@@ -700,9 +707,10 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   `"groqKey"` or null reads (once) the step the keyboard opened the app for, the
   `KeyboardRequest.EXTRA` on `MainActivity`'s intent (ignored on a relaunch from Recents);
   `return_to_keyboard` moves the app's task to the back. The shell takes the request at launch
-  and on each return and opens Settings: `groqKey` scrolls to the key; `microphone` runs
-  `request_microphone` once (the plugin opens the app's settings page after a permanent
-  refusal) and, as soon as the status reads granted, returns to the field.
+  and on each return and opens Settings, or the guide's screen for the step while the guide is
+  shown: `groqKey` shows the key; `microphone` runs `request_microphone` once (the plugin opens
+  the app's settings page after a permanent refusal) and, as soon as the status reads granted,
+  returns to the field.
 - **Storage.** `Db::open_at(app_data_dir)`: one database per phone in the app's private storage,
   with the same schema and migrations as the desktop app. The Groq key is stored there, as on
   the desktop (S-8); the app's storage is private to it.

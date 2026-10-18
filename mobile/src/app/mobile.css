@@ -110,7 +110,8 @@
    page sideways (the Dictionary filter). Phone fields use 16 px text. */
 .svm-shell input,
 .svm-shell textarea,
-.svm-shell select {
+.svm-shell select,
+.svm-guide input {
     font-size: 16px;
 }
 
@@ -165,4 +166,31 @@
 .svm-shell__content > .svm-settings__group:first-child {
     margin-top: 0;
     margin-bottom: 28px;
+}
+
+/* Setup guide: the desktop onboarding column, full phone width, clear of the status bar and the
+   gesture bar. */
+.svm-guide {
+    padding: max(env(safe-area-inset-top), 28px) 0 max(env(safe-area-inset-bottom), 16px);
+}
+
+.svm-guide .sv-onb__progress,
+.svm-guide .sv-onb__stage {
+    width: calc(100% - 40px);
+}
+
+.svm-guide .sv-onb__progress {
+    margin-top: 16px;
+}
+
+.svm-guide .sv-onb__stage {
+    padding: 32px 0 24px;
+}
+
+.svm-guide .sv-onb__step-label {
+    min-width: 0;
+}
+
+.svm-guide .sv-onb__title--hero {
+    font-size: 32px;
 }

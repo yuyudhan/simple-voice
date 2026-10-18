@@ -7,6 +7,7 @@ import { DictionaryPage } from "../../../src/features/dictionary/DictionaryPage"
 import { HistoryPage } from "../../../src/features/history/HistoryPage";
 import { InsightsPage } from "../../../src/features/insights/InsightsPage";
 import { MobileSettings } from "../features/settings/MobileSettings";
+import { SetupGuide } from "../features/setup/SetupGuide";
 import { useKeyboardRequest } from "../features/setup/useKeyboardRequest";
 import { useMobileTheme } from "./useMobileTheme";
 
@@ -42,6 +43,14 @@ export function MobileApp() {
         setTab("settings");
     }, []);
     const [request, setRequest] = useKeyboardRequest(openSettings);
+    // First launch shows the setup guide until it is finished or skipped; Settings reopens it.
+    const [guide, setGuide] = useState(false);
+    const closeGuide = useCallback(() => {
+        setGuide(false);
+    }, []);
+    const openGuide = useCallback(() => {
+        setGuide(true);
+    }, []);
     // The keyboard writes history while the app sits in the background, without Tauri events;
     // coming back to the app reloads the open tab so it shows those dictations.
     const [visits, setVisits] = useState(0);
@@ -55,6 +64,10 @@ export function MobileApp() {
         };
     }, []);
 
+    if (guide || !settings.onboardingComplete) {
+        return <SetupGuide request={request} onRequest={setRequest} onClose={closeGuide} />;
+    }
+
     return (
         <ShellContext.Provider value={shell}>
             <div className="svm-shell">
@@ -63,7 +76,11 @@ export function MobileApp() {
                     {tab === "insights" && <InsightsPage />}
                     {tab === "dictionary" && <DictionaryPage />}
                     {tab === "settings" && (
-                        <MobileSettings request={request} onRequest={setRequest} />
+                        <MobileSettings
+                            request={request}
+                            onRequest={setRequest}
+                            onOpenGuide={openGuide}
+                        />
                     )}
                 </main>
                 <nav className="svm-tabs" aria-label="Sections">

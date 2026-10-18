@@ -35,14 +35,16 @@ const IS_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent);
 export function MobileSettings({
     request,
     onRequest,
+    onOpenGuide,
 }: {
     request: KeyboardRequest | null;
     onRequest: (next: KeyboardRequest | null) => void;
+    onOpenGuide: () => void;
 }) {
     const { settings, update } = useSettings();
     return (
         <>
-            <KeyboardSetupGroup request={request} onRequest={onRequest} />
+            <KeyboardSetupGroup request={request} onRequest={onRequest} onOpenGuide={onOpenGuide} />
             <StylePage />
             <div className="svm-settings__group" id="svm-voice">
                 <SettingsGroup title="Voice">
