@@ -1,6 +1,7 @@
 // FilePath: mobile/src-tauri/gen/android/app/src/main/java/dev/yuyudhan/simplevoice/mobile/keyboard/KeyboardView.kt
 package dev.yuyudhan.simplevoice.mobile.keyboard
 
+import android.animation.ObjectAnimator
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Typeface
@@ -133,6 +134,16 @@ internal class KeyboardView(
         }
         statusPinned = tone == Tone.RECORDING || tone == Tone.WORKING || tone == Tone.RETRY
         showBar()
+    }
+
+    /** Points at the status line: a blocked mic says why there instead of leaving the keyboard. */
+    fun flashStatus() {
+        // Suggestions share the bar; the next typed letter brings them back.
+        suggestions.removeAllViews()
+        showBar()
+        ObjectAnimator.ofFloat(status, View.ALPHA, 1f, FLASH_ALPHA, 1f, FLASH_ALPHA, 1f)
+            .setDuration(FLASH_MS)
+            .start()
     }
 
     /** The microphone's latest level, from 0 to 1. */
@@ -348,5 +359,7 @@ internal class KeyboardView(
         const val FUNCTION_SP = 15f
         const val STATUS_SP = 13f
         const val SUGGESTION_SP = 16f
+        const val FLASH_ALPHA = 0.2f
+        const val FLASH_MS = 700L
     }
 }

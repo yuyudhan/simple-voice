@@ -28,6 +28,18 @@ pub(crate) async fn request_microphone(app: AppHandle) -> AppResult<String> {
     native(app, |bridge| bridge.request_microphone()).await
 }
 
+/// Android: why the keyboard opened the app (`microphone`, `groqKey`), or none; read once.
+#[tauri::command]
+pub(crate) async fn take_keyboard_request(app: AppHandle) -> AppResult<Option<String>> {
+    native(app, |bridge| bridge.take_keyboard_request()).await
+}
+
+/// Android: back to the field the keyboard was typing in.
+#[tauri::command]
+pub(crate) async fn return_to_keyboard(app: AppHandle) -> AppResult<()> {
+    native(app, |bridge| bridge.return_to_keyboard()).await
+}
+
 async fn native<T: Send + 'static>(
     app: AppHandle,
     call: impl FnOnce(&NativeBridge<Wry>) -> Result<T, String> + Send + 'static,

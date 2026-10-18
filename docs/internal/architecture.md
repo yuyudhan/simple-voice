@@ -696,7 +696,13 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   iPhone reads added keyboards from `AppleKeyboards` and Full Access from a marker the keyboard
   writes to the shared store, and opens the app's own Settings page (apps cannot open the
   Keyboards page); Android checks `InputMethodManager`, opens On-screen keyboard settings and
-  shows the system keyboard picker.
+  shows the system keyboard picker. Android only: `take_keyboard_request` → `"microphone"`,
+  `"groqKey"` or null reads (once) the step the keyboard opened the app for, the
+  `KeyboardRequest.EXTRA` on `MainActivity`'s intent (ignored on a relaunch from Recents);
+  `return_to_keyboard` moves the app's task to the back. The shell takes the request at launch
+  and on each return and opens Settings: `groqKey` scrolls to the key; `microphone` runs
+  `request_microphone` once (the plugin opens the app's settings page after a permanent
+  refusal) and, as soon as the status reads granted, returns to the field.
 - **Storage.** `Db::open_at(app_data_dir)`: one database per phone in the app's private storage,
   with the same schema and migrations as the desktop app. The Groq key is stored there, as on
   the desktop (S-8); the app's storage is private to it.
@@ -727,13 +733,17 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   two spaces for ". ", punctuation after a suggestion or dictation joins the word, a drag along
   the space bar moves the cursor.
   `SvCore.status(online)` → `{line, ready, needsKey, maxSeconds}`; online means a validated
-  connection (`NET_CAPABILITY_VALIDATED`). The mic is tap to start, tap to stop; the watchdog
-  stops at `maxSeconds` (D-13); leaving the field abandons a recording. A failed dictation shows
-  "Not sent · tap to retry", which retries into the cursor. Text that cannot be committed goes to
-  the clipboard and the row is marked not pasted. The keyboard cannot ask for the microphone, so
-  it opens `MainActivity` with `REQUEST_MICROPHONE`, which shows the system prompt. Suggestions
-  come from the system spell checker (`SpellCheckerSession`); recording, sending and Retry keep
-  the status in the bar.
+  connection (`NET_CAPABILITY_VALIDATED`). `KeyboardStatus` adds the `RECORD_AUDIO` check,
+  which Android can take back at any time ("Only this time" lapses about a minute after leaving
+  the app): the bar says "No Groq key · tap here to add it", then "Microphone off · tap here to
+  allow", then the core's line. The mic is tap to start, tap to stop; a blocked mic re-checks,
+  then only flashes the status line and never leaves the keyboard. A tap on a blocked status line
+  opens `MainActivity` with `KeyboardRequest.EXTRA` (the keyboard cannot show a permission
+  prompt). The watchdog stops at `maxSeconds` (D-13); leaving the field abandons a recording. A
+  failed dictation shows "Not sent · tap to retry", which retries into the cursor. Text that
+  cannot be committed goes to the clipboard and the row is marked not pasted. Suggestions come
+  from the system spell checker (`SpellCheckerSession`); recording, sending and Retry keep the
+  status in the bar.
 - **iPhone.** A keyboard cannot use the microphone, so the app records for it (MB-7). The first
   mic tap queues `startSession` and opens the app (`simplevoice://session`); the app starts a
   session: the audio engine runs in the background (`UIBackgroundModes: audio`) for

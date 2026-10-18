@@ -1,5 +1,5 @@
 // FilePath: mobile/src/app/MobileApp.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AudioLines, BookA, Settings as Gear, type LucideIcon } from "lucide-react";
 import { useSettings } from "../../../src/app/SettingsContext";
 import { ShellContext, type Page } from "../../../src/app/ShellContext";
@@ -7,6 +7,7 @@ import { DictionaryPage } from "../../../src/features/dictionary/DictionaryPage"
 import { HistoryPage } from "../../../src/features/history/HistoryPage";
 import { InsightsPage } from "../../../src/features/insights/InsightsPage";
 import { MobileSettings } from "../features/settings/MobileSettings";
+import { useKeyboardRequest } from "../features/setup/useKeyboardRequest";
 import { useMobileTheme } from "./useMobileTheme";
 
 type Tab = "home" | "insights" | "dictionary" | "settings";
@@ -37,6 +38,10 @@ export function MobileApp() {
         }),
         [],
     );
+    const openSettings = useCallback(() => {
+        setTab("settings");
+    }, []);
+    const [request, setRequest] = useKeyboardRequest(openSettings);
     // The keyboard writes history while the app sits in the background, without Tauri events;
     // coming back to the app reloads the open tab so it shows those dictations.
     const [visits, setVisits] = useState(0);
@@ -57,7 +62,9 @@ export function MobileApp() {
                     {tab === "home" && <HistoryPage />}
                     {tab === "insights" && <InsightsPage />}
                     {tab === "dictionary" && <DictionaryPage />}
-                    {tab === "settings" && <MobileSettings />}
+                    {tab === "settings" && (
+                        <MobileSettings request={request} onRequest={setRequest} />
+                    )}
                 </main>
                 <nav className="svm-tabs" aria-label="Sections">
                     {TABS.map(({ id, label, icon: Icon }) => (

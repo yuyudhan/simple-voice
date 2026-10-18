@@ -50,6 +50,8 @@ pub fn run() {
             features::setup::open_keyboard_settings,
             features::setup::choose_keyboard,
             features::setup::request_microphone,
+            features::setup::take_keyboard_request,
+            features::setup::return_to_keyboard,
         ])
         .run(tauri::generate_context!());
     if let Err(error) = result {

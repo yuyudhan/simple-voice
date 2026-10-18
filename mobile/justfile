@@ -29,6 +29,12 @@ android:
 android-build:
     NDK_HOME="$(just _ndk)" {{tauri}} android build --debug --apk --target aarch64
 
+# JVM unit tests for the Android keyboard's Kotlin. Needs one `just android-build` first, which
+# generates the Gradle files the app module applies.
+[group('android')]
+android-test:
+    cd src-tauri/gen/android && ./gradlew --quiet :app:testArm64DebugUnitTest
+
 # Start the Android emulator in the background.
 [group('android')]
 emulator:

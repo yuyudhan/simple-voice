@@ -28,6 +28,12 @@ struct Microphone {
     microphone: String,
 }
 
+/// The phone's answer to `takeKeyboardRequest`.
+#[derive(Debug, Clone, Deserialize)]
+struct Request {
+    request: Option<String>,
+}
+
 const NOT_A_PHONE: &str = "Keyboard setup is only available on a phone";
 
 impl<R: Runtime> NativeBridge<R> {
@@ -53,6 +59,18 @@ impl<R: Runtime> NativeBridge<R> {
     pub fn request_microphone(&self) -> Result<String, String> {
         self.ask::<Microphone>("requestMicrophone")
             .map(|answer| answer.microphone)
+    }
+
+    /// Android: the setup step the keyboard opened the app for (`microphone` or `groqKey`), once.
+    pub fn take_keyboard_request(&self) -> Result<Option<String>, String> {
+        self.ask::<Request>("takeKeyboardRequest")
+            .map(|answer| answer.request)
+    }
+
+    /// Android: sends the app to the back, so the user lands in the field they came from.
+    pub fn return_to_keyboard(&self) -> Result<(), String> {
+        self.ask::<serde_json::Value>("returnToKeyboard")
+            .map(|_| ())
     }
 
     fn ask<T: serde::de::DeserializeOwned>(&self, method: &str) -> Result<T, String> {

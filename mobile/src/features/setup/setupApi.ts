@@ -14,11 +14,19 @@ export interface KeyboardSetup {
     microphone: MicrophoneStatus;
 }
 
+/** Android: the setup step the keyboard opened the app for, from a tap on its status line. */
+export type KeyboardStep = "microphone" | "groqKey";
+
+/** A keyboard request being handled; `asked` once the microphone prompt or Settings was shown. */
+export type KeyboardRequest = { step: "microphone"; asked: boolean } | { step: "groqKey" };
+
 export const setupApi = {
     getKeyboardSetup: () => invoke<KeyboardSetup>("get_keyboard_setup"),
     openKeyboardSettings: () => invoke<null>("open_keyboard_settings"),
     chooseKeyboard: () => invoke<null>("choose_keyboard"),
     requestMicrophone: () => invoke<MicrophoneStatus>("request_microphone"),
+    takeKeyboardRequest: () => invoke<KeyboardStep | null>("take_keyboard_request"),
+    returnToKeyboard: () => invoke<null>("return_to_keyboard"),
 };
 
 /** Every step the phone checks is done (the Groq key is checked separately, from settings). */

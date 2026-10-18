@@ -15,6 +15,7 @@ import {
 } from "../../../../src/ui";
 import "../../../../src/features/settings/models/models.css";
 import { KeyboardSetupGroup } from "../setup/KeyboardSetupGroup";
+import type { KeyboardRequest } from "../setup/setupApi";
 
 const THEME_OPTIONS: SegmentedOption<Theme>[] = [
     { value: "system", label: "System", icon: <Monitor /> },
@@ -31,11 +32,17 @@ const SESSION_OPTIONS: SelectOption<string>[] = [5, 10, 15, 30, 60].map((minutes
 const IS_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
 /** Keyboard setup, Style (shared with the desktop app), the Groq key and appearance. */
-export function MobileSettings() {
+export function MobileSettings({
+    request,
+    onRequest,
+}: {
+    request: KeyboardRequest | null;
+    onRequest: (next: KeyboardRequest | null) => void;
+}) {
     const { settings, update } = useSettings();
     return (
         <>
-            <KeyboardSetupGroup />
+            <KeyboardSetupGroup request={request} onRequest={onRequest} />
             <StylePage />
             <div className="svm-settings__group" id="svm-voice">
                 <SettingsGroup title="Voice">

@@ -76,6 +76,7 @@ cd mobile
 just emulator        # start the sv-pixel emulator
 just android         # hot reload on the emulator or a USB phone
 just android-build   # debug APK
+just android-test    # JVM unit tests for the keyboard's Kotlin (after one android-build)
 just ios             # iPhone simulator (Xcode), hot reload
 just xcodegen        # regenerate the Xcode project after editing gen/apple/project.yml
 just check           # tsc, eslint, prettier, clippy for the mobile crates
@@ -83,9 +84,11 @@ just check           # tsc, eslint, prettier, clippy for the mobile crates
 
 On Android the keyboard is enabled under Settings → System → Keyboard → On-screen keyboard
 (or `adb shell ime enable dev.yuyudhan.simplevoice.mobile/.keyboard.KeyboardService`). Dictating
-needs a Groq key (Settings tab) and the microphone, which the keyboard asks for by opening the
-app. The emulator's microphone hears silence unless host audio is enabled
-(`adb emu avd hostmicon`), and Whisper may invent a word for silence.
+needs a Groq key (Settings tab) and the microphone. Without either, the keyboard's status line
+says so; tapping it opens the app at that step (`adb shell pm revoke
+dev.yuyudhan.simplevoice.mobile android.permission.RECORD_AUDIO` reproduces a lapsed grant). The
+emulator's microphone hears silence unless host audio is enabled (`adb emu avd hostmicon`), and
+Whisper may invent a word for silence.
 
 On iPhone, add the keyboard under Settings → General → Keyboard → Keyboards → Add New Keyboard →
 Simple Voice, then turn on Allow Full Access (the App Group needs it). The first mic tap opens

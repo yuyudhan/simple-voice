@@ -1,15 +1,10 @@
 // FilePath: mobile/src-tauri/gen/android/app/src/main/java/dev/yuyudhan/simplevoice/mobile/keyboard/KeyboardService.kt
 package dev.yuyudhan.simplevoice.mobile.keyboard
 
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -22,7 +17,6 @@ import android.view.textservice.SpellCheckerSession
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
-import dev.yuyudhan.simplevoice.mobile.MainActivity
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
@@ -57,8 +51,9 @@ class KeyboardService :
     private var recordingStarted = 0L
     private var busy = false
     private var ready = false
-    private var keyMissing = false
-    private var maxSeconds = DEFAULT_MAX_SECONDS
+    private var fix: Fix? = null
+    private var maxSeconds = KeyboardStatus.DEFAULT_MAX_SECONDS
+    private lateinit var keyboardStatus: KeyboardStatus
     private var retryId: Long? = null
 
     private val listener = object : KeyboardListener {
@@ -70,16 +65,6 @@ class KeyboardService :
         override fun onCapsLock() {
             shift = ShiftState.LOCKED
             view?.setLayer(layer, shift)
-        }
-    }
-
-    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
-        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-            main.post { refreshStatus() }
-        }
-
-        override fun onLost(network: Network) {
-            main.post { refreshStatus() }
         }
     }
 
@@ -104,13 +89,14 @@ class KeyboardService :
     override fun onCreate() {
         super.onCreate()
         coreError = SvCore.init(dataDir.absolutePath)
-        connectivity().registerDefaultNetworkCallback(networkCallback)
+        keyboardStatus = KeyboardStatus(this) { main.post { refreshStatus() } }
+        keyboardStatus.start()
         spell = getSystemService(TextServicesManager::class.java)
             ?.newSpellCheckerSession(null, null, this, true)
     }
 
     override fun onDestroy() {
-        connectivity().unregisterNetworkCallback(networkCallback)
+        keyboardStatus.stop()
         spell?.close()
         recorder?.cancel()
         worker.shutdown()
@@ -232,22 +218,19 @@ class KeyboardService :
             stopAndDictate()
             return
         }
-        if (!ready) {
-            // The key may have been added, or the connection come back, since the keyboard last
-            // looked; check again before saying no.
-            refreshStatus {
-                when {
-                    ready -> handleMic()
-                    keyMissing -> openApp(requestMicrophone = false)
-                }
-            }
+        if (!ready || !keyboardStatus.microphoneAllowed()) {
+            // The key may have been added, the microphone allowed (or taken back: "Only this
+            // time" lapses) or the connection come back since the keyboard last looked; check
+            // again. A blocked mic never leaves the keyboard: the status line says what to tap.
+            // Like a new recording, this replaces a waiting Retry; history keeps the row.
+            retryId = null
+            refreshStatus { if (ready) startRecording() else view?.flashStatus() }
             return
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            view?.setStatus("Allow the microphone in Simple Voice", Tone.BLOCKED)
-            openApp(requestMicrophone = true)
-            return
-        }
+        startRecording()
+    }
+
+    private fun startRecording() {
         val file = File(filesDir, "audio/session-${System.currentTimeMillis()}.wav")
         val next = WavRecorder(file)
         if (!next.start()) {
@@ -268,7 +251,7 @@ class KeyboardService :
         when {
             busy || recorder != null -> return
             id != null -> retry(id)
-            keyMissing -> openApp(requestMicrophone = false)
+            else -> fix?.let { keyboardStatus.openApp(it) }
         }
     }
 
@@ -379,7 +362,7 @@ class KeyboardService :
         main.postDelayed({ refreshStatus() }, NOTICE_MS)
     }
 
-    /** Asks the Rust core what the top bar should say, then runs [then] with the new state. */
+    /** Reads what the top bar should say, then runs [then] with the new state. */
     private fun refreshStatus(then: (() -> Unit)? = null) {
         if (recorder != null || busy || retryId != null) return
         if (coreError.isNotEmpty()) {
@@ -387,16 +370,14 @@ class KeyboardService :
             view?.setMic(MicState.DISABLED)
             return
         }
-        val online = isOnline()
         worker.execute {
-            val status = JSONObject(SvCore.status(online))
+            val status = keyboardStatus.read()
             main.post {
                 if (recorder != null || busy || retryId != null) return@post
-                ready = status.optBoolean("ready")
-                keyMissing = status.optBoolean("needsKey")
-                maxSeconds = status.optInt("maxSeconds", DEFAULT_MAX_SECONDS).takeIf { it > 0 }
-                    ?: DEFAULT_MAX_SECONDS
-                view?.setStatus(status.optString("line"), if (ready) Tone.READY else Tone.BLOCKED)
+                ready = status.ready
+                fix = status.fix
+                maxSeconds = status.maxSeconds
+                view?.setStatus(status.line, if (ready) Tone.READY else Tone.BLOCKED)
                 view?.setMic(if (ready) MicState.IDLE else MicState.DISABLED)
                 then?.invoke()
             }
@@ -445,14 +426,6 @@ class KeyboardService :
         }
     }
 
-    /** Opens the app: to enter the Groq key, or to ask for the microphone. */
-    private fun openApp(requestMicrophone: Boolean) {
-        val intent = Intent(this, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            .putExtra(EXTRA_REQUEST_MICROPHONE, requestMicrophone)
-        startActivity(intent)
-    }
-
     /** The app's name for history, when Android lets the keyboard see it. */
     private fun label(packageName: String): String? = try {
         packageManager.getApplicationLabel(packageManager.getApplicationInfo(packageName, 0)).toString()
@@ -460,20 +433,7 @@ class KeyboardService :
         null
     }
 
-    /** Online means a validated connection, not just Wi-Fi joined behind a login page. */
-    private fun isOnline(): Boolean {
-        val manager = connectivity()
-        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-    }
-
-    private fun connectivity(): ConnectivityManager = getSystemService(ConnectivityManager::class.java)
-
     companion object {
-        /** Set on the intent that opens the app to ask for the microphone permission. */
-        const val EXTRA_REQUEST_MICROPHONE = "dev.yuyudhan.simplevoice.mobile.REQUEST_MICROPHONE"
-
-        private const val DEFAULT_MAX_SECONDS = 300
         private const val DOUBLE_TAP_MS = 300L
         private const val NOTICE_MS = 2500L
         private const val METER_MS = 80L

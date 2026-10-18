@@ -3,21 +3,46 @@ import { useEffect, useState } from "react";
 import { Keyboard, Mic, ShieldCheck, ToggleRight } from "lucide-react";
 import { useSettings } from "../../../../src/app/SettingsContext";
 import { Badge, Button, SettingRow, SettingsGroup } from "../../../../src/ui";
-import { keyboardReady, setupApi, type KeyboardSetup } from "./setupApi";
+import { keyboardReady, setupApi, type KeyboardRequest, type KeyboardSetup } from "./setupApi";
 
 /** iPhone has Full Access; Android has a current keyboard instead. */
 const IS_IPHONE = /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+// Android always offers a one-time grant for the microphone; it lapses soon after the app is
+// left, and the keyboard then sends the user back here. Only the copy can steer them off it.
+const MICROPHONE_ANDROID =
+    'Choose "While using the app". "Only this time" ends a minute after you leave Simple Voice, and the keyboard asks again.';
+const MICROPHONE_ANDROID_DENIED =
+    'It is off. Allow opens Settings: choose "Allow only while using the app".';
 
 function Status({ done }: { done: boolean }) {
     return done ? <Badge tone="success">Done</Badge> : <Badge tone="warning">To do</Badge>;
 }
 
+function microphoneHelp(setup: KeyboardSetup): string {
+    const denied = setup.microphone === "denied";
+    if (IS_IPHONE) {
+        return denied
+            ? "It was turned off; the button opens Settings to turn it back on."
+            : "The app records what you say in the keyboard.";
+    }
+    return denied ? MICROPHONE_ANDROID_DENIED : MICROPHONE_ANDROID;
+}
+
 /**
  * Setting up the keyboard without leaving the app: each step shows whether the phone reports it
  * done, with a button that opens the right settings page. The status refreshes when the app
- * comes back from Settings (the shell remounts the tab on every return).
+ * comes back from Settings (the shell remounts the tab on every return). A `request` from the
+ * Android keyboard runs its step: the Groq key field, or the microphone prompt and, once it is
+ * allowed, back to the field the keyboard was typing in.
  */
-export function KeyboardSetupGroup() {
+export function KeyboardSetupGroup({
+    request,
+    onRequest,
+}: {
+    request: KeyboardRequest | null;
+    onRequest: (next: KeyboardRequest | null) => void;
+}) {
     const { settings } = useSettings();
     const [setup, setSetup] = useState<KeyboardSetup | null>(null);
     const [busy, setBusy] = useState(false);
@@ -38,6 +63,27 @@ export function KeyboardSetupGroup() {
             live = false;
         };
     }, [checks]);
+
+    useEffect(() => {
+        if (!setup || !request) return;
+        if (request.step === "groqKey") {
+            onRequest(null);
+            document.getElementById("svm-voice")?.scrollIntoView({ behavior: "smooth" });
+        } else if (setup.microphone === "granted") {
+            onRequest(null);
+            void setupApi.returnToKeyboard().catch(() => undefined);
+        } else if (!request.asked) {
+            // Asked once: a refusal, or a trip to Settings after a permanent one, does not loop.
+            // A grant reads the status again, and the branch above sends the user back.
+            onRequest({ step: "microphone", asked: true });
+            void setupApi
+                .requestMicrophone()
+                .catch(() => undefined)
+                .finally(() => {
+                    setChecks((count) => count + 1);
+                });
+        }
+    }, [setup, request, onRequest]);
 
     // Not on a phone, or the phone did not answer: there is nothing to show.
     if (!setup) return null;
@@ -139,11 +185,7 @@ export function KeyboardSetupGroup() {
                             <Mic aria-hidden="true" /> Allow the microphone
                         </span>
                     }
-                    description={
-                        setup.microphone === "denied"
-                            ? "It was turned off; the button opens Settings to turn it back on."
-                            : "The app records what you say in the keyboard."
-                    }
+                    description={microphoneHelp(setup)}
                 >
                     {setup.microphone === "granted" ? (
                         <Status done />

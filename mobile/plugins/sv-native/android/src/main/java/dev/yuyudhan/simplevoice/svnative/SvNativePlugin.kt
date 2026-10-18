@@ -97,6 +97,33 @@ class SvNativePlugin(private val activity: Activity) : Plugin(activity) {
         resolveMicrophone(invoke, "denied")
     }
 
+    /**
+     * The setup step the keyboard opened the app for, once: the extra is removed as it is read.
+     * A relaunch from Recents replays the original intent, which is no longer a request.
+     */
+    @Command
+    fun takeKeyboardRequest(invoke: Invoke) {
+        activity.runOnUiThread {
+            val intent = activity.intent
+            val flags = intent?.flags ?: 0
+            val fromRecents = flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+            val request = intent?.getStringExtra(KeyboardRequest.EXTRA)?.takeUnless { fromRecents }
+            intent?.removeExtra(KeyboardRequest.EXTRA)
+            val result = JSObject()
+            result.put("request", request ?: JSONObject.NULL)
+            invoke.resolve(result)
+        }
+    }
+
+    /** Sends the app behind the app the keyboard was typing in, so the user lands in the field. */
+    @Command
+    fun returnToKeyboard(invoke: Invoke) {
+        activity.runOnUiThread {
+            activity.moveTaskToBack(true)
+            invoke.resolve(JSObject())
+        }
+    }
+
     private fun resolveMicrophone(invoke: Invoke, state: String) {
         val result = JSObject()
         result.put("microphone", state)
