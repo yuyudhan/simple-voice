@@ -10,6 +10,8 @@ use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jlong, jstring, JNI_FALSE};
 use jni::JNIEnv;
 
+use sv_mobile::Recording;
+
 use crate::core;
 
 /// `SvCore.init(dataDir: String): String` - empty on success, otherwise the error message.
@@ -29,7 +31,7 @@ pub extern "system" fn Java_dev_yuyudhan_simplevoice_mobile_keyboard_SvCore_init
     to_java(&mut env, &message)
 }
 
-/// `SvCore.status(online: Boolean): String` - `{line, ready, maxSeconds}`.
+/// `SvCore.status(online: Boolean): String` - `{line, ready, needsKey, maxSeconds, editMaxChars}`.
 #[no_mangle]
 pub extern "system" fn Java_dev_yuyudhan_simplevoice_mobile_keyboard_SvCore_status<'local>(
     mut env: JNIEnv<'local>,
@@ -70,6 +72,37 @@ pub extern "system" fn Java_dev_yuyudhan_simplevoice_mobile_keyboard_SvCore_retr
     id: jlong,
 ) -> jstring {
     to_java(&mut env, &core::retry(id))
+}
+
+/// `SvCore.edit(selection: String, wavPath: String, durationMs: Long, appName: String?,
+/// appId: String?, retryOf: Long): String` - `{kind: "text", id, text}`, `{kind: "noSpeech"}` or
+/// `{kind: "failed", id?, message}`. `retryOf` is 0 for a new edit.
+#[no_mangle]
+pub extern "system" fn Java_dev_yuyudhan_simplevoice_mobile_keyboard_SvCore_edit<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    selection: JString<'local>,
+    wav_path: JString<'local>,
+    duration_ms: jlong,
+    app_name: JString<'local>,
+    app_id: JString<'local>,
+    retry_of: jlong,
+) -> jstring {
+    let (Some(selection), Some(path)) = (read(&mut env, &selection), read(&mut env, &wav_path))
+    else {
+        return to_java(
+            &mut env,
+            r#"{"kind":"failed","message":"Could not read the selection or the recording"}"#,
+        );
+    };
+    let recording = Recording {
+        wav_path: PathBuf::from(path),
+        duration_ms,
+        app_name: read(&mut env, &app_name),
+        app_id: read(&mut env, &app_id),
+    };
+    let answer = core::edit(selection, recording, (retry_of > 0).then_some(retry_of));
+    to_java(&mut env, &answer)
 }
 
 /// `SvCore.markNotInserted(id: Long, reason: String)` - the text never reached its field.

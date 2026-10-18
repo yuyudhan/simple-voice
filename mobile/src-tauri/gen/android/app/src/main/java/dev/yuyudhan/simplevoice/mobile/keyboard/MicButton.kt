@@ -17,7 +17,8 @@ internal enum class MicState { IDLE, DISABLED, RECORDING, BUSY }
 /**
  * The top bar's mic: a signal-orange disc, grey while dictation cannot start. While it records
  * it shows stop and wears a halo that swells with the voice, so "live" is obvious at a glance
- * even with the status text out of the eye line. Disc and halo fit the 48 dp bar.
+ * even with the status text out of the eye line. With text selected it shows a pen: the next
+ * recording edits the selection (MB-6). Disc and halo fit the 48 dp bar.
  */
 internal class MicButton(
     context: Context,
@@ -27,6 +28,7 @@ internal class MicButton(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val mic = ContextCompat.getDrawable(context, R.drawable.sv_mic)?.mutate()
     private val stop = ContextCompat.getDrawable(context, R.drawable.sv_stop)?.mutate()
+    private val pen = ContextCompat.getDrawable(context, R.drawable.sv_pen)?.mutate()
 
     /** The voice level, smoothed so the halo breathes instead of flickering. */
     private var level = 0f
@@ -36,7 +38,16 @@ internal class MicButton(
             field = value
             if (value != MicState.RECORDING) level = 0f
             alpha = if (value == MicState.BUSY) BUSY_ALPHA else 1f
-            contentDescription = if (value == MicState.RECORDING) "Stop dictating" else "Dictate"
+            describe()
+            invalidate()
+        }
+
+    /** Text is selected, so the mic edits it instead of dictating. */
+    var editing = false
+        set(value) {
+            if (field == value) return
+            field = value
+            describe()
             invalidate()
         }
 
@@ -64,6 +75,14 @@ internal class MicButton(
         invalidate()
     }
 
+    private fun describe() {
+        contentDescription = when {
+            state == MicState.RECORDING -> if (editing) "Stop and edit" else "Stop dictating"
+            editing -> "Edit the selection by voice"
+            else -> "Dictate"
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
@@ -78,7 +97,11 @@ internal class MicButton(
             else -> palette.accent
         }
         canvas.drawCircle(cx, cy, radius, paint)
-        val icon = (if (state == MicState.RECORDING) stop else mic) ?: return
+        val icon = when {
+            state == MicState.RECORDING -> stop
+            editing -> pen
+            else -> mic
+        } ?: return
         val half = dp(ICON_DP) / 2
         icon.setBounds((cx - half).toInt(), (cy - half).toInt(), (cx + half).toInt(), (cy + half).toInt())
         icon.setTint(if (state == MicState.DISABLED) palette.muted else palette.onAccent)

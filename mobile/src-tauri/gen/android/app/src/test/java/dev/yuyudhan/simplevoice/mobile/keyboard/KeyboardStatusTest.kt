@@ -11,12 +11,13 @@ class KeyboardStatusTest {
         needsKey = needsKey,
         microphone = microphone,
         maxSeconds = 120,
+        editMaxChars = 4000,
     )
 
     @Test
     fun aRevokedMicrophoneBlocksDictationEvenWhenTheCoreIsReady() {
         assertEquals(
-            Status(KeyboardStatus.MICROPHONE_OFF, false, Fix.MICROPHONE, 120),
+            Status(KeyboardStatus.MICROPHONE_OFF, false, Fix.MICROPHONE, 120, 4000),
             decide(ready = true, needsKey = false, microphone = false),
         )
     }
@@ -24,7 +25,7 @@ class KeyboardStatusTest {
     @Test
     fun aMissingKeyIsReportedBeforeTheMicrophone() {
         assertEquals(
-            Status(KeyboardStatus.GROQ_KEY_MISSING, false, Fix.GROQ_KEY, 120),
+            Status(KeyboardStatus.GROQ_KEY_MISSING, false, Fix.GROQ_KEY, 120, 4000),
             decide(ready = false, needsKey = true, microphone = false),
         )
     }
@@ -32,7 +33,7 @@ class KeyboardStatusTest {
     @Test
     fun withKeyAndMicrophoneTheCoreLineStandsAndNothingOpensTheApp() {
         assertEquals(
-            Status("Groq Whisper · online", true, null, 120),
+            Status("Groq Whisper · online", true, null, 120, 4000),
             decide(ready = true, needsKey = false, microphone = true),
         )
     }

@@ -12,11 +12,6 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.view.textservice.SentenceSuggestionsInfo
-import android.view.textservice.SpellCheckerSession
-import android.view.textservice.SuggestionsInfo
-import android.view.textservice.TextInfo
-import android.view.textservice.TextServicesManager
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
@@ -25,11 +20,10 @@ import kotlin.math.abs
 /**
  * The Simple Voice keyboard: a full keyboard for typing and fixes, and a mic in its top bar
  * that records, sends the audio through the Rust core (Groq, formatting, history) and inserts
- * the text at the cursor. Network calls run on [worker]; the views change on the main thread.
+ * the text at the cursor; with text selected the recording edits the selection instead
+ * ([EditMode]). Network calls run on [worker]; the views change on the main thread.
  */
-class KeyboardService :
-    InputMethodService(),
-    SpellCheckerSession.SpellCheckerSessionListener {
+class KeyboardService : InputMethodService() {
     private val main = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
     private var view: KeyboardView? = null
@@ -37,8 +31,7 @@ class KeyboardService :
     private var layer = Layer.LETTERS
     private var shift = ShiftState.OFF
     private var lastShiftTap = 0L
-    private var spell: SpellCheckerSession? = null
-    private var currentWord = ""
+    private lateinit var suggestions: Suggestions
 
     /** The last key typed a space, so a second one makes a full stop (". "). */
     private var lastWasSpace = false
@@ -53,8 +46,15 @@ class KeyboardService :
     private var ready = false
     private var fix: Fix? = null
     private var maxSeconds = KeyboardStatus.DEFAULT_MAX_SECONDS
+    private var editMaxChars = 0
     private lateinit var keyboardStatus: KeyboardStatus
-    private var retryId: Long? = null
+    private var retry: Retry? = null
+
+    /** The edit being recorded or sent; null while the mic dictates. */
+    private var edit: EditRequest? = null
+
+    /** The selection's length as the field last reported it; above 0 the mic edits. */
+    private var selectionLength = 0
 
     private val listener = object : KeyboardListener {
         override fun onKey(key: Key) = handleKey(key)
@@ -72,7 +72,8 @@ class KeyboardService :
         override fun run() {
             if (recorder == null) return
             val seconds = (SystemClock.elapsedRealtime() - recordingStarted) / 1000
-            view?.setStatus("Recording · %d:%02d".format(seconds / 60, seconds % 60), Tone.RECORDING)
+            val label = if (edit != null) "Editing" else "Recording"
+            view?.setStatus("%s · %d:%02d".format(label, seconds / 60, seconds % 60), Tone.RECORDING)
             // The watchdog stops and transcribes a recording left running (D-13).
             if (seconds >= maxSeconds) stopAndDictate() else main.postDelayed(this, 1000)
         }
@@ -89,15 +90,15 @@ class KeyboardService :
     override fun onCreate() {
         super.onCreate()
         coreError = SvCore.init(dataDir.absolutePath)
+        EditMode.sweep(filesDir)
         keyboardStatus = KeyboardStatus(this) { main.post { refreshStatus() } }
         keyboardStatus.start()
-        spell = getSystemService(TextServicesManager::class.java)
-            ?.newSpellCheckerSession(null, null, this, true)
+        suggestions = Suggestions(this) { view?.setSuggestions(it) }
     }
 
     override fun onDestroy() {
         keyboardStatus.stop()
-        spell?.close()
+        suggestions.close()
         recorder?.cancel()
         worker.shutdown()
         super.onDestroy()
@@ -106,6 +107,7 @@ class KeyboardService :
     override fun onCreateInputView(): View {
         val keyboard = KeyboardView(this, Palette.of(resources.configuration), listener)
         view = keyboard
+        keyboard.setEditing(selectionLength > 0)
         refreshStatus()
         return keyboard
     }
@@ -115,7 +117,10 @@ class KeyboardService :
         if (!restarting) layer = Layer.LETTERS
         lastWasSpace = false
         autoSpace = false
-        view?.setReturnAction(returnAction(info))
+        val start = info?.initialSelStart ?: -1
+        val end = info?.initialSelEnd ?: -1
+        trackSelection(if (start < 0 || end < 0) 0 else abs(end - start))
+        view?.setReturnAction(ReturnAction.of(info))
         updateShiftFromCursor()
         updateSuggestions()
         refreshStatus()
@@ -125,6 +130,7 @@ class KeyboardService :
         // Leaving the field mid-recording abandons the recording, like Esc on the Mac (D-3).
         main.removeCallbacks(tick)
         main.removeCallbacks(meter)
+        if (recorder != null) edit = null
         recorder?.cancel()
         recorder = null
         super.onFinishInputView(finishingInput)
@@ -139,8 +145,14 @@ class KeyboardService :
         candidatesEnd: Int,
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        trackSelection(abs(newSelEnd - newSelStart))
         updateShiftFromCursor()
         updateSuggestions()
+    }
+
+    private fun trackSelection(length: Int) {
+        selectionLength = length
+        view?.setEditing(length > 0)
     }
 
     private fun handleKey(key: Key) {
@@ -223,7 +235,7 @@ class KeyboardService :
             // time" lapses) or the connection come back since the keyboard last looked; check
             // again. A blocked mic never leaves the keyboard: the status line says what to tap.
             // Like a new recording, this replaces a waiting Retry; history keeps the row.
-            retryId = null
+            dropRetry()
             refreshStatus { if (ready) startRecording() else view?.flashStatus() }
             return
         }
@@ -231,7 +243,22 @@ class KeyboardService :
     }
 
     private fun startRecording() {
-        val file = File(filesDir, "audio/session-${System.currentTimeMillis()}.wav")
+        // Checked at the tap as well: some apps report a selection late or never.
+        val selected = currentInputConnection?.getSelectedText(0)?.toString()
+        val editing = selectionLength > 0 || !selected.isNullOrEmpty()
+        if (editing) {
+            val problem = EditMode.problem(selected, selectionLength, editMaxChars)
+            if (problem != null) {
+                dropRetry()
+                notice(problem, Tone.BLOCKED)
+                return
+            }
+        }
+        val file = if (editing) {
+            EditMode.file(filesDir)
+        } else {
+            File(filesDir, "audio/session-${System.currentTimeMillis()}.wav")
+        }
         val next = WavRecorder(file)
         if (!next.start()) {
             view?.setStatus("The microphone is busy or unavailable", Tone.BLOCKED)
@@ -240,39 +267,34 @@ class KeyboardService :
         recorder = next
         recordingFile = file
         recordingStarted = SystemClock.elapsedRealtime()
-        retryId = null
+        dropRetry()
+        edit = selected?.takeIf { editing }?.let { EditRequest(it, file) }
         view?.setMic(MicState.RECORDING)
         tick.run()
         meter.run()
     }
 
+    /** A new recording or a blocked mic replaces a waiting Retry; history keeps its row. */
+    private fun dropRetry() {
+        (retry as? Retry.Edit)?.request?.file?.delete()
+        retry = null
+    }
+
     private fun handleStatusTap() {
-        val id = retryId
+        val pending = retry
         when {
             busy || recorder != null -> return
-            id != null -> retry(id)
+            pending != null -> retry(pending)
             else -> fix?.let { keyboardStatus.openApp(it) }
         }
     }
 
     private fun handleSuggestion(word: String) {
         val input = currentInputConnection ?: return
-        input.deleteSurroundingText(currentWord.length, 0)
+        input.deleteSurroundingText(suggestions.word.length, 0)
         input.commitText("$word ", 1)
         autoSpace = true
         lastWasSpace = false
-    }
-
-    override fun onGetSuggestions(results: Array<out SuggestionsInfo>?) = Unit
-
-    override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo>?) {
-        val words = mutableListOf<String>()
-        val sentence = results?.firstOrNull()
-        if (sentence != null && sentence.suggestionsCount > 0) {
-            val info = sentence.getSuggestionsInfoAt(0)
-            for (index in 0 until info.suggestionsCount) words.add(info.getSuggestionAt(index))
-        }
-        main.post { view?.setSuggestions(words) }
     }
 
     private fun stopAndDictate() {
@@ -280,57 +302,73 @@ class KeyboardService :
         main.removeCallbacks(meter)
         val active = recorder ?: return
         val file = recordingFile ?: return
+        val pending = edit
         recorder = null
         busy = true
         view?.setMic(MicState.BUSY)
-        view?.setStatus("Transcribing…", Tone.WORKING)
+        view?.setStatus(if (pending != null) "Editing…" else "Transcribing…", Tone.WORKING)
         val appId = currentInputEditorInfo?.packageName
         val appName = appId?.let { label(it) }
         worker.execute {
             val durationMs = active.stop()
-            val answer = SvCore.dictate(file.absolutePath, durationMs, appName, appId)
+            val request = pending?.copy(durationMs = durationMs, appName = appName, appId = appId)
+            val answer = if (request != null) {
+                EditMode.send(request)
+            } else {
+                SvCore.dictate(file.absolutePath, durationMs, appName, appId)
+            }
             main.post {
                 busy = false
-                deliver(JSONObject(answer))
+                deliver(JSONObject(answer), request)
             }
         }
     }
 
-    private fun retry(id: Long) {
+    private fun retry(pending: Retry) {
         busy = true
         view?.setMic(MicState.BUSY)
         view?.setStatus("Retrying…", Tone.WORKING)
+        val request = (pending as? Retry.Edit)?.request
         worker.execute {
-            val answer = SvCore.retry(id)
+            val answer = when (pending) {
+                is Retry.Dictation -> SvCore.retry(pending.id)
+                is Retry.Edit -> EditMode.send(pending.request)
+            }
             main.post {
                 busy = false
-                retryId = null
-                deliver(JSONObject(answer))
+                // The core now owns the audio: it kept it again only if it answers with an id.
+                retry = null
+                deliver(JSONObject(answer), request)
             }
         }
     }
 
-    /** Inserts a dictation's text, or says why there is none (MB-5: never without a tap). */
-    private fun deliver(answer: JSONObject) {
+    /**
+     * Inserts a dictation's text or replaces [request]'s selection with an edit's, or says why
+     * there is none (MB-5: never without a tap).
+     */
+    private fun deliver(answer: JSONObject, request: EditRequest?) {
+        edit = null
         when (answer.optString("kind")) {
             "text" -> {
-                insert(answer.getString("text"), answer.optLong("id"))
-                refreshStatus()
+                val text = answer.getString("text")
+                val id = answer.optLong("id")
+                if (request == null) {
+                    insert(text, id)
+                    refreshStatus()
+                } else {
+                    replaceSelection(request, text, id)
+                }
             }
-            "noSpeech" -> {
-                view?.setStatus("Nothing heard", Tone.WORKING)
-                view?.setMic(MicState.IDLE)
-                main.postDelayed({ refreshStatus() }, NOTICE_MS)
-            }
+            "noSpeech" -> notice("Nothing heard", Tone.WORKING)
             else -> {
                 val id = answer.optLong("id", 0)
                 if (id > 0) {
-                    retryId = id
+                    retry = request?.let { Retry.Edit(it.copy(historyId = id)) } ?: Retry.Dictation(id)
                     view?.setStatus("Not sent · tap to retry", Tone.RETRY)
                     view?.setMic(if (ready) MicState.IDLE else MicState.DISABLED)
                 } else {
-                    view?.setStatus(answer.optString("message", "Dictation failed"), Tone.BLOCKED)
-                    main.postDelayed({ refreshStatus() }, NOTICE_MS)
+                    notice(answer.optString("message", "Dictation failed"), Tone.BLOCKED)
                 }
             }
         }
@@ -353,18 +391,42 @@ class KeyboardService :
             lastWasSpace = false
             return
         }
-        getSystemService(ClipboardManager::class.java)
-            ?.setPrimaryClip(ClipData.newPlainText("Simple Voice", text.trimEnd()))
-        if (id > 0) {
-            worker.execute { SvCore.markNotInserted(id, "The text field closed first; the text was copied") }
+        copyInstead(text.trimEnd(), id, COPIED_FIELD_CLOSED, FIELD_CLOSED)
+    }
+
+    /** An edit lands only on the selection it was made from; otherwise it is copied. */
+    private fun replaceSelection(request: EditRequest, text: String, id: Long) {
+        val input = currentInputConnection
+        val current = input?.getSelectedText(0)?.toString()
+        if (input != null && current == request.selection && input.commitText(text, 1)) {
+            autoSpace = false
+            lastWasSpace = false
+            notice(EditMode.EDITED, Tone.WORKING)
+        } else if (input?.getTextBeforeCursor(1, 0) == null) {
+            // A live field answers even with nothing selected; a closed one answers nothing.
+            copyInstead(text, id, COPIED_FIELD_CLOSED, FIELD_CLOSED)
+        } else {
+            copyInstead(text, id, EditMode.SELECTION_CHANGED, EditMode.SELECTION_CHANGED_REASON)
         }
-        view?.setStatus("Copied · the text field closed", Tone.WORKING)
+    }
+
+    private fun copyInstead(text: String, id: Long, line: String, reason: String) {
+        getSystemService(ClipboardManager::class.java)
+            ?.setPrimaryClip(ClipData.newPlainText("Simple Voice", text))
+        if (id > 0) worker.execute { SvCore.markNotInserted(id, reason) }
+        notice(line, Tone.WORKING)
+    }
+
+    /** Shows [line] for a moment with the mic usable again, then the usual status. */
+    private fun notice(line: String, tone: Tone) {
+        view?.setStatus(line, tone)
+        view?.setMic(if (ready) MicState.IDLE else MicState.DISABLED)
         main.postDelayed({ refreshStatus() }, NOTICE_MS)
     }
 
     /** Reads what the top bar should say, then runs [then] with the new state. */
     private fun refreshStatus(then: (() -> Unit)? = null) {
-        if (recorder != null || busy || retryId != null) return
+        if (recorder != null || busy || retry != null) return
         if (coreError.isNotEmpty()) {
             view?.setStatus(coreError, Tone.BLOCKED)
             view?.setMic(MicState.DISABLED)
@@ -373,10 +435,11 @@ class KeyboardService :
         worker.execute {
             val status = keyboardStatus.read()
             main.post {
-                if (recorder != null || busy || retryId != null) return@post
+                if (recorder != null || busy || retry != null) return@post
                 ready = status.ready
                 fix = status.fix
                 maxSeconds = status.maxSeconds
+                editMaxChars = status.editMaxChars
                 view?.setStatus(status.line, if (ready) Tone.READY else Tone.BLOCKED)
                 view?.setMic(if (ready) MicState.IDLE else MicState.DISABLED)
                 then?.invoke()
@@ -394,29 +457,9 @@ class KeyboardService :
     }
 
     /** Asks the system spell checker about the word being typed. */
-    private fun updateSuggestions() {
-        val before = currentInputConnection?.getTextBeforeCursor(WORD_LOOKBACK, 0)?.toString() ?: ""
-        currentWord = before.takeLastWhile { it.isLetter() || it == '\'' }
-        val session = spell
-        if (currentWord.length < 2 || session == null) {
-            view?.setSuggestions(emptyList())
-            return
-        }
-        session.getSentenceSuggestions(arrayOf(TextInfo(currentWord)), SUGGESTIONS)
-    }
-
-    private fun returnAction(info: EditorInfo?): ReturnAction {
-        val options = info?.imeOptions ?: return ReturnAction.NEWLINE
-        if (options and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) return ReturnAction.NEWLINE
-        return when (options and EditorInfo.IME_MASK_ACTION) {
-            EditorInfo.IME_ACTION_SEND -> ReturnAction.SEND
-            EditorInfo.IME_ACTION_SEARCH -> ReturnAction.SEARCH
-            EditorInfo.IME_ACTION_GO -> ReturnAction.GO
-            EditorInfo.IME_ACTION_NEXT -> ReturnAction.NEXT
-            EditorInfo.IME_ACTION_DONE -> ReturnAction.DONE
-            else -> ReturnAction.NEWLINE
-        }
-    }
+    private fun updateSuggestions() = suggestions.update(
+        currentInputConnection?.getTextBeforeCursor(Suggestions.LOOKBACK, 0)?.toString() ?: "",
+    )
 
     private fun switchKeyboard() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -437,8 +480,8 @@ class KeyboardService :
         private const val DOUBLE_TAP_MS = 300L
         private const val NOTICE_MS = 2500L
         private const val METER_MS = 80L
-        private const val WORD_LOOKBACK = 48
-        private const val SUGGESTIONS = 3
+        private const val COPIED_FIELD_CLOSED = "Copied · the text field closed"
+        private const val FIELD_CLOSED = "The text field closed first; the text was copied"
         private val CLOSING_PUNCTUATION = setOf(".", ",", "?", "!", ":", ";")
     }
 }

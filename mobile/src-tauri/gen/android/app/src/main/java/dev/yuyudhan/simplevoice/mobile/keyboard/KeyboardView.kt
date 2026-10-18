@@ -14,6 +14,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -32,6 +33,23 @@ internal enum class ReturnAction(val icon: Int, val description: String) {
     GO(R.drawable.sv_arrow_right, "Go"),
     NEXT(R.drawable.sv_arrow_right, "Next"),
     DONE(R.drawable.sv_check, "Done"),
+    ;
+
+    companion object {
+        /** The action [info]'s field asks for; a plain newline when it asks for none. */
+        fun of(info: EditorInfo?): ReturnAction {
+            val options = info?.imeOptions ?: return NEWLINE
+            if (options and EditorInfo.IME_FLAG_NO_ENTER_ACTION != 0) return NEWLINE
+            return when (options and EditorInfo.IME_MASK_ACTION) {
+                EditorInfo.IME_ACTION_SEND -> SEND
+                EditorInfo.IME_ACTION_SEARCH -> SEARCH
+                EditorInfo.IME_ACTION_GO -> GO
+                EditorInfo.IME_ACTION_NEXT -> NEXT
+                EditorInfo.IME_ACTION_DONE -> DONE
+                else -> NEWLINE
+            }
+        }
+    }
 }
 
 internal interface KeyboardListener {
@@ -154,6 +172,11 @@ internal class KeyboardView(
 
     fun setMic(state: MicState) {
         mic.state = state
+    }
+
+    /** Text is selected: the mic shows a pen and edits the selection. */
+    fun setEditing(editing: Boolean) {
+        mic.editing = editing
     }
 
     fun setSuggestions(words: List<String>) {

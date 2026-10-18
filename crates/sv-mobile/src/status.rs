@@ -6,6 +6,7 @@
 use serde::Serialize;
 use sv_domain::models::{model_name, APPLE_SPEECH, GROQ_WHISPER};
 use sv_storage::Db;
+use sv_text::EDIT_MAX_CHARS;
 
 pub(crate) const NO_GROQ_KEY: &str = "Add your Groq key in the Simple Voice app";
 const OFFLINE: &str = "No internet · can't dictate";
@@ -21,6 +22,8 @@ pub struct KeyboardStatus {
     pub needs_key: bool,
     /// The watchdog: a recording stops and is transcribed after this long (D-13).
     pub max_seconds: u32,
+    /// The longest selection edit mode accepts, so the keyboard can refuse before recording.
+    pub edit_max_chars: usize,
 }
 
 /// Where a dictation can be transcribed right now.
@@ -43,6 +46,7 @@ pub async fn keyboard_status(db: &Db, reach: Reach) -> KeyboardStatus {
                 ready: false,
                 needs_key: false,
                 max_seconds: 0,
+                edit_max_chars: EDIT_MAX_CHARS,
             };
         }
     };
@@ -68,6 +72,7 @@ pub async fn keyboard_status(db: &Db, reach: Reach) -> KeyboardStatus {
         ready,
         needs_key: !has_key,
         max_seconds: settings.max_recording_seconds,
+        edit_max_chars: EDIT_MAX_CHARS,
     }
 }
 

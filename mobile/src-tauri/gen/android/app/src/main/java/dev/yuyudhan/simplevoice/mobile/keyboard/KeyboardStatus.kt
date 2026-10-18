@@ -18,8 +18,14 @@ internal enum class Fix(val request: String) {
     MICROPHONE(KeyboardRequest.MICROPHONE),
 }
 
-/** What the top bar says while nothing is recording or sending. */
-internal data class Status(val line: String, val ready: Boolean, val fix: Fix?, val maxSeconds: Int)
+/** What the top bar says while nothing is recording or sending, and the core's limits. */
+internal data class Status(
+    val line: String,
+    val ready: Boolean,
+    val fix: Fix?,
+    val maxSeconds: Int,
+    val editMaxChars: Int,
+)
 
 /**
  * The top bar's state: the Rust core's answer (Groq key, connection) plus the microphone
@@ -53,6 +59,7 @@ internal class KeyboardStatus(private val context: Context, onNetworkChange: () 
             needsKey = core.optBoolean("needsKey"),
             microphone = microphoneAllowed(),
             maxSeconds = core.optInt("maxSeconds", DEFAULT_MAX_SECONDS),
+            editMaxChars = core.optInt("editMaxChars"),
         )
     }
 
@@ -79,12 +86,19 @@ internal class KeyboardStatus(private val context: Context, onNetworkChange: () 
          * Setup gaps come before the connection: the key first, then the microphone, then the
          * core's [line] (online, offline). A setup gap says where to tap, since the mic will not.
          */
-        fun decide(line: String, ready: Boolean, needsKey: Boolean, microphone: Boolean, maxSeconds: Int): Status {
+        fun decide(
+            line: String,
+            ready: Boolean,
+            needsKey: Boolean,
+            microphone: Boolean,
+            maxSeconds: Int,
+            editMaxChars: Int,
+        ): Status {
             val seconds = maxSeconds.takeIf { it > 0 } ?: DEFAULT_MAX_SECONDS
             return when {
-                needsKey -> Status(GROQ_KEY_MISSING, false, Fix.GROQ_KEY, seconds)
-                !microphone -> Status(MICROPHONE_OFF, false, Fix.MICROPHONE, seconds)
-                else -> Status(line, ready, null, seconds)
+                needsKey -> Status(GROQ_KEY_MISSING, false, Fix.GROQ_KEY, seconds, editMaxChars)
+                !microphone -> Status(MICROPHONE_OFF, false, Fix.MICROPHONE, seconds, editMaxChars)
+                else -> Status(line, ready, null, seconds, editMaxChars)
             }
         }
     }

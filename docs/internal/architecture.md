@@ -147,7 +147,7 @@ exports need `#[no_mangle]`; it still contains no `unsafe` block, function or im
 | `simple-voice` (app)        | `src-tauri/`         | all below                                                                                             | Tauri wiring. `src/features/<feature>/` vertical slices (`dictation/`, `history/`, `dictionary/`, `insights/`, `settings/`, `models/`, `permissions/`, `updates/`), each holding that feature's commands and logic; `src/platform/` (`shortcuts.rs`, `overlay.rs`, `tray.rs`, `windows.rs`, `engine_process.rs`, `dock.rs`); `src/events.rs` (event names + emit helpers); `src/state.rs`; `src/lib.rs` |
 | `simple-voice-mobile` (app) | `mobile/src-tauri/`  | `sv-mobile`, `sv-storage`, `sv-cloud`, `sv-domain`, `tauri-plugin-sv-native`, `sv-ffi` (Android only) | Tauri mobile wiring: `src/features/<feature>/` (`history/`, `dictionary/`, `insights/`, `settings/`, `session/` for the iPhone bridge), `src/events.rs`, `src/state.rs`, `src/lib.rs` (`mobile_entry_point`)                                                                                                                                                                                            |
 | `sv-ffi`                    | `crates/sv-ffi/`     | `sv-mobile`, `sv-storage`, `sv-domain`                                                                | JNI exports for the Android keyboard (`keyboard.rs`), its process-wide runtime, database and HTTPS client (`core.rs`); answers are JSON                                                                                                                                                                                                                                                                 |
-| `sv-mobile`                 | `crates/sv-mobile/`  | `sv-storage`, `sv-text`, `sv-cloud`, `sv-domain`                                                      | The phone dictation pipeline: `pipeline.rs` (`dictate`, `retry`), `local.rs` (`dictate_local`, an Apple Speech transcript), `status.rs` (keyboard status line for a `Reach`), `http.rs` (HTTPS client with Mozilla's roots)                                                                                                                                                                             |
+| `sv-mobile`                 | `crates/sv-mobile/`  | `sv-storage`, `sv-text`, `sv-cloud`, `sv-domain`                                                      | The phone dictation pipeline: `pipeline.rs` (`dictate`, `retry`), `edit.rs` (`edit`: edit mode, a selection rewritten by a spoken instruction), `local.rs` (`dictate_local`, an Apple Speech transcript), `status.rs` (keyboard status line for a `Reach`), `http.rs` (HTTPS client with Mozilla's roots)                                                                                               |
 | `sv-storage`                | `crates/sv-storage/` | `sv-domain`                                                                                           | `paths.rs`, `db.rs` (open, backup, migrate, relocate), `settings.rs`, `history.rs`, `dictionary.rs`, `insights.rs`, `model_insights.rs`, `migrations/`                                                                                                                                                                                                                                                  |
 | `sv-text`                   | `crates/sv-text/`    | `sv-domain`                                                                                           | `vocabulary.rs`, `formatting.rs`, `polish.rs` (prompt, guards, timeout), `edit.rs` (edit-mode prompt, checks, timeout), `language_prompts.rs` (Whisper leads and few-shot shots per language tag), `preview.rs` (the pill's one-line text preview) — pure, no I/O                                                                                                                                       |
 | `sv-cloud`                  | `crates/sv-cloud/`   | `sv-domain`, `sv-text`                                                                                | `groq_whisper.rs`, `chat.rs` (one OpenAI-compatible chat completion for Groq and custom endpoints, shared by the formatting pass and edit mode), `releases.rs` (latest GitHub release)                                                                                                                                                                                                                  |
@@ -720,8 +720,17 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   phone), saves a history row and deletes the WAV. It answers `Text { id, text, unformatted }`
   (text ends in whitespace, D-16), `NoSpeech`, or `Failed { id, message }` with the WAV kept and
   the row retryable (D-14). `retry(db, http, id, Delivery::Inserted | Copied)` re-runs a failed
-  row. `http_client()` trusts `webpki-root-certs` instead of the OS verifier, which on Android
-  needs a JVM context the keyboard does not have.
+  row. `edit(db, http, EditRequest { selection, recording, retry_of })` is edit mode (MB-6): it
+  refuses an empty selection or one over `EDIT_MAX_CHARS` before anything is sent, transcribes
+  the instruction with Groq Whisper, applies `sv_text::format`, sends `sv_text::edit_prompt` to
+  the Groq formatting model (always: a phone has no other provider and no formatting switch) and
+  checks the reply with `accept_edit`. It answers `Text { id, text }` (the replacement, the
+  selection's surrounding whitespace kept, no separator), `NoSpeech`, or `Failed { id, message }`.
+  Every attempt saves a row with `source_text` = the selection and no `audio_path`, so history
+  never offers to retry an edit; a `Failed` with an `id` keeps the WAV for the keyboard, which
+  still holds the selection, and `retry_of` updates that row instead of adding one. Without an
+  `id` the WAV is deleted. `http_client()` trusts `webpki-root-certs` instead of the OS verifier,
+  which on Android needs a JVM context the keyboard does not have.
 - **Android keyboard.** `KeyboardService` (an `InputMethodService`) runs while the app's screen,
   and with it Tauri, is closed, so it calls Rust through `SvCore` → `sv-ffi` → `sv-mobile`,
   linked into the Tauri library (`libsimple_voice_mobile_lib.so`). It runs in its own process
@@ -740,8 +749,8 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   long press for caps lock), digits on a long press of the top row and `!`/`?` on comma/full stop,
   two spaces for ". ", punctuation after a suggestion or dictation joins the word, a drag along
   the space bar moves the cursor.
-  `SvCore.status(online)` → `{line, ready, needsKey, maxSeconds}`; online means a validated
-  connection (`NET_CAPABILITY_VALIDATED`). `KeyboardStatus` adds the `RECORD_AUDIO` check,
+  `SvCore.status(online)` → `{line, ready, needsKey, maxSeconds, editMaxChars}`; online means a
+  validated connection (`NET_CAPABILITY_VALIDATED`). `KeyboardStatus` adds the `RECORD_AUDIO` check,
   which Android can take back at any time ("Only this time" lapses about a minute after leaving
   the app): the bar says "No Groq key · tap here to add it", then "Microphone off · tap here to
   allow", then the core's line. The mic is tap to start, tap to stop; a blocked mic re-checks,
@@ -750,8 +759,19 @@ the desktop crate or its build; its commands live in `mobile/justfile`.
   prompt). The watchdog stops at `maxSeconds` (D-13); leaving the field abandons a recording. A
   failed dictation shows "Not sent · tap to retry", which retries into the cursor. Text that
   cannot be committed goes to the clipboard and the row is marked not pasted. Suggestions come
-  from the system spell checker (`SpellCheckerSession`); recording, sending and Retry keep the
-  status in the bar.
+  from the system spell checker (`Suggestions`, a `SpellCheckerSession`); recording, sending and
+  Retry keep the status in the bar.
+  _Edit mode_ (`EditMode`): while the field reports a selection (`onUpdateSelection`,
+  `EditorInfo.initialSel*`), `MicButton` shows a pen. A mic tap reads the selection with
+  `getSelectedText`; a missing read, a read shorter than the reported selection (the app cut it
+  short), a blank one or one over `editMaxChars` characters shows a status and records nothing.
+  Otherwise the bar reads "Editing · m:ss", the stop tap sends
+  `SvCore.edit(selection, wavPath, durationMs, appName, appId, retryOf)` (same answer shapes) and
+  the reply is committed over the selection only if the field still has that exact text
+  selected; otherwise it is copied ("Copied · the selection changed") and the row is marked not
+  pasted. A failure with an `id` shows "Not sent · tap to retry", which re-sends the kept
+  `files/audio/edit-*.wav` with the same selection. A new recording or a blocked mic tap drops a
+  waiting retry and its WAV; a new keyboard process deletes every `edit-*.wav` left behind.
 - **iPhone.** A keyboard cannot use the microphone, so the app records for it (MB-7). The first
   mic tap queues `startSession` and opens the app (`simplevoice://session`); the app starts a
   session: the audio engine runs in the background (`UIBackgroundModes: audio`) for

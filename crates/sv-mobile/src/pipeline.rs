@@ -58,10 +58,10 @@ pub enum Delivery {
     Copied,
 }
 
-struct Heard {
-    text: String,
-    language: Option<String>,
-    ms: i64,
+pub(crate) struct Heard {
+    pub(crate) text: String,
+    pub(crate) language: Option<String>,
+    pub(crate) ms: i64,
 }
 
 pub async fn dictate(db: &Db, http: &reqwest::Client, recording: Recording) -> Dictation {
@@ -262,7 +262,7 @@ enum Polish {
     Unformatted(String),
 }
 
-async fn transcribe(
+pub(crate) async fn transcribe(
     db: &Db,
     http: &reqwest::Client,
     settings: &Settings,
@@ -336,7 +336,7 @@ async fn post_process(
     }
 }
 
-async fn groq_key(db: &Db) -> AppResult<Option<String>> {
+pub(crate) async fn groq_key(db: &Db) -> AppResult<Option<String>> {
     Ok(db
         .groq_api_key()
         .await?
@@ -351,7 +351,7 @@ pub(crate) async fn vocabulary(db: &Db) -> Vocabulary {
     Vocabulary::from_entries(&entries)
 }
 
-async fn read_wav(path: &Path) -> AppResult<Vec<u8>> {
+pub(crate) async fn read_wav(path: &Path) -> AppResult<Vec<u8>> {
     let wav = tokio::fs::read(path).await.map_err(AppError::io)?;
     if wav.len() <= WAV_HEADER_BYTES {
         return Err(AppError::invalid("The recording is empty"));
@@ -383,7 +383,7 @@ pub(crate) fn with_separator(text: &str) -> String {
     format!("{text} ")
 }
 
-fn elapsed_ms(since: Instant) -> i64 {
+pub(crate) fn elapsed_ms(since: Instant) -> i64 {
     i64::try_from(since.elapsed().as_millis()).unwrap_or(i64::MAX)
 }
 

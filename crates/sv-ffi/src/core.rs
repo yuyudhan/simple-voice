@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 
 use serde::Serialize;
 use sv_domain::{AppError, AppResult};
-use sv_mobile::{Delivery, Dictation, KeyboardStatus, Recording};
+use sv_mobile::{Delivery, Dictation, EditRequest, KeyboardStatus, Recording};
 use sv_storage::Db;
 use tokio::runtime::Runtime;
 
@@ -56,6 +56,8 @@ pub(crate) fn status(online: bool) -> String {
             ready: false,
             needs_key: false,
             max_seconds: 0,
+            // Not ready, so nothing records; the real limit arrives with the first status.
+            edit_max_chars: 0,
         }),
     }
 }
@@ -104,6 +106,25 @@ pub(crate) fn retry(id: i64) -> String {
             message: error.to_string(),
         },
     })
+}
+
+/// Rewrites `selection` by the instruction recorded in `recording`; `retry_of` is the failed
+/// attempt's history row when the keyboard retries one. The answer has the shape of a
+/// dictation's, without `unformatted`.
+pub(crate) fn edit(selection: String, recording: Recording, retry_of: Option<i64>) -> String {
+    let Some(core) = CORE.get() else {
+        return not_started();
+    };
+    let request = EditRequest {
+        selection,
+        recording,
+        retry_of,
+    };
+    json(
+        &core
+            .runtime
+            .block_on(sv_mobile::edit(&core.db, &core.http, request)),
+    )
 }
 
 /// Records that the text of dictation `id` never reached its field.
