@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use sv_domain::languages::model_languages;
-use sv_domain::models::{SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
+use sv_domain::models::{
+    PARAKEET_TDT_V2, PARAKEET_TDT_V3, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO,
+};
 use sv_domain::{AppError, AppResult, RetryReason, Settings, TranscriptQuality};
 use sv_engine::TranscribeOptions;
 use sv_text::Vocabulary;
@@ -28,6 +30,8 @@ pub(super) struct Heard {
     /// The model Smart Select tried first when it ran a second one; `None` otherwise.
     pub(super) first_model: Option<String>,
     pub(super) retry_reason: Option<RetryReason>,
+    /// Dictionary names the model's booster wrote in from the audio (Parakeet TDT).
+    pub(super) dictionary_fixes: u32,
 }
 
 /// A transcription that produced no text: why, and which models it tried (for history).
@@ -68,6 +72,7 @@ struct Run {
     language: Option<String>,
     quality: TranscriptQuality,
     ms: i64,
+    dictionary_fixes: u32,
 }
 
 impl Run {
@@ -79,6 +84,7 @@ impl Run {
             model: model.to_owned(),
             first_model: first_model.map(str::to_owned),
             retry_reason: reason,
+            dictionary_fixes: self.dictionary_fixes,
         }
     }
 }
@@ -281,18 +287,24 @@ async fn run(
         .path
         .as_deref()
         .ok_or_else(|| AppError::other("Audio file missing"))?;
-    // Whisper detects among the allowed languages and is primed with the dictionary; the other
-    // local models take neither.
+    // Whisper detects among the allowed languages and is primed with the dictionary; Parakeet
+    // TDT takes the dictionary's names for its audio-backed booster; the others take neither.
     let whisper = model == WHISPER_TURBO || model == WHISPER_HINGLISH;
     let prompt = if whisper {
         sv_text::whisper_prompt(&settings.languages, vocabulary)
     } else {
         String::new()
     };
+    let boost = if model == PARAKEET_TDT_V3 || model == PARAKEET_TDT_V2 {
+        vocabulary.boost_terms()
+    } else {
+        Vec::new()
+    };
     let options = TranscribeOptions {
         language: engine_language(settings, model),
         languages: if whisper { &languages } else { &[] },
         prompt: &prompt,
+        vocabulary: &boost,
         timestamps: false,
     };
     let transcript = state.engine.transcribe(model, path, options).await?;
@@ -301,6 +313,7 @@ async fn run(
         language: transcript.language,
         quality: transcript.quality,
         ms: elapsed_ms(started),
+        dictionary_fixes: transcript.dictionary_fixes,
     })
 }
 
@@ -332,7 +345,7 @@ pub(super) async fn discard_audio(audio: &Audio) {
 
 #[cfg(test)]
 mod tests {
-    use sv_domain::models::{PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+    use sv_domain::models::WHISPER_HINGLISH;
 
     use super::*;
 
@@ -342,6 +355,7 @@ mod tests {
             language: Some("en".to_owned()),
             quality: TranscriptQuality::default(),
             ms: 100,
+            dictionary_fixes: 0,
         })
     }
 

@@ -187,6 +187,24 @@ struct HubModel: Sendable {
                     revision: "7f55e827c4c2fd1fdc52893879e18966d2867dba",
                     downloadBytes: 1_858_124_864
                 ))
+        case .parakeetVocabulary:
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "FluidInference/parakeet-ctc-110m-coreml",
+                        subdirectory: "",
+                        entries: VocabularyBooster.requiredEntries,
+                        revision: "accdafd8cf8a2ff1cabe3c11e54416b405d409aa"
+                    )
+                ],
+                catalog: ModelCatalog(
+                    license: "CC-BY-4.0",
+                    source: "https://huggingface.co/FluidInference/parakeet-ctc-110m-coreml "
+                        + "(Core ML conversion of https://huggingface.co/nvidia/parakeet-tdt_ctc-110m)",
+                    revision: "accdafd8cf8a2ff1cabe3c11e54416b405d409aa",
+                    downloadBytes: 102_802_455
+                ))
         case .appleSpeech, .appleIntelligence:
             nil
         }

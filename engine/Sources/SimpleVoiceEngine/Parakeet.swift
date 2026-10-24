@@ -17,6 +17,10 @@ actor ParakeetEngine {
     private let gate = SerialGate()
     private var loaded: [ModelID: Loaded] = [:]
     private var loading: [ModelID: Task<Loaded, any Error>] = [:]
+    /// The dictionary booster, loaded on the first dictation that sends a vocabulary once its
+    /// model is downloaded.
+    private var booster: VocabularyBooster?
+    private var boosterLoading: Task<VocabularyBooster, any Error>?
 
     init(store: ModelStore) {
         self.store = store
@@ -27,6 +31,13 @@ actor ParakeetEngine {
     }
 
     func unload(_ id: ModelID) async {
+        if id == .parakeetVocabulary {
+            boosterLoading?.cancel()
+            boosterLoading = nil
+            booster = nil
+            Log.info("unloaded \(id.rawValue)")
+            return
+        }
         loading.removeValue(forKey: id)?.cancel()
         guard let model = loaded.removeValue(forKey: id) else { return }
         switch model {
@@ -49,25 +60,32 @@ actor ParakeetEngine {
         }
     }
 
+    /// `vocabulary`: personal dictionary terms; TDT models rescore their transcript against them
+    /// when the `parakeet-vocabulary` model is downloaded, and ignore them otherwise.
     func transcribe(
         _ id: ModelID,
         samples: [Float],
         language: String?,
-        timestamps: Bool
+        timestamps: Bool,
+        vocabulary: [String] = []
     ) async throws -> TranscriptResult {
         let model = try await model(for: id)
         let code = LanguageCode.primary(language)
         switch model {
         case .tdt(let manager, let version, _):
+            let booster = vocabulary.isEmpty ? nil : await vocabularyBooster()
             let decoded = try await gate.run {
-                try await Self.transcribeTdt(manager: manager, version: version, samples: samples, code: code)
+                let decoded = try await Self.transcribeTdt(manager: manager, version: version, samples: samples, code: code)
+                guard let booster else { return decoded }
+                return await Self.boost(decoded, booster: booster, samples: samples, vocabulary: vocabulary)
             }
             // v2 is English only; v3 detects the language itself and only reports what was asked.
             return TranscriptResult(
                 text: decoded.text,
                 language: version == .v2 ? "en" : code,
                 quality: decoded.confidence.map { TranscriptQuality(confidence: $0) },
-                segments: timestamps ? Timeline.segments(from: decoded.words) : nil
+                segments: timestamps ? Timeline.segments(from: decoded.words) : nil,
+                dictionaryFixes: booster == nil ? nil : decoded.dictionaryFixes
             )
         case .flash(let flash):
             let decoded = try await gate.run { try await flash.transcribe(samples) }
@@ -118,11 +136,47 @@ actor ParakeetEngine {
         case .parakeetFlash:
             model = .flash(try await FlashTranscriber.load(from: directory))
         case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence, .qwen3Instruct,
-            .speakerDiarization, .madlad:
+            .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a Parakeet model")
         }
         Log.info("loaded \(id.rawValue) in \(ContinuousClock.now - started)")
         return model
+    }
+
+    /// Loads the dictionary booster ahead of the first dictation; fails when it is not downloaded.
+    func preloadVocabulary() async throws {
+        guard let hub = HubModel.forModel(.parakeetVocabulary) else {
+            throw EngineError("parakeet-vocabulary has no files")
+        }
+        _ = try store.readyDirectory(for: hub)
+        guard await vocabularyBooster() != nil else {
+            throw EngineError("parakeet-vocabulary could not be loaded; delete it and download it again")
+        }
+    }
+
+    /// The resident booster, or nil when its model is not downloaded or fails to load (logged;
+    /// the dictation goes on without it).
+    private func vocabularyBooster() async -> VocabularyBooster? {
+        if let booster { return booster }
+        guard let hub = HubModel.forModel(.parakeetVocabulary),
+            let directory = try? store.readyDirectory(for: hub)
+        else { return nil }
+        let task = boosterLoading ?? Task { try await VocabularyBooster.load(from: directory) }
+        boosterLoading = task
+        do {
+            let loaded = try await task.value
+            if boosterLoading == task {
+                boosterLoading = nil
+                booster = loaded
+            }
+            return loaded
+        } catch {
+            if boosterLoading == task {
+                boosterLoading = nil
+            }
+            Log.info("dictionary boosting unavailable: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     private struct TdtDecoded: Sendable {
@@ -131,6 +185,25 @@ actor ParakeetEngine {
         /// JSON cannot carry).
         let confidence: Float?
         let words: [TimedWord]
+        let tokenTimings: [TokenTiming]
+        var dictionaryFixes = 0
+    }
+
+    private static func boost(
+        _ decoded: TdtDecoded,
+        booster: VocabularyBooster,
+        samples: [Float],
+        vocabulary: [String]
+    ) async -> TdtDecoded {
+        guard
+            let boosted = await booster.rescore(
+                text: decoded.text, tokenTimings: decoded.tokenTimings, samples: samples, terms: vocabulary)
+        else { return decoded }
+        var result = TdtDecoded(
+            text: boosted.text, confidence: decoded.confidence, words: decoded.words,
+            tokenTimings: decoded.tokenTimings)
+        result.dictionaryFixes = boosted.replacements
+        return result
     }
 
     private static func transcribeTdt(
@@ -139,7 +212,7 @@ actor ParakeetEngine {
         samples: [Float],
         code: String?
     ) async throws -> TdtDecoded {
-        guard !samples.isEmpty else { return TdtDecoded(text: "", confidence: nil, words: []) }
+        guard !samples.isEmpty else { return TdtDecoded(text: "", confidence: nil, words: [], tokenTimings: []) }
         // The model rejects clips under its minimum length; a short word padded with silence
         // still transcribes.
         let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
@@ -149,13 +222,15 @@ actor ParakeetEngine {
         let hint = version == .v3 ? code.flatMap { Language(rawValue: $0) } : nil
         let result = try await manager.transcribe(audio, decoderState: &state, language: hint)
         let confidence = result.confidence.isFinite ? result.confidence : nil
-        let words = buildWordTimings(from: result.tokenTimings ?? []).map {
+        let timings = result.tokenTimings ?? []
+        let words = buildWordTimings(from: timings).map {
             TimedWord(text: $0.word, start: $0.startTime, end: $0.endTime)
         }
         return TdtDecoded(
             text: result.text.trimmingCharacters(in: .whitespacesAndNewlines),
             confidence: confidence,
-            words: words
+            words: words,
+            tokenTimings: timings
         )
     }
 }

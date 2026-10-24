@@ -1,0 +1,30 @@
+# FilePath: scripts/eval/names-dictionary.txt
+# The personal dictionary the names clip set runs with (transcription-eval.sh --dictionary), in
+# the Dictionary → Export format: one entry per line, "heard -> written" for a rule. The names
+# are the ones the clips speak; the rest are entries of a real dictionary that sound like
+# ordinary words ("Kargo", "rust", "pods"), so the eval also shows they are not forced in.
+Ujjwal
+Himanshu
+Vedant
+Shilpa
+Ankur
+Agastya
+Kalki
+Signzy
+Groq
+Kargo
+Deepak
+Dhruv
+Harbor
+Polaris
+Agents
+Crates
+Graphics
+Money trace
+Ankur fpandey
+lint
+pods
+rust
+persist
+backend
+just check backend

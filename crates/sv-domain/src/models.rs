@@ -1,7 +1,8 @@
 // FilePath: crates/sv-domain/src/models.rs
 //! On-device models: transcription models shown in Settings → Transcription, language models
-//! shown in Settings → Formatting (and used by meetings), and the speaker diarization model
-//! meetings use. Every model runs on the Mac; downloads carry no user content.
+//! shown in Settings → Formatting (and used by meetings), the speaker diarization model
+//! meetings use, and the Parakeet dictionary booster. Every model runs on the Mac; downloads
+//! carry no user content.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +22,8 @@ pub const LOCAL_LLM: &str = "qwen3-4b-instruct";
 pub const DIARIZER: &str = "speaker-diarization";
 /// The dedicated translation model meeting translations use (MADLAD-400 3B MT).
 pub const TRANSLATOR: &str = "madlad400-3b-mt";
+/// Checks a Parakeet TDT recording for the personal dictionary's names (Parakeet CTC 110M).
+pub const PARAKEET_VOCABULARY: &str = "parakeet-vocabulary";
 /// The removed cloud transcription model. Only history rows recorded before the app became
 /// local-only carry it; it is never offered or run.
 pub const LEGACY_GROQ_WHISPER: &str = "groq-whisper";
@@ -46,6 +49,7 @@ pub const DOWNLOADABLE_MODELS: &[&str] = &[
     LOCAL_LLM,
     DIARIZER,
     TRANSLATOR,
+    PARAKEET_VOCABULARY,
 ];
 
 /// Display name of a model id, including ids only old history rows carry. A formatting pass
@@ -63,6 +67,7 @@ pub fn model_name(id: &str) -> Option<&'static str> {
         LOCAL_LLM => Some("Qwen3 4B Instruct"),
         DIARIZER => Some("Speaker Diarization"),
         TRANSLATOR => Some("MADLAD-400 Translation"),
+        PARAKEET_VOCABULARY => Some("Dictionary names for Parakeet"),
         LEGACY_GROQ_WHISPER => Some("Groq Whisper (removed)"),
         "groq" => Some("Groq (removed)"),
         "custom" => Some("Custom endpoint (removed)"),
@@ -80,6 +85,8 @@ pub enum ModelKind {
     Diarization,
     /// Translates meeting transcripts.
     Translation,
+    /// Writes the personal dictionary's names into Parakeet transcripts from the audio.
+    Vocabulary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

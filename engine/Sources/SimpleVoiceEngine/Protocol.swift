@@ -101,6 +101,8 @@ struct TranscribeParams: Decodable {
     let languages: [String]?
     /// Whisper conditioning prompt (language lead, product name, personal dictionary, packs).
     let prompt: String?
+    /// Personal dictionary terms Parakeet TDT checks the audio for (see `VocabularyBoost.swift`).
+    let vocabulary: [String]?
     /// Adds timed `segments` to the result (meetings, long recordings).
     let timestamps: Bool?
 }
@@ -159,6 +161,9 @@ enum ModelID: String, Sendable, CaseIterable {
     case speakerDiarization = "speaker-diarization"
     /// Translation (llama.cpp T5 encoder-decoder, Google MADLAD-400 3B MT, Apache-2.0).
     case madlad = "madlad400-3b-mt"
+    /// Personal dictionary boosting for Parakeet TDT (FluidAudio CTC keyword spotter, Parakeet
+    /// CTC 110M, CC-BY-4.0).
+    case parakeetVocabulary = "parakeet-vocabulary"
 
     /// Models that recognise audio incrementally while it is recorded (`stream_start`).
     var streams: Bool {
@@ -166,7 +171,7 @@ enum ModelID: String, Sendable, CaseIterable {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .appleSpeech:
             true
         case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
-            .madlad:
+            .madlad, .parakeetVocabulary:
             false
         }
     }
@@ -258,6 +263,8 @@ struct TranscriptResult: Encodable, Sendable {
     var quality: TranscriptQuality? = nil
     /// Present when the request asked for `timestamps`.
     var segments: [TimedSegment]? = nil
+    /// Dictionary terms the audio-backed rescorer wrote in (Parakeet TDT with `vocabulary`).
+    var dictionaryFixes: Int? = nil
 }
 
 /// A stretch of transcript and where it sits in the audio, in milliseconds from the start.

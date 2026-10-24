@@ -1,13 +1,14 @@
 // FilePath: src-tauri/src/features/models/catalog.rs
 //! The fixed list of on-device models: voice models (Settings → Transcription), language models
-//! (Settings → Formatting; also meetings) and the meeting speaker diarization model. Live status,
-//! download size, license and provenance come from the engine helper; display names come from
+//! (Settings → Formatting; also meetings), the meeting speaker diarization model and Parakeet's
+//! dictionary booster (Settings → Transcription). Live status, download size, license and
+//! provenance come from the engine helper; display names come from
 //! `sv_domain::models::model_name`, which history shares.
 
 use sv_domain::languages::Language;
 use sv_domain::models::{
     APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, LOCAL_LLM, PARAKEET_FLASH, PARAKEET_TDT_V2,
-    PARAKEET_TDT_V3, TRANSLATOR, WHISPER_HINGLISH, WHISPER_TURBO,
+    PARAKEET_TDT_V3, PARAKEET_VOCABULARY, TRANSLATOR, WHISPER_HINGLISH, WHISPER_TURBO,
 };
 use sv_domain::{ModelKind, ModelProvider};
 
@@ -162,6 +163,17 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 85,
         languages: "400+ languages",
         size_mb: Some(1_859),
+        covers: None,
+    },
+    CatalogEntry {
+        id: PARAKEET_VOCABULARY,
+        kind: ModelKind::Vocabulary,
+        provider: ModelProvider::Parakeet,
+        subtitle: "Spells your Dictionary's names in Parakeet dictations from the audio",
+        speed: 90,
+        accuracy: 85,
+        languages: "English names",
+        size_mb: Some(103),
         covers: None,
     },
 ];
