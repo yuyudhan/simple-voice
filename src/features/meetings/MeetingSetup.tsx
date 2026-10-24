@@ -1,12 +1,14 @@
 // FilePath: src/features/meetings/MeetingSetup.tsx
-// What meetings need on this Mac and whether it is there: the voice model (chosen in Settings →
+// What meetings need and whether it is there: the voice model (chosen in Settings →
 // Transcription), the speaker model that tells voices apart, and the language model behind
-// summaries, chat and translation. Downloads happen only when the user presses Download.
+// summaries and chat (on this Mac, or Groq when the user picks it). Downloads happen only when
+// the user presses Download.
 import { useShell } from "../../app/ShellContext";
 import { useSettings } from "../../app/SettingsContext";
 import type { MeetingAssistant, MeetingReadiness } from "../../lib/api";
 import { Badge, Button, Segmented, SettingRow, SettingsGroup, Spinner } from "../../ui";
 import type { ModelsState } from "../settings/models/useModels";
+import { CloudNotice } from "../settings/groq/GroqKeyField";
 import { ModelList } from "../settings/models/VoiceModelList";
 import "../settings/common.css";
 import "../settings/models/models.css";
@@ -55,9 +57,9 @@ export function MeetingSetup({ models, readiness, readinessError }: Props) {
     return (
         <SettingsGroup title="Models for meetings">
             <p className="sv-models-section__intro">
-                Meetings are recorded, transcribed, split by speaker, summarised and translated on
-                this Mac. Models download once from the source shown; nothing you record is sent
-                anywhere.
+                Meetings are recorded, transcribed, split by speaker and translated on this Mac.
+                Summaries and chat run here too unless you pick Groq for them below. Models download
+                once from the source shown.
             </p>
             <SettingRow
                 title={
@@ -108,13 +110,14 @@ export function MeetingSetup({ models, readiness, readinessError }: Props) {
                     options={[
                         { value: "local", label: "Local model" },
                         { value: "apple", label: "Apple Intelligence" },
+                        { value: "groq", label: "Groq" },
                     ]}
                     onChange={(meetingAssistant) => {
                         void update({ meetingAssistant });
                     }}
                 />
             </SettingRow>
-            {settings.meetingAssistant === "local" ? (
+            {settings.meetingAssistant === "local" && (
                 <div className="sv-models-section__flush">
                     <ModelList
                         state={models}
@@ -123,18 +126,39 @@ export function MeetingSetup({ models, readiness, readinessError }: Props) {
                         activeId={settings.localLlmModel}
                     />
                 </div>
-            ) : (
-                apple && (
-                    <p
-                        className={`meeting-setup__note ${
-                            apple.status === "ready" ? "sv-inline-note" : "sv-inline-warning"
-                        }`}
-                    >
-                        {apple.status === "ready"
-                            ? "Apple Intelligence is available and runs on this Mac."
-                            : (apple.reason ?? "Apple Intelligence is not available on this Mac.")}
-                    </p>
-                )
+            )}
+            {settings.meetingAssistant === "apple" && apple && (
+                <p
+                    className={`meeting-setup__note ${
+                        apple.status === "ready" ? "sv-inline-note" : "sv-inline-warning"
+                    }`}
+                >
+                    {apple.status === "ready"
+                        ? "Apple Intelligence is available and runs on this Mac."
+                        : (apple.reason ?? "Apple Intelligence is not available on this Mac.")}
+                </p>
+            )}
+            {settings.meetingAssistant === "groq" && (
+                <div className="meeting-setup__note sv-groq-panel">
+                    <CloudNotice>
+                        Transcript text leaves this Mac: the excerpts each summary or answer needs
+                        are sent to Groq ({settings.groqFormattingModel}) under your account. The
+                        recording itself stays here. When Groq fails, the local model answers
+                        instead if it is downloaded. The Groq model and key are set in Settings →
+                        Formatting.
+                    </CloudNotice>
+                    <div>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                                navigate("formatting");
+                            }}
+                        >
+                            Groq settings
+                        </Button>
+                    </div>
+                </div>
             )}
             <SettingRow
                 title={

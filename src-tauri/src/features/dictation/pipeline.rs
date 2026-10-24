@@ -1,9 +1,10 @@
 // FilePath: src-tauri/src/features/dictation/pipeline.rs
-//! One finished recording → text in the frontmost app and a history row. Transcription is an
-//! on-device model run on the whole recording (a live stream only displayed it), then deterministic
-//! formatting, then personal snippets (protected from what follows), then the optional on-device
-//! post-processing pass, then ordered delivery. The same steps (minus pasting) retry a failed
-//! entry. A recording made with the edit shortcut goes to edit mode instead.
+//! One finished recording → text in the frontmost app and a history row. Transcription is a run
+//! on the whole recording (a live stream only displayed it) by the on-device model or, when
+//! chosen, Groq Whisper; then deterministic formatting, then personal snippets (protected from
+//! what follows), then the optional post-processing pass (on-device, or Groq when chosen), then
+//! ordered delivery. The same steps (minus pasting) retry a failed entry. A recording made with
+//! the edit shortcut goes to edit mode instead.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -59,13 +60,16 @@ pub(crate) struct SessionInput {
 pub(crate) struct PostProcessingTest {
     output: String,
     latency_ms: i64,
+    /// Display name of the model that formatted the sample (the on-device fallback when Groq
+    /// failed); `None` when nothing formatted it.
+    model_name: Option<String>,
 }
 
 /// Result of the post-processing pass. Every variant carries the text to paste, with personal
 /// snippets expanded.
 enum Polish {
-    /// Formatted text and how long the pass took.
-    Polished(String, i64),
+    /// Formatted text, the model that formatted it and how long the pass took.
+    Polished(String, String, i64),
     /// Why the pass failed or was rejected by the guards, and the deterministic text used
     /// instead.
     Unformatted(String, String),
@@ -169,8 +173,8 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     }
     let polish = finish_text(&state, &settings, &vocabulary, &snippets, &formatted.text).await;
     let (final_text, mut status, note) = match polish {
-        Polish::Polished(text, ms) => {
-            row.format_model = llm::post_processing_model(&settings).map(str::to_owned);
+        Polish::Polished(text, model, ms) => {
+            row.format_model = Some(model);
             row.format_ms = Some(ms);
             (text, HistoryStatus::Pasted, None)
         }
@@ -315,8 +319,8 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     let formatted = sv_text::format(&heard.text, &vocabulary, settings.style);
     let polish = finish_text(&state, &settings, &vocabulary, &snippets, &formatted.text).await;
     let final_text = match polish {
-        Polish::Polished(text, ms) => {
-            row.format_model = llm::post_processing_model(&settings).map(str::to_owned);
+        Polish::Polished(text, model, ms) => {
+            row.format_model = Some(model);
             row.format_ms = Some(ms);
             text
         }
@@ -351,15 +355,18 @@ pub(crate) async fn test_post_processing(app: &AppHandle) -> AppResult<PostProce
     let vocabulary = vocabulary(&state, &settings).await;
     let formatted = sv_text::format(TEST_SAMPLE, &vocabulary, settings.style);
     let started = Instant::now();
-    let output = match finish_text(&state, &settings, &vocabulary, &[], &formatted.text).await {
-        Polish::Polished(text, _) | Polish::NotRun(text) => text,
-        Polish::Unformatted(reason, _) => {
-            return Err(AppError::other(format!("Post-processing failed: {reason}")));
-        }
-    };
+    let (output, model) =
+        match finish_text(&state, &settings, &vocabulary, &[], &formatted.text).await {
+            Polish::Polished(text, model, _) => (text, Some(model)),
+            Polish::NotRun(text) => (text, None),
+            Polish::Unformatted(reason, _) => {
+                return Err(AppError::other(format!("Post-processing failed: {reason}")));
+            }
+        };
     Ok(PostProcessingTest {
         output,
         latency_ms: elapsed_ms(started),
+        model_name: model.as_deref().map(sv_domain::models::display_name),
     })
 }
 
@@ -384,27 +391,33 @@ async fn finish_text(
         return Polish::NotRun(sv_text::snippets::expand(text, snippets));
     }
     let protected = sv_text::snippets::protect(text, snippets);
-    let mut prompt = sv_text::polish_prompt(
-        protected.text(),
-        &vocabulary.terms,
-        settings.style,
-        llm::post_processing_target(settings),
-        &settings.languages,
-    );
-    if protected.hits() > 0 {
-        prompt.system.push_str(sv_text::snippets::MARKER_RULE);
-    }
+    let prompt = |target| {
+        let mut prompt = sv_text::polish_prompt(
+            protected.text(),
+            &vocabulary.terms,
+            settings.style,
+            target,
+            &settings.languages,
+        );
+        if protected.hits() > 0 {
+            prompt.system.push_str(sv_text::snippets::MARKER_RULE);
+        }
+        prompt
+    };
     let started = Instant::now();
     let limit = sv_text::polish_timeout(protected.text());
-    let reply = llm::post_process(state, settings, &prompt, POLISH_MAX_TOKENS, limit).await;
-    let outcome = match reply {
-        Ok(reply) => sv_text::accept_polish(protected.text(), &reply.text, reply.finished),
-        Err(reason) => PolishOutcome::Skipped(reason),
+    let answer = llm::post_process(state, settings, prompt, POLISH_MAX_TOKENS, limit).await;
+    let (outcome, model) = match answer {
+        Ok(answer) => (
+            sv_text::accept_polish(protected.text(), &answer.reply.text, answer.reply.finished),
+            answer.model,
+        ),
+        Err(reason) => (PolishOutcome::Skipped(reason), String::new()),
     };
     let expanded = || protected.expanded().to_owned();
     match outcome {
         PolishOutcome::Polished(polished) => match protected.restore(&polished) {
-            Some(restored) => Polish::Polished(restored, elapsed_ms(started)),
+            Some(restored) => Polish::Polished(restored, model, elapsed_ms(started)),
             None => Polish::Unformatted(
                 "the formatting pass changed a snippet".to_owned(),
                 expanded(),

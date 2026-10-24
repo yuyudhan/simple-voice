@@ -83,17 +83,16 @@ async fn learn(app: &AppHandle, history_id: i64, pasted: &str) {
             return;
         }
     };
-    let prompt = sv_text::learning_prompt(&corrections);
     let reply = llm::post_process(
         &state,
         &settings,
-        &prompt,
+        |_| sv_text::learning_prompt(&corrections),
         sv_text::LEARNING_MAX_TOKENS,
         sv_text::LEARNING_TIMEOUT,
     )
     .await;
     let reply = match reply {
-        Ok(reply) => reply,
+        Ok(answer) => answer.reply,
         Err(reason) => {
             tracing::info!(reason, "could not judge the corrections");
             return;

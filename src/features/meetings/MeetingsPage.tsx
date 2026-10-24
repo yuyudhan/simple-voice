@@ -223,7 +223,7 @@ export function MeetingsPage() {
                 <EmptyState
                     icon={<Users />}
                     title="No meetings yet"
-                    description="Record a call or a conversation. You choose whether system audio is included, and nothing leaves this Mac."
+                    description="Record a call or a conversation. You choose whether system audio is included, and the recording never leaves this Mac."
                     action={
                         <Button
                             variant="primary"

@@ -11,13 +11,14 @@ use sv_engine::EngineClient;
 use sv_storage::Db;
 
 use crate::features::dictation::DictationHandle;
+use crate::features::groq::KeyCache;
 
 #[derive(Debug)]
 pub(crate) struct AppState {
     /// A database that failed to open keeps its error so every command reports the same
     /// message instead of the app refusing to start.
     db: Result<Db, AppError>,
-    /// Only for the latest-release check; nothing the user says or writes is ever sent.
+    /// The latest-release check, and Groq requests when the user chose Groq with their own key.
     pub(crate) http: reqwest::Client,
     pub(crate) engine: EngineClient,
     /// `None` when the Mac has no usable audio output; dictation still works without cues.
@@ -35,6 +36,8 @@ pub(crate) struct AppState {
     /// Language model id → when it last loaded or answered, so a request to a model that is
     /// probably cold gets time to load (see `features::llm`).
     pub(crate) llm_used: Mutex<HashMap<String, std::time::Instant>>,
+    /// The Groq API key from the Keychain, read once per launch (see `features::groq`).
+    pub(crate) groq_key: KeyCache,
 }
 
 impl AppState {
@@ -62,6 +65,7 @@ impl AppState {
             updates: Mutex::new(UpdateStatus::new(app_version)),
             login_item: tokio::sync::Mutex::new(()),
             llm_used: Mutex::new(HashMap::new()),
+            groq_key: KeyCache::default(),
         }
     }
 

@@ -3,6 +3,7 @@
 
 pub(crate) mod dictation;
 pub(crate) mod dictionary;
+pub(crate) mod groq;
 pub(crate) mod history;
 pub(crate) mod insights;
 pub(crate) mod llm;

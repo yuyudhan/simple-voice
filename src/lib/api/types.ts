@@ -6,10 +6,15 @@
 export type Style = "formal" | "casual";
 export type SoundTheme = "soft" | "glass" | "pop" | "chime";
 export type Theme = "system" | "light" | "dark";
-/** "apple" = Apple Intelligence on this Mac; "local" = the downloaded model `localLlmModel`. */
-export type PostProcessing = "apple" | "local" | "off";
-/** The on-device model behind meeting summaries, chat and translation. */
-export type MeetingAssistant = "apple" | "local";
+/**
+ * "apple" = Apple Intelligence on this Mac; "local" = the downloaded model `localLlmModel`;
+ * "groq" = Groq's `groqFormattingModel` with the user's key (text leaves the Mac).
+ */
+export type PostProcessing = "apple" | "local" | "groq" | "off";
+/** The model behind meeting summaries and chat; "groq" sends transcript excerpts to Groq. */
+export type MeetingAssistant = "apple" | "local" | "groq";
+/** Who transcribes dictations: the on-device model, or Groq Whisper (audio leaves the Mac). */
+export type TranscriptionProvider = "local" | "groq";
 export type DictionarySort = "name_asc" | "name_desc" | "newest" | "oldest";
 export type VocabularyPack =
     | "everyday"
@@ -35,8 +40,11 @@ export interface Settings {
     microphone: string | null;
     languages: string[];
     fallbackLanguage: string;
-    /** A model id, or "smart-select" to let the app pick per dictation. */
+    /** A model id, or "smart-select" to let the app pick per dictation. With Groq it is the fallback. */
     transcriptionModel: string;
+    transcriptionProvider: TranscriptionProvider;
+    /** Groq Whisper model id (`GROQ_WHISPER_MODELS`). */
+    groqWhisperModel: string;
     /** Global writing style; category and app overrides win over it (app > category > global). */
     style: Style;
     /** Style per app category; a missing category uses the global `style`. */
@@ -54,6 +62,8 @@ export interface Settings {
     postProcessing: PostProcessing;
     /** Catalog id of the downloadable local language model (`postProcessing: "local"`). */
     localLlmModel: string;
+    /** Groq chat model id for `postProcessing: "groq"` and `meetingAssistant: "groq"`. */
+    groqFormattingModel: string;
     meetingAssistant: MeetingAssistant;
     /** Read the focused field's surrounding text (Accessibility) when a dictation starts. */
     foregroundContext: boolean;
@@ -403,6 +413,13 @@ export interface ModelProgress {
 export interface PostProcessingTest {
     output: string;
     latencyMs: number;
+    /** The model that formatted the sample (the on-device fallback when Groq failed). */
+    modelName: string | null;
+}
+
+/** Whether a Groq API key is saved in the Keychain; the key itself never reaches the UI. */
+export interface GroqKeyStatus {
+    saved: boolean;
 }
 
 /** Live recognition while recording: `text` is final and never changes, `tentative` may. */

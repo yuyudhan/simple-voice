@@ -1,12 +1,15 @@
 // FilePath: src/features/settings/formatting/FormattingProviders.tsx
-// Post-processing provider choice: Apple Intelligence, a downloaded local language model, or off.
-// Every provider runs on this Mac. The local option lists the downloadable language models with
-// their size, source and licence, and a live test formats a fixed sample through the provider.
+// Post-processing provider choice: Apple Intelligence, a downloaded local language model, Groq
+// with the user's own key, or off. Every provider but Groq runs on this Mac, and Groq falls back
+// to them when it fails. The local option lists the downloadable language models with their
+// size, source and licence, and a live test formats a fixed sample through the provider.
 import { useState, type ReactNode } from "react";
-import { Apple, Brain, CircleSlash } from "lucide-react";
+import { Apple, Brain, CircleSlash, Cloud } from "lucide-react";
 import { api, errorMessage, type PostProcessing, type PostProcessingTest } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
-import { Button } from "../../../ui";
+import { Button, TextField } from "../../../ui";
+import { CloudNotice, GroqKeyField } from "../groq/GroqKeyField";
+import { useGroqKey } from "../groq/useGroqKey";
 import type { ModelsState } from "../models/useModels";
 import { ModelList } from "../models/VoiceModelList";
 import "../common.css";
@@ -31,6 +34,12 @@ const PROVIDERS: ProviderOption[] = [
         name: "Local model",
         description: "A language model you download once.",
         icon: <Brain size={16} />,
+    },
+    {
+        id: "groq",
+        name: "Groq",
+        description: "Cloud, with your own API key.",
+        icon: <Cloud size={16} />,
     },
     {
         id: "off",
@@ -77,7 +86,9 @@ function TestFormatting({ disabled }: { disabled: boolean }) {
                 <>
                     <pre className="sv-formatting__output">{result.output}</pre>
                     <span className="sv-formatting__latency">
-                        Formatted on this Mac in {result.latencyMs} ms
+                        {result.modelName === null
+                            ? `Done in ${String(result.latencyMs)} ms`
+                            : `Formatted by ${result.modelName} in ${String(result.latencyMs)} ms`}
                     </span>
                 </>
             )}
@@ -90,8 +101,48 @@ function TestFormatting({ disabled }: { disabled: boolean }) {
     );
 }
 
+/**
+ * The Groq chat model id, saved when the field loses focus or Enter is pressed. A rejected id
+ * (the backend shows why in a toast) goes back to the saved one. The parent keys it by the
+ * saved id, so a change made elsewhere starts a fresh draft.
+ */
+function GroqModelField() {
+    const { settings, update } = useSettings();
+    const [draft, setDraft] = useState(settings.groqFormattingModel);
+
+    const commit = async () => {
+        const groqFormattingModel = draft.trim();
+        if (groqFormattingModel === settings.groqFormattingModel) return;
+        if (!(await update({ groqFormattingModel }))) setDraft(settings.groqFormattingModel);
+    };
+
+    return (
+        <form
+            onSubmit={(event) => {
+                event.preventDefault();
+                void commit();
+            }}
+        >
+            <TextField
+                label="Groq model"
+                value={draft}
+                spellCheck={false}
+                autoComplete="off"
+                hint="A model ID from console.groq.com/docs/models. Meetings use it too when set to Groq."
+                onChange={(event) => {
+                    setDraft(event.target.value);
+                }}
+                onBlur={() => {
+                    void commit();
+                }}
+            />
+        </form>
+    );
+}
+
 export function FormattingProviders({ models }: { models: ModelsState }) {
     const { settings, update } = useSettings();
+    const groq = useGroqKey();
     const list = models.models ?? [];
     const appleIntelligence = list.find((m) => m.id === "apple-intelligence");
     const appleUnavailable = appleIntelligence?.status === "unsupported";
@@ -102,11 +153,14 @@ export function FormattingProviders({ models }: { models: ModelsState }) {
     let providerReady = true;
     if (settings.postProcessing === "apple") providerReady = appleIntelligence?.status === "ready";
     if (settings.postProcessing === "local") providerReady = localReady;
+    if (settings.postProcessing === "groq") providerReady = groq.saved === true;
 
     return (
         <div className="sv-formatting__detail">
             <p className="sv-formatting__note">
-                Formatting runs on this Mac. Your text is never sent anywhere.
+                {settings.postProcessing === "groq"
+                    ? "Formatting runs at Groq. Every other choice runs on this Mac."
+                    : "Formatting runs on this Mac. Your text is never sent anywhere."}
             </p>
             <div className="sv-providers" role="radiogroup" aria-label="Formatting provider">
                 {PROVIDERS.map((provider) => {
@@ -162,6 +216,20 @@ export function FormattingProviders({ models }: { models: ModelsState }) {
                         label="Local language model"
                         activeId={settings.localLlmModel}
                     />
+                </>
+            )}
+
+            {settings.postProcessing === "groq" && (
+                <>
+                    <CloudNotice>
+                        Text leaves this Mac. Each dictation's transcript, your dictionary words,
+                        text you edit by voice and the corrections learning reads are sent to Groq
+                        (api.groq.com) under your account. When Groq fails or is slow, the local
+                        model or Apple Intelligence formats instead, if one is ready. While Groq is
+                        on, text around the cursor is never read for context.
+                    </CloudNotice>
+                    <GroqModelField key={settings.groqFormattingModel} />
+                    <GroqKeyField groq={groq} />
                 </>
             )}
 

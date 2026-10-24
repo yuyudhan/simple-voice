@@ -40,7 +40,7 @@ pub enum Theme {
     Dark,
 }
 
-/// Which on-device backend runs the LLM formatting pass. Nothing leaves the Mac.
+/// Which backend runs the LLM formatting pass. Every choice but `Groq` stays on the Mac.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PostProcessing {
@@ -49,11 +49,14 @@ pub enum PostProcessing {
     Apple,
     /// The downloaded local language model (`Settings::local_llm_model`).
     Local,
+    /// Groq's hosted chat models (`Settings::groq_formatting_model`) with the user's own API
+    /// key. The text leaves the Mac; a failed or late request falls back to an on-device model.
+    Groq,
     /// Deterministic formatting only.
     Off,
 }
 
-/// Which on-device language model answers meeting summaries, chat and translation.
+/// Which language model answers meeting summaries and chat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LlmBackend {
@@ -62,6 +65,21 @@ pub enum LlmBackend {
     /// The downloaded local language model (`Settings::local_llm_model`).
     #[default]
     Local,
+    /// Groq's hosted chat models (`Settings::groq_formatting_model`) with the user's own API
+    /// key. Transcript excerpts leave the Mac; a failed request falls back to an on-device model.
+    Groq,
+}
+
+/// Who turns dictation speech into text. Meetings always transcribe on the Mac.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TranscriptionProvider {
+    /// The on-device model in `Settings::transcription_model` (or Smart Select).
+    #[default]
+    Local,
+    /// Groq Whisper (`Settings::groq_whisper_model`) with the user's own API key. The recording
+    /// leaves the Mac; a failed or late request falls back to `Settings::transcription_model`.
+    Groq,
 }
 
 /// A per-app writing style: wins over the app's category style and the global style.
@@ -152,7 +170,12 @@ pub struct Settings {
     /// Language a transcription is re-run in when detection lands outside `languages`. Always
     /// a registry tag models know as is, never a script variant such as `hi-Latn`.
     pub fallback_language: String,
+    /// The on-device voice model, or Smart Select. With `TranscriptionProvider::Groq` it is the
+    /// fallback for a failed Groq request and still transcribes meetings.
     pub transcription_model: String,
+    pub transcription_provider: TranscriptionProvider,
+    /// Groq's Whisper model id (one of `models::GROQ_WHISPER_MODELS`).
+    pub groq_whisper_model: String,
     /// Smart Select double-checks a low-confidence result with a second model; when off, only
     /// an error makes it try another model.
     pub smart_retry: bool,
@@ -175,6 +198,8 @@ pub struct Settings {
     /// Catalog id of the downloadable local language model (`PostProcessing::Local`,
     /// `LlmBackend::Local`).
     pub local_llm_model: String,
+    /// Groq chat model id for `PostProcessing::Groq` and `LlmBackend::Groq`.
+    pub groq_formatting_model: String,
     /// Model for meeting summaries, chat and translation.
     pub meeting_assistant: LlmBackend,
     /// Read the focused text field (bounded, on-device) at recording start to prime
@@ -221,6 +246,8 @@ impl Default for Settings {
             languages: vec!["en".to_owned(), "hi".to_owned(), "hi-Latn".to_owned()],
             fallback_language: "hi".to_owned(),
             transcription_model: DEFAULT_TRANSCRIPTION_MODEL.to_owned(),
+            transcription_provider: TranscriptionProvider::Local,
+            groq_whisper_model: crate::models::DEFAULT_GROQ_WHISPER_MODEL.to_owned(),
             smart_retry: true,
             style: Style::Formal,
             category_styles: BTreeMap::new(),
@@ -234,6 +261,7 @@ impl Default for Settings {
             pasted_text_seconds: 2,
             post_processing: PostProcessing::Apple,
             local_llm_model: crate::models::LOCAL_LLM.to_owned(),
+            groq_formatting_model: crate::models::DEFAULT_GROQ_CHAT_MODEL.to_owned(),
             meeting_assistant: LlmBackend::Local,
             // Off by default: context reads other apps' text.
             foreground_context: false,
@@ -287,9 +315,19 @@ impl Settings {
         }
     }
 
-    /// Whether context may be read from this app: the feature is on and the app is not excluded.
+    /// Whether a dictation sends anything to Groq: its transcription or its post-processing
+    /// (formatting, edit mode, learning) runs there.
+    pub fn dictation_uses_groq(&self) -> bool {
+        self.transcription_provider == TranscriptionProvider::Groq
+            || self.post_processing == PostProcessing::Groq
+    }
+
+    /// Whether the focused field may be read in this app: the feature is on, no Groq provider
+    /// would receive what is read (field text never leaves the Mac), and the app is not
+    /// excluded.
     pub fn context_allowed(&self, bundle_id: Option<&str>) -> bool {
         self.foreground_context
+            && !self.dictation_uses_groq()
             && !bundle_id.is_some_and(|id| {
                 self.context_excluded_apps
                     .iter()
@@ -312,6 +350,8 @@ pub struct SettingsPatch {
     pub languages: Option<Vec<String>>,
     pub fallback_language: Option<String>,
     pub transcription_model: Option<String>,
+    pub transcription_provider: Option<TranscriptionProvider>,
+    pub groq_whisper_model: Option<String>,
     pub smart_retry: Option<bool>,
     pub style: Option<Style>,
     pub category_styles: Option<BTreeMap<AppCategory, Style>>,
@@ -325,6 +365,7 @@ pub struct SettingsPatch {
     pub pasted_text_seconds: Option<u32>,
     pub post_processing: Option<PostProcessing>,
     pub local_llm_model: Option<String>,
+    pub groq_formatting_model: Option<String>,
     pub meeting_assistant: Option<LlmBackend>,
     pub foreground_context: Option<bool>,
     pub ide_context: Option<bool>,
@@ -504,13 +545,47 @@ mod tests {
         assert!(settings.context_allowed(None));
         assert!(!settings.context_allowed(Some("com.1password.1password")));
         assert!(!settings.context_allowed(Some(" COM.APPLE.PASSWORDS ")));
+        // Field text never reaches Groq: choosing it for dictation stops context reads.
+        settings.transcription_provider = TranscriptionProvider::Groq;
+        assert!(!settings.context_allowed(Some("com.apple.Notes")));
+        settings.transcription_provider = TranscriptionProvider::Local;
+        settings.post_processing = PostProcessing::Groq;
+        assert!(!settings.context_allowed(Some("com.apple.Notes")));
+        assert!(settings.dictation_uses_groq());
     }
 
     #[test]
-    fn settings_carry_no_remote_provider_fields() {
-        let json = serde_json::to_string(&Settings::default()).unwrap_or_default();
-        for removed in ["groq", "customBaseUrl", "customModel", "ApiKey"] {
-            assert!(!json.contains(removed), "{removed} still serialized");
+    fn local_is_the_default_and_no_key_is_ever_serialized() {
+        let settings = Settings::default();
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Local
+        );
+        assert_eq!(settings.post_processing, PostProcessing::Apple);
+        assert_eq!(settings.meeting_assistant, LlmBackend::Local);
+        let json = serde_json::to_string(&settings).unwrap_or_default();
+        for removed in ["customBaseUrl", "customModel", "ApiKey", "apiKey"] {
+            assert!(!json.contains(removed), "{removed} serialized");
         }
+    }
+
+    #[test]
+    fn providers_use_the_wire_names_the_ui_sends() {
+        let patch: Result<SettingsPatch, _> = serde_json::from_str(
+            r#"{"transcriptionProvider":"groq","postProcessing":"groq","meetingAssistant":"groq"}"#,
+        );
+        let patch = patch.ok();
+        assert_eq!(
+            patch.as_ref().and_then(|p| p.transcription_provider),
+            Some(TranscriptionProvider::Groq)
+        );
+        assert_eq!(
+            patch.as_ref().and_then(|p| p.post_processing),
+            Some(PostProcessing::Groq)
+        );
+        assert_eq!(
+            patch.as_ref().and_then(|p| p.meeting_assistant),
+            Some(LlmBackend::Groq)
+        );
     }
 }

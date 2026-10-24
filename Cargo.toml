@@ -5,6 +5,7 @@
 #     ├── sv-storage  (SQLite via sqlx: settings, history, dictionary, snippets, meetings,
 #     │                insights, migrations)
 #     ├── sv-text     (vocabulary, formatting, snippets, context hints, LLM prompts + guards)
+#     ├── sv-cloud    (optional Groq: Whisper transcription and chat, with the user's own key)
 #     ├── sv-audio    (microphone capture, WAV files, level meter, cue sounds)
 #     ├── sv-engine   (client for the Swift engine helper sidecar)
 #     └── sv-domain   (shared serde types and the error type; depends on nothing internal)
@@ -26,6 +27,7 @@ sv-storage = { path = "crates/sv-storage" }
 sv-text = { path = "crates/sv-text" }
 sv-audio = { path = "crates/sv-audio" }
 sv-engine = { path = "crates/sv-engine" }
+sv-cloud = { path = "crates/sv-cloud" }
 
 tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
 tauri-build = { version = "2", features = [] }
@@ -51,7 +53,10 @@ tokio = { version = "1", features = [
     "process",
     "io-util",
 ] }
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "multipart"] }
+bytes = "1"
+# The macOS Keychain, where the Groq API key is kept.
+security-framework = "3"
 cpal = "0.18"
 rodio = { version = "0.22", default-features = false, features = ["playback"] }
 arboard = { version = "3", default-features = false }

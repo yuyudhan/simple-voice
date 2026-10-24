@@ -1,18 +1,22 @@
 // FilePath: src-tauri/src/features/dictation/transcription.rs
 //! Speech to text for dictations, their retries and edit instructions: the engine helper's
-//! on-device models (or Smart Select choosing among them), the personal dictionary that primes
-//! them, and the session WAV files they read.
+//! on-device models (or Smart Select choosing among them), or Groq Whisper when the user chose
+//! it, with the on-device choice as its fallback; the personal dictionary that primes them; and
+//! the session WAV files the helper reads.
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use sv_domain::languages::model_languages;
-use sv_domain::models::{SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
-use sv_domain::{AppError, AppResult, RetryReason, Settings, TranscriptQuality};
+use sv_domain::models::{GROQ_WHISPER, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO};
+use sv_domain::{
+    AppError, AppResult, RetryReason, Settings, TranscriptQuality, TranscriptionProvider,
+};
 use sv_engine::TranscribeOptions;
 use sv_text::Vocabulary;
 
 use super::elapsed_ms;
+use crate::features::groq;
 use crate::features::history::remove_audio;
 use crate::features::models::smart_select;
 use crate::features::models::{engine_language, is_ready};
@@ -42,7 +46,11 @@ pub(super) struct Unheard {
 impl Unheard {
     /// Failed before any model ran.
     fn untried(settings: &Settings, error: AppError) -> Self {
-        Self::from_model(&settings.transcription_model, error)
+        let model = match settings.transcription_provider {
+            TranscriptionProvider::Groq => GROQ_WHISPER,
+            TranscriptionProvider::Local => settings.transcription_model.as_str(),
+        };
+        Self::from_model(model, error)
     }
 
     fn from_model(model: &str, error: AppError) -> Self {
@@ -116,6 +124,9 @@ pub(super) async fn transcribe(
     vocabulary: &Vocabulary,
     audio: &Audio,
 ) -> Result<Heard, Unheard> {
+    if settings.transcription_provider == TranscriptionProvider::Groq {
+        return groq_transcribe(state, settings, vocabulary, audio).await;
+    }
     let model = settings.transcription_model.as_str();
     if model == SMART_SELECT {
         return smart_transcribe(state, settings, vocabulary, audio).await;
@@ -131,6 +142,99 @@ pub(super) async fn transcribe(
             Err(Unheard::from_model(model, error))
         }
     }
+}
+
+/// Groq Whisper first. An error or timeout falls back to the on-device choice (Smart Select's
+/// first ready model, or the chosen model when it is ready); a result Smart Select's gate doubts
+/// (low confidence, or the wrong script for Hindi or Hinglish) is redone on the Mac the same way
+/// a Smart Select first result would be. History records both models and why.
+async fn groq_transcribe(
+    state: &AppState,
+    settings: &Settings,
+    vocabulary: &Vocabulary,
+    audio: &Audio,
+) -> Result<Heard, Unheard> {
+    let first_result = run_groq(state, settings, vocabulary, audio).await;
+    let reason = match &first_result {
+        Ok(result) => smart_select::gate(
+            &result.text,
+            &result.quality,
+            &settings.languages,
+            settings.smart_retry,
+        ),
+        Err(_) => Some(RetryReason::Failed),
+    };
+    let second = match (reason, &first_result) {
+        (Some(RetryReason::MixedScript | RetryReason::WrongScript), Ok(result)) => {
+            let candidates =
+                smart_select::script_retry(&result.text, &settings.languages, GROQ_WHISPER);
+            first_ready(state, settings, &candidates).await
+        }
+        (Some(_), _) => local_fallback(state, settings).await,
+        (None, _) => None,
+    };
+    let Some((reason, second)) = reason.zip(second) else {
+        log_choice(GROQ_WHISPER, &first_result, None, None);
+        return match first_result {
+            Ok(result) => Ok(result.heard(GROQ_WHISPER, None, None)),
+            Err(error) => Err(Unheard::from_model(GROQ_WHISPER, error)),
+        };
+    };
+    let second_result = run(state, settings, vocabulary, audio, second).await;
+    log_choice(
+        GROQ_WHISPER,
+        &first_result,
+        Some(reason),
+        Some((second, &second_result)),
+    );
+    settle(GROQ_WHISPER, first_result, reason, second, second_result)
+}
+
+/// The on-device model Groq falls back to: what the local settings would run now.
+async fn local_fallback(state: &AppState, settings: &Settings) -> Option<&'static str> {
+    let model = settings.transcription_model.as_str();
+    if model == SMART_SELECT {
+        return ready_route(state, settings)
+            .await
+            .ok()
+            .map(|route| route.first);
+    }
+    let local = sv_domain::models::LOCAL_TRANSCRIPTION_MODELS
+        .iter()
+        .copied()
+        .find(|&id| id == model)?;
+    first_ready(state, settings, &[local]).await
+}
+
+async fn run_groq(
+    state: &AppState,
+    settings: &Settings,
+    vocabulary: &Vocabulary,
+    audio: &Audio,
+) -> AppResult<Run> {
+    let started = Instant::now();
+    let key = groq::key(state)
+        .await?
+        .ok_or_else(|| AppError::invalid(groq::NO_KEY))?;
+    let whisper = sv_cloud::GroqWhisper {
+        key: &key,
+        model: &settings.groq_whisper_model,
+    };
+    let transcript = sv_cloud::groq_transcribe(
+        &state.http,
+        &whisper,
+        audio.wav.clone(),
+        &sv_text::whisper_prompt(&settings.languages, vocabulary),
+        &model_languages(&settings.languages),
+        &settings.fallback_language,
+    )
+    .await?;
+    Ok(Run {
+        text: transcript.text,
+        language: transcript.language,
+        quality: transcript.quality,
+        ms: elapsed_ms(started),
+    })
 }
 
 /// Runs the first ready model of the route, then at most one retry: on the route's next model
@@ -450,5 +554,41 @@ mod tests {
             heard(""),
         );
         assert_eq!(settled.ok().map(|heard| heard.text).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn a_failed_groq_request_falls_back_to_the_local_model_and_history_says_so() {
+        let settled = settle(
+            GROQ_WHISPER,
+            failed("Groq did not answer within 12 s"),
+            RetryReason::Failed,
+            PARAKEET_TDT_V3,
+            heard("Ujjwal Himanshu Vedant"),
+        );
+        assert_eq!(
+            route_of(&settled),
+            (
+                PARAKEET_TDT_V3,
+                Some(GROQ_WHISPER),
+                Some(RetryReason::Failed)
+            )
+        );
+        assert_eq!(
+            settled.ok().map(|heard| heard.text).as_deref(),
+            Some("Ujjwal Himanshu Vedant")
+        );
+    }
+
+    #[test]
+    fn a_dictation_that_never_reached_a_model_names_the_chosen_provider() {
+        let mut settings = Settings {
+            transcription_model: PARAKEET_TDT_V3.to_owned(),
+            ..Settings::default()
+        };
+        let local = Unheard::untried(&settings, AppError::other("disk full"));
+        assert_eq!(local.model, PARAKEET_TDT_V3);
+        settings.transcription_provider = TranscriptionProvider::Groq;
+        let groq = Unheard::untried(&settings, AppError::other("disk full"));
+        assert_eq!(groq.model, GROQ_WHISPER);
     }
 }

@@ -1,7 +1,7 @@
 # FilePath: src-tauri/Cargo.toml
 [package]
 name = "simple-voice"
-description = "Private, on-device dictation and meetings for macOS: speak, and polished text lands in the focused app."
+description = "Private dictation and meetings for macOS, on-device by default with optional Groq: speak, and polished text lands in the focused app."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,6 +23,8 @@ sv-storage.workspace = true
 sv-text.workspace = true
 sv-audio.workspace = true
 sv-engine.workspace = true
+sv-cloud.workspace = true
+security-framework.workspace = true
 tauri.workspace = true
 tauri-plugin-opener.workspace = true
 tauri-plugin-global-shortcut.workspace = true

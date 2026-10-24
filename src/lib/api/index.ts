@@ -27,6 +27,7 @@ import type {
     DictationState,
     ModelProgress,
     PostProcessingTest,
+    GroqKeyStatus,
     DictationPartial,
     NavigateTarget,
 } from "./types";
@@ -51,6 +52,10 @@ export const api = {
     getSettings: () => invoke<Settings>("get_settings"),
     updateSettings: (patch: SettingsPatch) => invoke<Settings>("update_settings", { patch }),
     testPostProcessing: () => invoke<PostProcessingTest>("test_post_processing"),
+    groqKeyStatus: () => invoke<GroqKeyStatus>("groq_key_status"),
+    /** Groq checks the key first; a key it rejects is not saved. */
+    saveGroqApiKey: (key: string) => invoke<GroqKeyStatus>("save_groq_api_key", { key }),
+    removeGroqApiKey: () => invoke<GroqKeyStatus>("remove_groq_api_key"),
     setDatabaseDir: (dir: string) => invoke<Settings>("set_database_dir", { dir }),
     suspendShortcuts: (suspended: boolean) => invoke<null>("suspend_shortcuts", { suspended }),
     listMicrophones: () => invoke<Microphone[]>("list_microphones"),

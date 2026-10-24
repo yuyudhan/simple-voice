@@ -1,9 +1,10 @@
 // FilePath: src/features/settings/transcription/TranscriptionSection.tsx
-// Settings → Transcription: the voice model, the languages it is allowed to detect, and the live
-// transcript. With Smart Select the languages sit inside the Smart Select panel (they decide the
-// model); with a chosen model they get their own group.
+// Settings → Transcription: the voice model, the languages it is allowed to detect, the optional
+// Groq Whisper provider, and the live transcript. With Smart Select the languages sit inside the
+// Smart Select panel (they decide the model); with a chosen model they get their own group.
 import { useSettings } from "../../../app/SettingsContext";
 import { SettingRow, SettingsGroup, Toggle } from "../../../ui";
+import { GroqTranscriptionGroup } from "../groq/GroqTranscriptionGroup";
 import { useModels, type ModelsState } from "../models/useModels";
 import { VoiceModelList } from "../models/VoiceModelList";
 import { LanguagePicker } from "./LanguagePicker";
@@ -74,7 +75,8 @@ export function TranscriptionSection() {
                     <>
                         <p className="sv-models-section__intro">
                             Turns your speech into text, entirely on this Mac. A model downloads
-                            once; after that dictation works with no network.
+                            once; after that dictation works with no network. With Groq on, this
+                            model is the fallback and still transcribes meetings.
                         </p>
                         <div className="sv-models-section__flush">
                             <VoiceModelList state={models} />
@@ -88,6 +90,8 @@ export function TranscriptionSection() {
                     <LanguagePicker />
                 </SettingsGroup>
             )}
+
+            <GroqTranscriptionGroup />
 
             <SettingsGroup title="While you speak">
                 <LiveTranscriptRow models={models} smart={smart} />

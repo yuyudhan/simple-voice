@@ -1,0 +1,119 @@
+/* FilePath: src/features/settings/groq/groq.css */
+/* The Groq key card, its link, and the note that a Groq choice sends data off the Mac. */
+
+.sv-keycard {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+}
+
+.sv-keycard__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sv-keycard__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.sv-keycard__desc {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--muted);
+}
+
+.sv-keycard__form {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.sv-keycard__form > :first-child {
+    flex: 1;
+}
+
+.sv-keycard__saved {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--success);
+}
+
+.sv-keycard__actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.sv-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.sv-link:hover {
+    text-decoration: underline;
+}
+
+.sv-link:focus-visible {
+    outline: none;
+    border-radius: 4px;
+    box-shadow: var(--focus-ring);
+}
+
+.sv-cloud-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    color: var(--text);
+}
+
+.sv-cloud-notice > svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--warning);
+}
+
+.sv-cloud-notice p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.sv-groq-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Inside a settings group the panel is a body section under the rows. */
+.sv-setting-row + .sv-groq-panel {
+    padding: 12px 16px 16px;
+    border-top: 1px solid var(--border);
+}

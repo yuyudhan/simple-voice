@@ -1,7 +1,8 @@
 // FilePath: crates/sv-domain/src/models.rs
-//! On-device models: transcription models shown in Settings → Transcription, language models
-//! shown in Settings → Formatting (and used by meetings), and the speaker diarization model
-//! meetings use. Every model runs on the Mac; downloads carry no user content.
+//! Models: on-device transcription models shown in Settings → Transcription, language models
+//! shown in Settings → Formatting (and used by meetings), the speaker diarization model meetings
+//! use, and the optional Groq cloud models. Every catalog model runs on the Mac (downloads carry
+//! no user content); only the Groq models, which the user opts into, send anything out.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,9 +22,42 @@ pub const LOCAL_LLM: &str = "qwen3-4b-instruct";
 pub const DIARIZER: &str = "speaker-diarization";
 /// The dedicated translation model meeting translations use (MADLAD-400 3B MT).
 pub const TRANSLATOR: &str = "madlad400-3b-mt";
-/// The removed cloud transcription model. Only history rows recorded before the app became
-/// local-only carry it; it is never offered or run.
-pub const LEGACY_GROQ_WHISPER: &str = "groq-whisper";
+/// Groq Whisper (cloud), the id history records for a dictation Groq transcribed. Chosen with
+/// `TranscriptionProvider::Groq`, never as `Settings::transcription_model`.
+pub const GROQ_WHISPER: &str = "groq-whisper";
+/// Groq's Whisper models, best first.
+pub const GROQ_WHISPER_MODELS: &[&str] = &["whisper-large-v3-turbo", "whisper-large-v3"];
+pub const DEFAULT_GROQ_WHISPER_MODEL: &str = "whisper-large-v3-turbo";
+/// The Groq chat model formatting and meetings use until the user names another.
+pub const DEFAULT_GROQ_CHAT_MODEL: &str = "qwen/qwen3.8-27b";
+/// Language-model ids for Groq chat models are `groq:<Groq model id>`, so history and the
+/// language-model layer tell them from on-device ids.
+pub const GROQ_LLM_PREFIX: &str = "groq:";
+
+/// Longest Groq chat model id accepted; Groq's own ids are far shorter.
+const MAX_GROQ_MODEL_CHARS: usize = 100;
+
+/// A Groq model ID as the Groq console lists them (`qwen/qwen3.8-27b`,
+/// `llama-3.3-70b-versatile`): ASCII letters, digits and `-_./:`, at most 100 characters.
+pub fn is_groq_model_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= MAX_GROQ_MODEL_CHARS
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/' | ':'))
+}
+
+/// The language-model id of a Groq chat model.
+pub fn groq_llm_id(groq_model: &str) -> String {
+    format!("{GROQ_LLM_PREFIX}{}", groq_model.trim())
+}
+
+/// The Groq chat model a language-model id names; `None` for on-device ids.
+pub fn groq_chat_model(id: &str) -> Option<&str> {
+    id.strip_prefix(GROQ_LLM_PREFIX)
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+}
 
 /// Transcription model ids the helper handles.
 pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
@@ -49,7 +83,8 @@ pub const DOWNLOADABLE_MODELS: &[&str] = &[
 ];
 
 /// Display name of a model id, including ids only old history rows carry. A formatting pass
-/// recorded by a removed provider's own model id (e.g. `qwen/qwen3.8-27b`) has no entry here.
+/// recorded by a Groq chat model (`groq:<model>`, or a bare provider id such as
+/// `qwen/qwen3.8-27b` in older rows) has no entry here.
 pub fn model_name(id: &str) -> Option<&'static str> {
     match id {
         SMART_SELECT => Some("Smart Select"),
@@ -63,10 +98,20 @@ pub fn model_name(id: &str) -> Option<&'static str> {
         LOCAL_LLM => Some("Qwen3 4B Instruct"),
         DIARIZER => Some("Speaker Diarization"),
         TRANSLATOR => Some("MADLAD-400 Translation"),
-        LEGACY_GROQ_WHISPER => Some("Groq Whisper (removed)"),
-        "groq" => Some("Groq (removed)"),
+        GROQ_WHISPER => Some("Groq Whisper"),
+        "groq" => Some("Groq"),
         "custom" => Some("Custom endpoint (removed)"),
         _ => None,
+    }
+}
+
+/// The name history and insights show for a model id: its catalog name, `Groq · <model>` for a
+/// Groq chat model, else the id itself.
+pub fn display_name(id: &str) -> String {
+    match (model_name(id), groq_chat_model(id)) {
+        (Some(name), _) => name.to_owned(),
+        (None, Some(groq)) => format!("Groq · {groq}"),
+        (None, None) => id.to_owned(),
     }
 }
 

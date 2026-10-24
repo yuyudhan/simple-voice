@@ -150,8 +150,8 @@ mod tests {
 
         let whisper = &insights.transcription[0];
         assert_eq!(whisper.model, "groq-whisper");
-        // History recorded before the app became local-only keeps its numbers.
-        assert_eq!(whisper.name, "Groq Whisper (removed)");
+        // Groq Whisper rows, older ones included, keep their numbers.
+        assert_eq!(whisper.name, "Groq Whisper");
         assert_eq!(whisper.runs, 3);
         assert!((whisper.average_ms - 500.0).abs() < f64::EPSILON);
         assert_eq!((whisper.fastest_ms, whisper.slowest_ms), (400, 600));
