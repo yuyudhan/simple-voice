@@ -75,7 +75,8 @@ actor ParakeetEngine {
         case .tdt(let manager, let version, _):
             let booster = vocabulary.isEmpty ? nil : await vocabularyBooster()
             let decoded = try await gate.run {
-                let decoded = try await Self.transcribeTdt(manager: manager, version: version, samples: samples, code: code)
+                let decoded = try await Self.transcribeTdt(
+                    manager: manager, version: version, samples: samples, code: code)
                 guard let booster else { return decoded }
                 return await Self.boost(decoded, booster: booster, samples: samples, vocabulary: vocabulary)
             }
