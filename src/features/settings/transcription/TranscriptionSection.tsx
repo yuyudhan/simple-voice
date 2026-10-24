@@ -99,7 +99,7 @@ export function TranscriptionSection() {
                     Names from your Dictionary are always respelled when a voice model writes them
                     close to how you spell them. Parakeet takes no word list, so this small model
                     also checks each Parakeet recording for those names and writes the ones it
-                    hears, about a quarter second after you stop.
+                    hears; it adds a fraction of a second after you stop.
                 </p>
                 <div className="sv-models-section__flush">
                     <ModelList

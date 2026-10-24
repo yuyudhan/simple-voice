@@ -57,6 +57,10 @@ fn is_common(folded: &str) -> bool {
     COMMON.binary_search(&folded).is_ok()
 }
 
+/// Sound keys of the ordinary words, built on first use (a few milliseconds, once).
+static COMMON_SOUNDS: LazyLock<std::collections::HashSet<Vec<u8>>> =
+    LazyLock::new(|| COMMON.iter().map(|word| phonetic::key(word)).collect());
+
 impl Spelling {
     /// The entry as a sound-alike target, or `None` when it is not written as a name.
     pub(crate) fn new(phrase: &str) -> Option<Spelling> {
@@ -88,9 +92,10 @@ impl Spelling {
         self.words == 1
     }
 
-    /// An ordinary English word the user capitalised ("Agents", "Graphics").
-    pub fn is_ordinary_word(&self) -> bool {
-        self.words == 1 && is_common(&self.folded)
+    /// An ordinary English word, or a name that sounds exactly like one ("Kargo" and "cargo"):
+    /// Parakeet's booster matches by sound, so it would write such a name over the word.
+    pub fn sounds_like_ordinary_word(&self) -> bool {
+        self.words == 1 && (is_common(&self.folded) || COMMON_SOUNDS.contains(&self.key))
     }
 }
 
@@ -455,5 +460,17 @@ mod tests {
     fn the_common_word_list_is_sorted_for_binary_search() {
         assert!(COMMON.windows(2).all(|pair| pair[0] < pair[1]));
         assert!(is_common("cargo") && is_common("signs") && !is_common("vedanta"));
+    }
+
+    #[test]
+    fn names_that_sound_like_ordinary_words_are_flagged() {
+        let flagged =
+            |phrase: &str| Spelling::new(phrase).is_some_and(|s| s.sounds_like_ordinary_word());
+        assert!(flagged("Kargo") && flagged("Agents") && flagged("Kitty"));
+        for name in [
+            "Groq", "Ujjwal", "Himanshu", "Vedant", "Shilpa", "Ankur", "Agastya", "Kalki",
+        ] {
+            assert!(!flagged(name), "{name}");
+        }
     }
 }

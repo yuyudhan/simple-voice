@@ -132,13 +132,13 @@ impl Vocabulary {
     }
 
     /// The single-word names Parakeet's dictionary booster checks the audio for. Multi-word
-    /// entries and ordinary English words ("Agents", "Graphics") are left out: the booster's
-    /// acoustic match overreaches on them, rewriting "and" into the second word of a name and
-    /// everyday words into an entry that sounds a little like them.
+    /// entries, ordinary English words ("Agents") and names that sound exactly like one
+    /// ("Kargo" for "cargo") are left out: the booster matches by sound, so it would write them
+    /// over the everyday word, and turned "and" into the second word of a name.
     pub fn boost_terms(&self) -> Vec<String> {
         self.spellings
             .iter()
-            .filter(|spelling| spelling.is_single_word() && !spelling.is_ordinary_word())
+            .filter(|spelling| spelling.is_single_word() && !spelling.sounds_like_ordinary_word())
             .map(|spelling| spelling.written.clone())
             .collect()
     }
