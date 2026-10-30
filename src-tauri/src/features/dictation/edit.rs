@@ -142,17 +142,22 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     row.dictionary_fixes = i64::from(instruction.rule_hits);
 
     publish(&app, edit_state(DictationPhase::Formatting, id));
-    let prompt = sv_text::edit_prompt(
-        &selection,
-        &instruction.text,
-        &vocabulary.terms,
-        &settings.languages,
-    );
+    let prompt = |_| {
+        sv_text::edit_prompt(
+            &selection,
+            &instruction.text,
+            &vocabulary.terms,
+            &settings.languages,
+        )
+    };
     let started = Instant::now();
     let limit = sv_text::edit_timeout(&selection);
     let max_tokens = sv_text::edit_max_tokens(&selection);
-    let edited = match llm::post_process(&state, &settings, &prompt, max_tokens, limit).await {
-        Ok(reply) => sv_text::accept_edit(&selection, &reply.text, reply.finished),
+    let edited = match llm::post_process(&state, &settings, prompt, max_tokens, limit).await {
+        Ok(answer) => {
+            row.format_model = Some(answer.model);
+            sv_text::accept_edit(&selection, &answer.reply.text, answer.reply.finished)
+        }
         Err(reason) => Err(reason),
     };
     let edited = match edited {
@@ -166,7 +171,6 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
             return fail(&app, &settings, id, message);
         }
     };
-    row.format_model = llm::post_processing_model(&settings).map(str::to_owned);
     row.format_ms = Some(elapsed_ms(started));
 
     let delivered = if still_in(&state, frontmost.as_ref()).await {

@@ -238,7 +238,7 @@ pub(crate) async fn delete_model(
             "This model is in use. Choose another transcription model before deleting it.",
         ));
     }
-    if crate::features::llm::post_processing_model(&settings) == Some(id.as_str()) {
+    if crate::features::llm::post_processing_model(&settings).as_deref() == Some(id.as_str()) {
         return Err(AppError::invalid(
             "This model formats your dictations. Choose another formatting option first.",
         ));
@@ -340,7 +340,7 @@ mod tests {
         }
         assert!(!CATALOG
             .iter()
-            .any(|entry| entry.id == sv_domain::models::LEGACY_GROQ_WHISPER));
+            .any(|entry| entry.id == sv_domain::models::GROQ_WHISPER));
     }
 
     #[test]

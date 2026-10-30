@@ -41,7 +41,9 @@ fn wanted(settings: &Settings, frontmost: Option<&FrontmostApp>) -> Wanted {
     });
     Wanted {
         field: settings.context_allowed(bundle_id),
+        // Identifiers from the editor stay on the Mac too.
         ide: settings.ide_context
+            && !settings.dictation_uses_groq()
             && !excluded
             && categorize(bundle_id, app_name) == AppCategory::Code,
     }

@@ -44,7 +44,7 @@ pub use permissions::{PermissionKind, PermissionStatus, Permissions};
 pub use quality::TranscriptQuality;
 pub use settings::{
     AppStyle, DictionarySort, LlmBackend, PostProcessing, Settings, SettingsPatch, SoundTheme,
-    Style, StyleSource, Theme,
+    Style, StyleSource, Theme, TranscriptionProvider,
 };
 pub use snippets::Snippet;
 pub use updates::{Release, UpdateStatus};

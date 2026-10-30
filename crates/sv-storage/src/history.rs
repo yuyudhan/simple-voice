@@ -3,7 +3,6 @@
 //! writer computes them the same way.
 
 use sqlx::SqlitePool;
-use sv_domain::models::model_name;
 use sv_domain::{
     categorize, text_stats, AppCategory, AppError, AppResult, HistoryEntry, HistoryStatus,
     KnownApp, NewHistory, RetryReason, Style, StyleSource,
@@ -412,9 +411,10 @@ async fn stored_entry(pool: &SqlitePool, id: i64) -> AppResult<HistoryEntry> {
         .ok_or_else(|| AppError::NotFound(format!("Dictation {id}")))
 }
 
-/// Catalog ids get their display name; provider model ids are shown as recorded.
+/// Catalog ids get their display name, Groq chat models `Groq · <model>`; other provider model
+/// ids are shown as recorded.
 pub(crate) fn display_name(id: &str) -> String {
-    model_name(id).unwrap_or(id).to_owned()
+    sv_domain::models::display_name(id)
 }
 
 fn style_str(style: Style) -> &'static str {
@@ -590,15 +590,30 @@ mod tests {
             .update_history(
                 local.id,
                 NewHistory {
+                    format_model: Some("groq:qwen/qwen3.8-27b".to_owned()),
+                    ..entry("Ship it")
+                },
+            )
+            .await
+            .unwrap();
+        // A row the optional Groq providers produced names them.
+        assert_eq!(cloud.model_name, "Groq Whisper");
+        assert_eq!(
+            cloud.format_model_name.as_deref(),
+            Some("Groq · qwen/qwen3.8-27b")
+        );
+        let older = db
+            .update_history(
+                local.id,
+                NewHistory {
                     format_model: Some("qwen/qwen3.8-27b".to_owned()),
                     ..entry("Ship it")
                 },
             )
             .await
             .unwrap();
-        // A row the removed cloud model produced keeps its model, labelled as removed.
-        assert_eq!(cloud.model_name, "Groq Whisper (removed)");
-        assert_eq!(cloud.format_model_name.as_deref(), Some("qwen/qwen3.8-27b"));
+        // Rows from before the prefix keep the provider's own id.
+        assert_eq!(older.format_model_name.as_deref(), Some("qwen/qwen3.8-27b"));
 
         let unformatted = db.update_history(local.id, entry("Ship it")).await.unwrap();
         assert_eq!(unformatted.format_model_name, None);

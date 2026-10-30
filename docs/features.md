@@ -4,10 +4,12 @@
 
 Simple Voice is a small, quiet dictation app for macOS on Apple Silicon. Hold a shortcut, talk,
 let go: your words are transcribed, tidied up, and pasted into the focused text field of any
-app: mail, chat, your editor, a terminal. Everything runs on your Mac: your audio, transcripts,
-the text around your cursor, meeting recordings, summaries, chat and translations never leave
-it. There is no account, no cloud service and no telemetry; the only network traffic is a model
-download you start yourself and the daily update check. It stays out of the way in the menu bar and shows a
+app: mail, chat, your editor, a terminal. It is local by default: everything runs on your Mac,
+and your audio, transcripts, the text around your cursor, meeting recordings, summaries, chat and
+translations never leave it. There is no account and no telemetry; the only network traffic is a
+model download you start yourself and the daily update check. Groq is optional: with your own
+API key you can send dictations to Groq Whisper, formatting to a Groq chat model, or meeting
+summaries and chat to Groq (see _Groq (optional)_ below). It stays out of the way in the menu bar and shows a
 small floating bar while it listens. Closing the window (Cmd+W) keeps it running in the menu bar,
 with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Quit quits it.
 
@@ -32,6 +34,26 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
     - **Whisper** on-device models: Hinglish Whisper (Hindi and Hinglish, written in Roman script)
       and Whisper Turbo (99 languages).
     - **Apple Speech**, on macOS 26 and later, always on-device (never Apple's servers).
+- **Groq (optional).** Off until you turn it on. Add your own Groq API key in Settings (it is
+  checked with Groq, then kept in the macOS Keychain) and pick, each on its own:
+    - **Transcribe with Groq** (Settings → Transcription): Groq Whisper Large v3 Turbo or Large
+      v3 transcribes your dictations and edit instructions. Your dictionary primes it like local
+      Whisper, a language outside your choices is re-run in your fallback language, and a result
+      in the wrong script for Hindi or Hinglish, or one Groq is unsure of, is redone on your
+      on-device model the way Smart Select double-checks. The on-device voice model you chose
+      stays chosen: it takes over when Groq fails, times out or the recording is over Groq's
+      25 MB limit, and it always transcribes meetings. History names the model that wrote the text.
+    - **Groq formatting** (Settings → Formatting): a Groq chat model (default
+      `qwen/qwen3.8-27b`, any Groq model ID works) formats dictations, rewrites edits and judges
+      corrections for learning. When Groq fails, the local model or Apple Intelligence (whichever
+      is ready) formats instead, else the plain transcript is pasted.
+    - **Groq for meetings** (Meetings → Summary and chat): summaries and answers come from the
+      same Groq model, falling back to the local model. Recordings, transcription, speakers and
+      translations stay on your Mac.
+
+    Each Groq choice says next to it what leaves your Mac. While Groq transcribes or formats
+    dictations, no context is read from other apps. See [Privacy and your data](privacy.md).
+
 - **Live transcript.** With Parakeet (TDT v3, TDT v2, Flash) or Apple Speech, the words appear
   in the floating bar and the app window while you are still speaking. When you stop, the whole
   recording is transcribed once more for the pasted text, so it is as accurate as without the
@@ -47,7 +69,8 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
       with llama.cpp;
     - or **off**.
 
-    Any speech engine works with any formatting model, and every combination is fully offline.
+    Any speech engine works with any formatting model, and every on-device combination is fully
+    offline.
     If formatting is slow or fails, the plain transcript is pasted instead; nothing is lost.
     Settings show each model's download size, license and source before you download it.
 
@@ -73,7 +96,8 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   Simple Voice reads a short stretch of the focused field when you start speaking, so names
   and terms already written there are spelled the same way. Password fields, password managers
   and any app you exclude are never read, nothing is read without Accessibility access, and the
-  text is used for that one dictation only: never saved, logged or sent anywhere.
+  text is used for that one dictation only: never saved, logged or sent anywhere. While Groq
+  transcribes or formats your dictations, context is not read at all.
 - **Code editor context (optional).** In code editors, _IDE context_ adds the file names and
   identifiers visible in the editor (from the window title and the focused editor text), so
   `paymentService` or `invoice_total.rs` come out right. It reads only what the editor shows
@@ -95,7 +119,8 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
 - **Learns from your corrections.** Turn on _Learn from your corrections_ in Settings →
   Formatting and fix a misspelled name or term right in the text field after it is pasted: the
   corrected word joins your dictionary, marked _Learned_. Only the changed words, never the rest
-  of the field, go to your on-device formatting model, which decides what is worth learning.
+  of the field, go to your formatting model (on-device, or Groq if you chose it), which decides
+  what is worth learning.
   Works in native apps, Electron apps and Chromium browsers, not in terminals. Delete a learned
   word and it is never learned again. Off by default, and it needs AI formatting on.
 - **Meetings.** Start and stop a meeting recording yourself: your microphone and, if you allow

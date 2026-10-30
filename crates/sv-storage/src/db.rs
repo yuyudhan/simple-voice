@@ -551,7 +551,7 @@ mod tests {
 
     #[tokio::test]
     async fn parakeet_default_migration_keeps_existing_installs_on_groq() {
-        use sv_domain::models::{LEGACY_GROQ_WHISPER, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+        use sv_domain::models::{GROQ_WHISPER, PARAKEET_TDT_V3, WHISPER_HINGLISH};
 
         // 0009 on its own, as the release that shipped it ran it.
         let through_0009 = Migrator::with_migrations(
@@ -577,7 +577,7 @@ mod tests {
         // Onboarded on the old Groq default without ever saving a voice model.
         assert_eq!(
             upgraded(&[("onboardingComplete", "true")]).await,
-            Some(format!("\"{LEGACY_GROQ_WHISPER}\""))
+            Some(format!("\"{GROQ_WHISPER}\""))
         );
         // A voice model the user chose is left alone.
         assert_eq!(
@@ -679,5 +679,53 @@ mod tests {
             .unwrap();
         assert_eq!(settings.transcription_model, WHISPER_HINGLISH);
         assert_eq!(settings.post_processing, PostProcessing::Apple);
+    }
+
+    #[tokio::test]
+    async fn groq_optional_migration_keeps_existing_installs_local() {
+        use sv_domain::models::SMART_SELECT;
+        use sv_domain::{LlmBackend, PostProcessing, Style, TranscriptionProvider};
+
+        // An existing install, plus rows only a hand-edited or interrupted database could hold.
+        let dir = tempfile::tempdir().unwrap();
+        database_before(
+            dir.path(),
+            13,
+            &[
+                ("onboardingComplete", "true"),
+                ("transcriptionModel", r#""groq-whisper""#),
+                ("postProcessing", r#""groq""#),
+                ("meetingAssistant", r#""groq""#),
+                ("groqApiKey", r#""gsk-secret""#),
+                ("style", r#""casual""#),
+            ],
+        )
+        .await;
+        let db = Db::open_at(dir.path()).await.unwrap();
+        assert_eq!(
+            stored_setting(&db, "transcriptionProvider")
+                .await
+                .as_deref(),
+            Some(r#""local""#)
+        );
+        assert_eq!(stored_setting(&db, "groqApiKey").await, None);
+        let settings = db.settings().await.unwrap();
+        assert_eq!(
+            settings.transcription_provider,
+            TranscriptionProvider::Local
+        );
+        assert_eq!(settings.transcription_model, SMART_SELECT);
+        assert_eq!(settings.post_processing, PostProcessing::Apple);
+        assert_eq!(settings.meeting_assistant, LlmBackend::Local);
+        assert_eq!(settings.style, Style::Casual);
+
+        // A fresh database stores nothing and takes the local default.
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open_at(dir.path()).await.unwrap();
+        assert_eq!(stored_setting(&db, "transcriptionProvider").await, None);
+        assert_eq!(
+            db.settings().await.unwrap().transcription_provider,
+            TranscriptionProvider::Local
+        );
     }
 }

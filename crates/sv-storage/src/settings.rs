@@ -8,7 +8,9 @@ use std::path::Path;
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
 use sv_domain::languages::language;
-use sv_domain::models::{LOCAL_LLM, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT};
+use sv_domain::models::{
+    is_groq_model_id, GROQ_WHISPER_MODELS, LOCAL_LLM, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT,
+};
 use sv_domain::settings::FN_KEY_ACCELERATOR;
 use sv_domain::{AppError, AppResult, AppStyle, Settings, SettingsPatch, VocabularyPack};
 
@@ -154,6 +156,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         languages,
         fallback_language,
         transcription_model,
+        transcription_provider,
+        groq_whisper_model,
         smart_retry,
         style,
         category_styles,
@@ -167,6 +171,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         pasted_text_seconds,
         post_processing,
         local_llm_model,
+        groq_formatting_model,
         meeting_assistant,
         foreground_context,
         ide_context,
@@ -203,6 +208,8 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         settings.fallback_language = canonical_tag(&fallback);
     }
     set_trimmed(&mut settings.transcription_model, transcription_model);
+    set(&mut settings.transcription_provider, transcription_provider);
+    set_trimmed(&mut settings.groq_whisper_model, groq_whisper_model);
     set(&mut settings.smart_retry, smart_retry);
     set(&mut settings.style, style);
     set(&mut settings.category_styles, category_styles);
@@ -218,6 +225,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.pasted_text_seconds, pasted_text_seconds);
     set(&mut settings.post_processing, post_processing);
     set_trimmed(&mut settings.local_llm_model, local_llm_model);
+    set_trimmed(&mut settings.groq_formatting_model, groq_formatting_model);
     set(&mut settings.meeting_assistant, meeting_assistant);
     set(&mut settings.foreground_context, foreground_context);
     set(&mut settings.ide_context, ide_context);
@@ -350,6 +358,19 @@ fn validate(settings: &Settings) -> AppResult<()> {
         return Err(AppError::invalid(format!(
             "“{}” is not an on-device language model",
             settings.local_llm_model
+        )));
+    }
+    if !GROQ_WHISPER_MODELS.contains(&settings.groq_whisper_model.as_str()) {
+        return Err(AppError::invalid(format!(
+            "“{}” is not a Groq Whisper model",
+            settings.groq_whisper_model
+        )));
+    }
+    if !is_groq_model_id(&settings.groq_formatting_model) {
+        return Err(AppError::invalid(format!(
+            "“{}” is not a Groq model ID (like {})",
+            settings.groq_formatting_model,
+            sv_domain::models::DEFAULT_GROQ_CHAT_MODEL
         )));
     }
     if language(&settings.translation_language).is_none() {
@@ -609,6 +630,18 @@ mod tests {
                 ..SettingsPatch::default()
             },
             SettingsPatch {
+                groq_whisper_model: Some("whisper-tiny".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                groq_formatting_model: Some("   ".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                groq_formatting_model: Some("llama 3 70b".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
                 local_llm_model: Some("gpt-4o".to_owned()),
                 ..SettingsPatch::default()
             },
@@ -698,6 +731,38 @@ mod tests {
         assert!((settings.sound_volume - defaults.sound_volume).abs() < f32::EPSILON);
         assert_eq!(settings.sounds, defaults.sounds);
         assert_ne!(settings.database_dir, "/tmp");
+    }
+
+    #[tokio::test]
+    async fn groq_choices_persist_beside_the_local_fallback() {
+        use sv_domain::models::PARAKEET_TDT_V3;
+        use sv_domain::{LlmBackend, PostProcessing, TranscriptionProvider};
+
+        let (dir, db) = open().await;
+        let patch = SettingsPatch {
+            transcription_provider: Some(TranscriptionProvider::Groq),
+            groq_whisper_model: Some(" whisper-large-v3 ".to_owned()),
+            post_processing: Some(PostProcessing::Groq),
+            groq_formatting_model: Some(" llama-3.3-70b-versatile ".to_owned()),
+            meeting_assistant: Some(LlmBackend::Groq),
+            ..SettingsPatch::default()
+        };
+        db.update_settings(patch).await.unwrap();
+        drop(db);
+
+        let stored = Db::open_at(dir.path())
+            .await
+            .unwrap()
+            .settings()
+            .await
+            .unwrap();
+        assert_eq!(stored.transcription_provider, TranscriptionProvider::Groq);
+        assert_eq!(stored.groq_whisper_model, "whisper-large-v3");
+        // The on-device voice model stays chosen: it is Groq's fallback and transcribes meetings.
+        assert_eq!(stored.transcription_model, PARAKEET_TDT_V3);
+        assert_eq!(stored.post_processing, PostProcessing::Groq);
+        assert_eq!(stored.groq_formatting_model, "llama-3.3-70b-versatile");
+        assert_eq!(stored.meeting_assistant, LlmBackend::Groq);
     }
 
     #[tokio::test]

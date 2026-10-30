@@ -172,7 +172,7 @@ async fn readiness(state: &AppState, settings: &Settings) -> MeetingReadiness {
     )
     .await;
     let assistant = llm::backend_model(settings, settings.meeting_assistant);
-    let language = llm::unavailable(state, settings, assistant).await;
+    let language = llm::unavailable(state, settings, &assistant).await;
     let translation = blocking_reason(state, settings, TRANSLATOR, "translate meetings").await;
     MeetingReadiness {
         transcription,

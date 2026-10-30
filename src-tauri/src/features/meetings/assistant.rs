@@ -1,10 +1,11 @@
 // FilePath: src-tauri/src/features/meetings/assistant.rs
 //! The meeting assistant: summary with action items and transcript-grounded answers, written by
-//! the on-device language model the user picked for meetings, and translations by the
-//! dedicated on-device translation model (general chat models swapped weekdays and names).
-//! Long transcripts are never sent whole: summaries map over bounded chunks and then reduce,
-//! answers read only retrieved excerpts, translations go in bounded batches. Every reply is
-//! parsed strictly; one that does not parse fails the job instead of being stored.
+//! the language model the user picked for meetings (on-device, or Groq with their own key, which
+//! falls back to the local model when a request fails), and translations by the dedicated
+//! on-device translation model (general chat models swapped weekdays and names). Long
+//! transcripts are never sent whole: summaries map over bounded chunks and then reduce, answers
+//! read only retrieved excerpts, translations go in bounded batches. Every reply is parsed
+//! strictly; one that does not parse fails the job instead of being stored.
 
 use std::time::Duration;
 
@@ -12,7 +13,7 @@ use sv_domain::languages::{self, Language};
 use sv_domain::models::TRANSLATOR;
 use sv_domain::{
     AppError, AppResult, ChatMessage, ChatRole, MeetingDetail, MeetingJob, MeetingStatus,
-    MeetingSummary, TranslatedSegment, Translation,
+    MeetingSummary, Settings, TranslatedSegment, Translation,
 };
 use sv_text::meetings::{
     chat_excerpt_chars, chat_prompt, join_bounded, parse_chat_answer, parse_summary,
@@ -36,11 +37,13 @@ const TRANSLATION_TIMEOUT: Duration = Duration::from_secs(240);
 const TRANSLATION_BATCH_CHARS: usize = 2_000;
 const MAX_QUESTION_CHARS: usize = 1_000;
 
-/// The model writing for meetings and the prompt family it needs.
+/// The model writing for meetings, the prompt family it needs, and the settings its Groq
+/// fallback is chosen from.
 #[derive(Debug)]
 struct Assistant {
     model: String,
     target: PolishTarget,
+    settings: Settings,
 }
 
 /// Loads a processed meeting and checks the assistant model can run.
@@ -52,13 +55,14 @@ async fn prepare(app: &AppHandle, id: i64) -> AppResult<(MeetingDetail, Assistan
         return Err(AppError::invalid("This meeting has no transcript yet."));
     }
     let settings = db.settings().await?;
-    let model = llm::backend_model(&settings, settings.meeting_assistant).to_owned();
+    let model = llm::backend_model(&settings, settings.meeting_assistant);
     if let Some(reason) = llm::unavailable(&state, &settings, &model).await {
         return Err(AppError::Other(reason));
     }
     let assistant = Assistant {
         target: llm::target(&model),
         model,
+        settings,
     };
     Ok((detail, assistant))
 }
@@ -93,8 +97,9 @@ async fn reply(
             emit_progress(&app, step.id, step.job, Some(overall.min(0.99)), None);
         })
     };
-    let reply = llm::generate_with_progress(
+    let answer = llm::generate_with_fallback(
         &state,
+        &assistant.settings,
         &assistant.model,
         prompt,
         max_tokens,
@@ -103,6 +108,7 @@ async fn reply(
     )
     .await
     .map_err(|error| AppError::Other(format!("The {what} could not be written: {error}")))?;
+    let reply = answer.reply;
     if !reply.finished {
         return Err(AppError::Other(format!(
             "The {what} was cut off before it finished. Try again, or switch the meeting \

@@ -48,7 +48,7 @@ Releases are signed with the project's own certificate, so macOS keeps Simple Vo
 ## Why Simple Voice
 
 - **Works everywhere.** Mail, chat, your editor, a terminal: the text is pasted where your cursor is.
-- **Entirely on your Mac.** Smart Select picks the model from the languages you speak: Parakeet, Whisper (Hindi and Hinglish too) or Apple Speech, with Apple Intelligence or a downloaded Qwen3 4B model for clean-up. No cloud, no account, works offline.
+- **Local by default, Groq optional.** Smart Select picks the model from the languages you speak: Parakeet, Whisper (Hindi and Hinglish too) or Apple Speech, with Apple Intelligence or a downloaded Qwen3 4B model for clean-up. No cloud, no account, works offline. If you want Groq's hosted Whisper or chat models, add your own Groq API key and turn them on; Settings says plainly what is sent, and the on-device models take over whenever Groq fails.
 - **Personal touches.** A style per app, snippets you trigger by voice, optional spelling hints from the text around your cursor and your code editor, and a live transcript while you speak.
 - **Meetings.** Record a meeting (and optionally what your Mac plays), get a timestamped transcript split by speaker, a summary with action items, answers grounded in the transcript, and translations, all on-device.
 - **Reads like you wrote it.** Fillers and false starts are dropped, lists get laid out, and your dictionary spells names and jargon your way.
@@ -68,14 +68,14 @@ To change text you already wrote, select it in any app, press **Option+/**, say 
 
 ![Selecting a note, pressing Option+/ and saying "make this more formal", then the note rewritten in place](docs/images/edit-by-voice.gif)
 
-|                | On-device                                                                                            |
-| -------------- | ---------------------------------------------------------------------------------------------------- |
-| Speech to text | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech |
-| Clean up       | Apple Intelligence, or Qwen3 4B Instruct (llama.cpp, any Apple Silicon Mac)                          |
-| Meetings       | Your voice model with timestamps, a 22 MB speaker diarization model, and your clean-up model          |
-| You need       | A one-time model download (22 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26       |
+|                | On-device (default)                                                                                                                                                    | Groq (optional, your own key)                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Speech to text | Parakeet TDT v3 (25 European languages), Parakeet TDT v2 and Flash Dictation (English), Hinglish Whisper (Hindi, Hinglish), Whisper Turbo (99 languages), Apple Speech | Whisper Large v3 Turbo or Whisper Large v3                                         |
+| Clean up       | Apple Intelligence, or Qwen3 4B Instruct (llama.cpp, any Apple Silicon Mac)                                                                                            | Any Groq chat model (default `qwen/qwen3.8-27b`)                                   |
+| Meetings       | Your voice model with timestamps, a 22 MB speaker diarization model, and your clean-up model                                                                           | Summaries and chat only; recordings, transcription and translation stay on the Mac |
+| You need       | A one-time model download (22 MB to 3.1 GB); Apple Speech and Apple Intelligence need macOS 26                                                                         | A Groq API key, kept in the macOS Keychain                                         |
 
-Mix and match: any speech engine works with any clean-up model, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost.
+Mix and match: any speech engine works with any clean-up model, and clean-up can be turned off. If clean-up fails, the plain transcript is pasted, so nothing is lost. If Groq fails or is slow, your on-device choice does the job instead.
 
 ## A look inside
 
@@ -87,13 +87,13 @@ Mix and match: any speech engine works with any clean-up model, and clean-up can
 - **Style.** Formal or Casual, overall, per kind of app, or per app.
 - **Snippets.** Spoken triggers for text you use often.
 - **Meetings.** Recordings, speakers, summaries, questions and translations.
-- **Transcription.** Pick an on-device voice model.
+- **Transcription.** Pick an on-device voice model, or opt into Groq Whisper.
 
 ## Your data stays yours
 
 ![No account, no telemetry, and everything stored in ~/.simplevoice on your Mac](docs/images/privacy.gif)
 
-Everything lives in `~/.simplevoice` on your Mac: settings, history, dictionary, snippets, meetings, insights and downloaded models. There is no account, no API key and no telemetry, and nothing you say or write leaves your Mac; the only network use is a model download you start and the daily update check. Read more in [Privacy and your data](docs/privacy.md).
+Everything lives in `~/.simplevoice` on your Mac: settings, history, dictionary, snippets, meetings, insights and downloaded models. There is no account and no telemetry. By default nothing you say or write leaves your Mac; the only network use is a model download you start and the daily update check. If you turn on Groq, the recordings or text of the parts you chose go to Groq under your own API key, which is kept in the macOS Keychain. Read more in [Privacy and your data](docs/privacy.md).
 
 ## Build from source
 

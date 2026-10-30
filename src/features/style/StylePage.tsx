@@ -63,6 +63,11 @@ function providerSummary(
                     models !== null && local?.status !== "ready" ? "Not downloaded" : undefined,
             };
         }
+        case "groq":
+            return {
+                name: `Groq · ${settings.groqFormattingModel}`,
+                detail: "At Groq with your API key; an on-device model takes over when it fails",
+            };
         case "off":
             return {
                 name: "Off",

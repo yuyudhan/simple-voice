@@ -186,6 +186,15 @@ export function ContextGroup() {
                     }}
                 />
             </SettingRow>
+            {(settings.foregroundContext || settings.ideContext) &&
+                (settings.transcriptionProvider === "groq" ||
+                    settings.postProcessing === "groq") && (
+                    <p className="sv-inline-warning sv-context__warning" role="status">
+                        Groq is chosen for transcription or formatting, so no context is read: text
+                        from other apps never leaves this Mac. Switch both back to on-device models
+                        to use context.
+                    </p>
+                )}
             {needsAccess && (
                 <p className="sv-inline-warning sv-context__warning" role="status">
                     Accessibility access is off, so no context is read and dictation works as
