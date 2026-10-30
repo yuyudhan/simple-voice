@@ -8,6 +8,7 @@
 pub mod apps;
 pub mod dictation;
 pub mod dictionary;
+pub mod engine;
 pub mod error;
 pub mod history;
 pub mod insights;
@@ -27,6 +28,7 @@ pub use dictation::{
     DictationPartial, DictationPhase, DictationState, ModelProgress, ModelProgressStatus,
 };
 pub use dictionary::{DictionaryEntry, DictionarySource, ImportSummary};
+pub use engine::{EngineState, EngineStatus};
 pub use error::{AppError, AppResult};
 pub use history::{HistoryEntry, HistoryStatus, NewHistory, RetryReason};
 pub use insights::{

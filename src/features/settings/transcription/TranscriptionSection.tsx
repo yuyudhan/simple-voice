@@ -11,6 +11,8 @@ import { ModelList, VoiceModelList } from "../models/VoiceModelList";
 import { LanguagePicker } from "./LanguagePicker";
 import { SmartSelectPanel, VoiceModelModeSwitch } from "./SmartSelectPanel";
 import { useSmartSelect, type SmartSelectState } from "./useSmartSelect";
+import { EngineNotice } from "../engine/EngineNotice";
+import { useEngineStatus } from "../engine/useEngineStatus";
 import "../common.css";
 import "../models/models.css";
 import "./smartSelect.css";
@@ -59,6 +61,7 @@ function LiveTranscriptRow({ models, smart }: { models: ModelsState; smart: Smar
 export function TranscriptionSection() {
     const models = useModels();
     const smart = useSmartSelect(models);
+    const engine = useEngineStatus();
 
     return (
         <>
@@ -66,6 +69,7 @@ export function TranscriptionSection() {
                 <div className="sv-smart__mode">
                     <VoiceModelModeSwitch mode={smart.mode} onChange={smart.setMode} />
                 </div>
+                <EngineNotice engine={engine} />
                 {smart.mode === "smart" ? (
                     <SmartSelectPanel
                         models={models}

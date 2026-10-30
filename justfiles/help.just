@@ -22,7 +22,7 @@ help:
     @echo "  just fmt                  Format Rust, TOML, TypeScript/CSS and Swift in place"
     @echo "  just fmt-check            Check formatting without writing"
     @echo "  just lint                 clippy (-D warnings), eslint, tsc, typos, shellcheck"
-    @echo "  just test                 Rust tests (nextest when installed) + swift build of the engine"
+    @echo "  just test                 Rust tests (nextest when installed) + bun test + swift build of the engine"
     @echo "  just guard [NAME]         Every hygiene guard in scripts/guard/, or one by name"
     @echo "  just check                The full gate: fmt-check, guard, lint, test, sqlx-check"
     @echo ""

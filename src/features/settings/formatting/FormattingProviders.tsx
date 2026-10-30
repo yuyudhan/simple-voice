@@ -12,6 +12,9 @@ import { CloudNotice, GroqKeyField } from "../groq/GroqKeyField";
 import { useGroqKey } from "../groq/useGroqKey";
 import type { ModelsState } from "../models/useModels";
 import { ModelList } from "../models/VoiceModelList";
+import { EngineNotice } from "../engine/EngineNotice";
+import { blamesEngine } from "../engine/noticeState";
+import { useEngineStatus } from "../engine/useEngineStatus";
 import "../common.css";
 import "../models/models.css";
 
@@ -143,6 +146,10 @@ function GroqModelField() {
 export function FormattingProviders({ models }: { models: ModelsState }) {
     const { settings, update } = useSettings();
     const groq = useGroqKey();
+    const engine = useEngineStatus();
+    // While the engine is not up or not answering, every on-device model reads as unavailable
+    // because of it; the engine notice says so once instead of each model blaming itself.
+    const engineDown = engine.status !== null && engine.status.state !== "running";
     const list = models.models ?? [];
     const appleIntelligence = list.find((m) => m.id === "apple-intelligence");
     const appleUnavailable = appleIntelligence?.status === "unsupported";
@@ -193,17 +200,24 @@ export function FormattingProviders({ models }: { models: ModelsState }) {
                 })}
             </div>
 
-            {settings.postProcessing === "apple" && appleIntelligence && (
-                <p className={appleUnavailable ? "sv-inline-warning" : "sv-inline-note"}>
-                    {appleUnavailable
-                        ? (appleIntelligence.reason ?? "Apple Intelligence is not available.")
-                        : "Apple Intelligence is available and runs entirely on this Mac."}
-                </p>
+            {settings.postProcessing === "apple" && (
+                <EngineNotice engine={engine} featureReason={appleIntelligence?.reason} />
             )}
+            {settings.postProcessing === "apple" &&
+                appleIntelligence &&
+                !engineDown &&
+                !blamesEngine(appleIntelligence.reason) && (
+                    <p className={appleUnavailable ? "sv-inline-warning" : "sv-inline-note"}>
+                        {appleUnavailable
+                            ? (appleIntelligence.reason ?? "Apple Intelligence is not available.")
+                            : "Apple Intelligence is available and runs entirely on this Mac."}
+                    </p>
+                )}
 
             {settings.postProcessing === "local" && (
                 <>
-                    {!localReady && (
+                    <EngineNotice engine={engine} featureReason={localModel?.reason} />
+                    {!localReady && !engineDown && !blamesEngine(localModel?.reason) && (
                         <p className="sv-inline-warning" role="status">
                             {localModel === undefined
                                 ? "Pick a local model below. Until one is downloaded, dictations are pasted without formatting."

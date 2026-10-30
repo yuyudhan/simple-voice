@@ -412,6 +412,15 @@ export interface ModelProgress {
     message?: string;
 }
 
+/** The Swift engine helper behind every on-device feature (`engine-status`). */
+export type EngineState = "starting" | "running" | "down";
+
+export interface EngineStatus {
+    state: EngineState;
+    /** Why the engine is down, in one line; null unless `state` is "down". */
+    reason: string | null;
+}
+
 export interface PostProcessingTest {
     output: string;
     latencyMs: number;

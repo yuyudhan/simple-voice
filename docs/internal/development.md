@@ -54,7 +54,7 @@ cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
 | Formatting | `just fmt-check`  | `cargo fmt --check`, `taplo fmt --check`, `prettier --check`, `swift-format lint --strict`         |
 | Guards     | `just guard`      | `scripts/guard/run-all.sh`, every hygiene guard below                                              |
 | Lint       | `just lint`       | `cargo clippy --workspace --all-targets -- -D warnings`, eslint, `tsc --noEmit`, typos, shellcheck |
-| Tests      | `just test`       | `cargo nextest run` (or `cargo test`) for the workspace, `swift build` for the engine              |
+| Tests      | `just test`       | `cargo nextest run` (or `cargo test`) for the workspace, `bun test src`, `swift build` for the engine |
 | sqlx cache | `just sqlx-check` | `cargo sqlx prepare --check` against a fresh migrated database                                     |
 
 `just fmt` fixes formatting in place. Rust compiles with `SQLX_OFFLINE=true` in every gate except

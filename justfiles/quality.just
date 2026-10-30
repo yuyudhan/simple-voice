@@ -60,20 +60,22 @@ lint: deps-present engine-present
     git ls-files -z -- '*.sh' '.githooks/*' | xargs -0 shellcheck -x
     sv_ok "lint ($(sv_duration "$start"))"
 
-# Run the Rust test suite (nextest when installed) and compile the Swift engine helper.
+# Run the Rust test suite (nextest when installed), the UI tests, and compile the engine helper.
 [group('quality')]
-test: engine-present
+test: deps-present engine-present
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/lib/status.sh
     start=$(date +%s)
-    sv_step 1 2 "rust tests"
+    sv_step 1 3 "rust tests"
     if cargo nextest --version >/dev/null 2>&1; then
         SQLX_OFFLINE=true cargo nextest run --workspace --no-tests=pass
     else
         SQLX_OFFLINE=true cargo test --workspace
     fi
-    sv_step 2 2 "swift build (engine)"
+    sv_step 2 3 "ui tests (bun test)"
+    bun test src
+    sv_step 3 3 "swift build (engine)"
     swift build --package-path engine
     sv_ok "test ($(sv_duration "$start"))"
 

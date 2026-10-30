@@ -12,7 +12,10 @@ Simple Voice is a Tauri 2 app with three parts:
 
 Rust forbids `unsafe`, so every Objective-C / C API call lives in the Swift helper. The helper is
 bundled as a Tauri sidecar (`bundle.externalBin = ["binaries/simple-voice-engine"]`), started
-once at app launch, kept resident (so Core ML models stay loaded), and restarted on crash.
+once at app launch, kept resident (so Core ML models stay loaded), and restarted when it exits
+(after 1, 2, 5, 10, 20, then every 30 s; the pause resets once it stayed up a minute).
+Settings shows why it is down (`engine-status`) and starts it at once on request
+(`restart_engine`).
 
 Nothing leaves the Mac. Every model runs on-device through the helper; the only network
 requests are user-started model downloads (`download_model`, pinned Hugging Face revisions) and
@@ -746,6 +749,8 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `get_model_insights`                                                           | —                                                                     | `ModelInsights` (per-model transcription and formatting timings)                                                                                                                                                                   |
 | `list_models`                                                                  | —                                                                     | `ModelInfo[]`: voice models, language models (`apple-intelligence`, `qwen3-4b-instruct`) and `speaker-diarization`, with live status, `license`, `source`, `streaming`                                                             |
 | `smart_select_plan`                                                            | —                                                                     | `SmartSelectPlan` `{ local, notice }`: the local model that runs first for the languages, a notice or `null`                                                                                                                       |
+| `engine_status`                                                                | —                                                                     | `EngineStatus` (see `engine-status`)                                                                                                                                                                                               |
+| `restart_engine`                                                               | —                                                                     | `EngineStatus` (`starting`): stops a running helper, ends the pause between automatic restarts and resets their backoff                                                                                                            |
 | `list_languages`                                                               | —                                                                     | `LanguageInfo[]` `{ tag, name, script, primary, fallback }`: the language registry for the picker                                                                                                                                  |
 | `list_known_apps`                                                              | —                                                                     | `KnownApp[]` `{ bundleId, appName, category }`: distinct apps in history (newest first) plus the frontmost app, for per-app styles and context exclusions                                                                          |
 | `list_snippets`                                                                | —                                                                     | `Snippet[]` (trigger A to Z)                                                                                                                                                                                                       |
@@ -798,6 +803,8 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `meeting-state`       | `{ id, status, elapsedMs, message? }` — about once a second while recording (`message` carries a notice such as system audio stopping) and on every status change                                                 |
 | `meeting-progress`    | `{ id, job: "transcribe" \| "diarize" \| "summarize" \| "chat" \| "translate", fraction: number \| null, message: string \| null }`                                                                               |
 | `meetings-changed`    | `null` — any meeting row, transcript, summary, chat or translation changed                                                                                                                                        |
+| `engine-status`       | `EngineStatus` `{ state: "starting" \| "running" \| "down", reason: string \| null }` — the engine helper launched, answered its handshake, or exited / could not launch (`reason` says why)                      |
+| `models-changed`      | `null` — a model was downloaded or deleted, or the engine helper came up; model readiness shown anywhere is stale                                                                                                 |
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null, installedVersion: string | null, updatedFrom: string | null }`. `installedVersion` is the bundle's `CFBundleShortVersionString` when it is newer than the running build; `updatedFrom` is the older version that ran before this launch.
 

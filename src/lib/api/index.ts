@@ -26,6 +26,7 @@ import type {
     UpdateStatus,
     DictationState,
     ModelProgress,
+    EngineStatus,
     PostProcessingTest,
     GroqKeyStatus,
     DictationPartial,
@@ -110,6 +111,9 @@ export const api = {
     downloadModel: (id: string) => invoke<null>("download_model", { id }),
     deleteModel: (id: string) => invoke<null>("delete_model", { id }),
     smartSelectPlan: () => invoke<SmartSelectPlan>("smart_select_plan"),
+    engineStatus: () => invoke<EngineStatus>("engine_status"),
+    /** Starts the engine now, stopping a running one first; resolves once it is launching. */
+    restartEngine: () => invoke<EngineStatus>("restart_engine"),
     listLanguages: () => invoke<LanguageInfo[]>("list_languages"),
     getPermissions: () => invoke<Permissions>("get_permissions"),
     requestPermission: (kind: PermissionKind) =>
@@ -153,6 +157,11 @@ export const events = {
     modelsChanged: (cb: () => void): Promise<UnlistenFn> =>
         listen<null>("models-changed", () => {
             cb();
+        }),
+    /** The engine started, came up or went down. */
+    engineStatus: (cb: (status: EngineStatus) => void): Promise<UnlistenFn> =>
+        listen<EngineStatus>("engine-status", (e) => {
+            cb(e.payload);
         }),
     permissionsChanged: (cb: (permissions: Permissions) => void): Promise<UnlistenFn> =>
         listen<Permissions>("permissions-changed", (e) => {

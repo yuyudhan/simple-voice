@@ -17,8 +17,11 @@ pub(crate) const SNIPPETS_CHANGED: &str = "snippets-changed";
 pub(crate) const MEETING_STATE: &str = "meeting-state";
 pub(crate) const MEETING_PROGRESS: &str = "meeting-progress";
 pub(crate) const MEETINGS_CHANGED: &str = "meetings-changed";
-/// A model was downloaded or deleted; readiness shown anywhere is stale.
+/// A model was downloaded or deleted, or the engine helper came up; readiness shown anywhere is
+/// stale.
 pub(crate) const MODELS_CHANGED: &str = "models-changed";
+/// The engine helper started, came up or went down (`EngineStatus`).
+pub(crate) const ENGINE_STATUS: &str = "engine-status";
 
 /// Emits to every window. A failed emit only means no webview is listening, so it is logged.
 pub(crate) fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {
