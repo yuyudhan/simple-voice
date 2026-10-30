@@ -103,3 +103,10 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# Proc macros and build scripts run on this Mac at build time and never ship. With the
+# macOS 27 SDK and MACOSX_DEPLOYMENT_TARGET=14.0 (set by `tauri build` from
+# minimumSystemVersion), stripping a proc-macro dylib leaves it unloadable ("can't find crate",
+# "mis-aligned LINKEDIT string pool"), so release builds fail.
+[profile.release.build-override]
+strip = false
