@@ -108,6 +108,7 @@ Local models are stored under the `--models-dir` the app passes (by default
 | `parakeet-flash`  | `FluidInference/parakeet-realtime-eou-120m-coreml`, folder `1280ms/` | `streaming_encoder`, `decoder`, `joint_decision` (`.mlmodelc`), `vocab.json`                 |
 | `whisper-large-v3-turbo` | `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder`, `TextDecoderContextPrefill` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (1.64 GB) |
 | `whisper-hinglish` | `vbhar/whisperkit-hindi2hinglish-prime-coreml` (Apache-2.0 Core ML conversion of `Oriserve/Whisper-Hindi2Hinglish-Prime`), folder `Oriserve_Whisper-Hindi2Hinglish-Prime_fp16/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (3.1 GB) |
+| `parakeet-vocabulary` | `FluidInference/parakeet-ctc-110m-coreml` at commit `accdafd8` (CC-BY-4.0 Core ML conversion of `nvidia/parakeet-tdt_ctc-110m`) | `MelSpectrogram`, `AudioEncoder` (`.mlmodelc`), `vocab.json`, `tokenizer.json` (103 MB) |
 
 - `download_model` lists the repository through the Hugging Face API
   (`/api/models/<repo>/tree/main?recursive=true`), keeps only the files above and downloads them
@@ -131,6 +132,16 @@ Local models are stored under the `--models-dir` the app passes (by default
   Turbo and about 240 s for Hinglish Whisper on an M-series Mac; later loads take 1–2 s. The app
   preloads the Smart Select model after its download so this never lands on a dictation.
 - Parakeet TDT returns `quality.confidence` (FluidAudio's `ASRResult.confidence`, 0.1–1.0).
+- Parakeet TDT takes a `vocabulary` (personal dictionary names, `Vocabulary::boost_terms`) in
+  `transcribe`. When `parakeet-vocabulary` is downloaded (`VocabularyBoost.swift`), FluidAudio's
+  CTC keyword spotter scores those names against the recording and its rescorer swaps a
+  transcript word for a name only where the audio supports the name better; without the model
+  the vocabulary is ignored. The rescorer's decisions are applied to the TDT transcript itself,
+  so its punctuation and casing stay; a replacement much shorter than the word it replaces
+  ("Ujvalhimanshu" → "Himanshu") is refused, since it would drop a spoken name. The result's
+  `dictionaryFixes` counts the names written in. The booster loads once (`preload` of
+  `parakeet-vocabulary`, or the first dictation that sends a vocabulary) and stays resident; a
+  failed rescore is logged and the TDT text is returned unchanged.
 - Parakeet Flash is a streaming model; for a finished recording the whole file is fed through the
   streaming manager and then flushed.
 - `apple-speech` assets belong to macOS. `download_model` installs them for the requested locale

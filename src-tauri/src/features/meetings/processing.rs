@@ -135,6 +135,7 @@ async fn process(app: &AppHandle, id: i64) -> AppResult<Meeting> {
             language: models::engine_language(&settings, &model),
             languages: &codes,
             prompt: "",
+            vocabulary: &[],
             timestamps: true,
         };
         let result = state

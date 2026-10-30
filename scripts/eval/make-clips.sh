@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # FilePath: scripts/eval/make-clips.sh
-# Builds the English, Hindi and Hinglish clip sets transcription-eval.sh reads, one folder per
-# dictation language, so each set runs with the languages and prompt the app sends for it:
+# Builds the English, Hindi, Hinglish and names clip sets transcription-eval.sh reads, one folder
+# per dictation language, so each set runs with the languages and prompt the app sends for it:
 #
-#   <out>/en/    en-<id>-<voice>     English, spoken by Rishi and Lekha (both Indian accents)
-#   <out>/hi/    hi-<id>-<voice>     Hindi mode: reference in Devanagari, English words in Roman
-#   <out>/hing/  hing-<id>-<voice>   Hinglish mode: the same audio, reference in Roman script
+#   <out>/en/     en-<id>-<voice>      English, spoken by Rishi and Lekha (both Indian accents)
+#   <out>/hi/     hi-<id>-<voice>      Hindi mode: reference in Devanagari, English words in Roman
+#   <out>/hing/   hing-<id>-<voice>    Hinglish mode: the same audio, reference in Roman script
+#   <out>/names/  names-<id>-<voice>   English with names, for `--dictionary
+#                                      scripts/eval/names-dictionary.txt`
 #
 # Speech comes from macOS `say` (scripts/eval/say-corpus.tsv): Lekha reads the Devanagari text,
 # Rishi reads the romanised text, so every Hindi sentence is heard in two voices. `--fleurs N`
@@ -36,7 +38,7 @@ done
 for tool in say afconvert curl shasum tar; do
     command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
 done
-mkdir -p "$out/en" "$out/hi" "$out/hing"
+mkdir -p "$out/en" "$out/hi" "$out/hing" "$out/names"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -55,11 +57,12 @@ speak() {
 while IFS=$'\t' read -r id native romanised; do
     [[ -z "$id" || "$id" == \#* ]] && continue
     case "$id" in
-        en-*)
+        en-* | names-*)
+            folder=${id%%-*}
             for voice in Rishi Lekha; do
                 name="${id}-$(tr '[:upper:]' '[:lower:]' <<<"$voice")"
-                speak "$voice" "$native" "$out/en/$name.wav"
-                printf '%s\n' "$native" >"$out/en/$name.txt"
+                speak "$voice" "$native" "$out/$folder/$name.wav"
+                printf '%s\n' "$native" >"$out/$folder/$name.txt"
             done
             ;;
         *)
@@ -105,6 +108,6 @@ if ((fleurs > 0)); then
     done <"$work/fleurs.tsv"
 fi
 
-for set in en hi hing; do
+for set in en hi hing names; do
     echo "$set: $(find "$out/$set" -name '*.wav' | wc -l | tr -d ' ') clips" >&2
 done

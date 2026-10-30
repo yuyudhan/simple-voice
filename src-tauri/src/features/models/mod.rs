@@ -9,7 +9,8 @@ use std::time::Duration;
 
 use sv_domain::languages::model_language;
 use sv_domain::models::{
-    model_name, APPLE_SPEECH, DOWNLOADABLE_MODELS, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT,
+    model_name, APPLE_SPEECH, DOWNLOADABLE_MODELS, LOCAL_TRANSCRIPTION_MODELS, PARAKEET_TDT_V2,
+    PARAKEET_TDT_V3, PARAKEET_VOCABULARY, SMART_SELECT,
 };
 use sv_domain::{
     AppError, AppResult, ModelInfo, ModelKind, ModelProgress, ModelProgressStatus, ModelProvider,
@@ -196,12 +197,17 @@ pub(crate) async fn download_model(
                 events::emit(&app, events::MODELS_CHANGED, ());
                 // A freshly downloaded model the next dictation will use should be warm for it.
                 if let Ok(db) = state.db() {
-                    if db
-                        .settings()
-                        .await
-                        .is_ok_and(|s| preload_target(&s, |model| model == id) == Some(id.as_str()))
-                    {
-                        preload(&app, &id).await;
+                    match db.settings().await {
+                        Ok(settings) if id == PARAKEET_VOCABULARY => {
+                            preload_selected(&app, &settings).await;
+                        }
+                        Ok(settings)
+                            if preload_target(&settings, |model| model == id)
+                                == Some(id.as_str()) =>
+                        {
+                            preload(&app, &id).await;
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -288,10 +294,16 @@ pub(crate) async fn active_model(state: &AppState, settings: &Settings) -> Optio
 }
 
 /// Loads the local model the settings will start with, so the first dictation does not pay
-/// the load time.
+/// the load time; with Parakeet TDT also its dictionary booster, when it is downloaded.
 pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
-    if let Some(model) = active_model(&app.state::<AppState>(), settings).await {
-        preload(app, &model).await;
+    let state = app.state::<AppState>();
+    let Some(model) = active_model(&state, settings).await else {
+        return;
+    };
+    preload(app, &model).await;
+    let boosted = model == PARAKEET_TDT_V3 || model == PARAKEET_TDT_V2;
+    if boosted && is_ready(&state, settings, PARAKEET_VOCABULARY).await {
+        preload(app, PARAKEET_VOCABULARY).await;
     }
 }
 

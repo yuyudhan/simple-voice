@@ -20,8 +20,15 @@
 #   other category expects no Devanagari letter at all.
 #
 # Usage: scripts/eval/transcription-eval.sh --clips DIR --models id[,id...] [--languages en,hi]
-#            [--prompt TEXT] [--models-dir DIR] [--engine PATH] [--label NAME] [--out FILE]
+#            [--prompt TEXT] [--dictionary FILE] [--models-dir DIR] [--engine PATH] [--label NAME]
+#            [--out FILE]
 # Model ids are engine model ids; everything runs on this Mac through the engine helper.
+# `--dictionary` takes a personal dictionary file (one entry per line, "heard -> written" for a
+# rule, as Dictionary → Export writes it) and runs the app's dictionary steps: Parakeet TDT gets
+# the names the app sends it (rescored from the audio when `parakeet-vocabulary` is in the
+# models directory), and every transcript goes through the deterministic formatter the app
+# always runs, so the scores are what would be pasted with formatting off. The model's own
+# output stays in the last column, `heard`.
 # `--label` names the single model in the output: a candidate's files placed under an existing
 # model id in another --models-dir run through that id's decoding path under their own name.
 # Output: one TSV row per clip and model (to --out, default stdout), then a per-model,
@@ -37,6 +44,7 @@ models_dir="${HOME}/.simplevoice-dev/models"
 engine="engine/.build/debug/simple-voice-engine"
 out="/dev/stdout"
 label=""
+dictionary=""
 
 while (($# > 0)); do
     case "$1" in
@@ -44,6 +52,7 @@ while (($# > 0)); do
         --models) models="$2"; shift 2 ;;
         --languages) languages="$2"; shift 2 ;;
         --prompt) prompt="$2"; shift 2 ;;
+        --dictionary) dictionary="$2"; shift 2 ;;
         --models-dir) models_dir="$2"; shift 2 ;;
         --engine) engine="$2"; shift 2 ;;
         --out) out="$2"; shift 2 ;;
@@ -64,6 +73,13 @@ if [[ -n "$label" && "$models" == *,* ]]; then
 fi
 
 languages_json=$(jq -cn --arg l "$languages" '$l | split(",") | map(select(length > 0))')
+vocabulary_json="[]"
+formatter=""
+if [[ -n "$dictionary" ]]; then
+    cargo build --quiet -p sv-text --example dictionary
+    formatter="$(cargo metadata --format-version 1 --no-deps | jq -r .target_directory)/debug/examples/dictionary"
+    vocabulary_json=$("$formatter" boost-terms "$dictionary" | jq -Rn '[inputs | select(length > 0)]')
+fi
 now_ms() { perl -MTime::HiRes=time -e 'printf "%d\n", time() * 1000'; }
 
 # Prints `errors words skeleton_errors skeleton_words` for a reference and a hypothesis.
@@ -128,10 +144,14 @@ has_devanagari() { ! perl -CSA -e 'exit($ARGV[0] =~ /\p{Devanagari}/ ? 1 : 0)' "
 
 row() {
     local model="$1" wav="$2" ms="$3" result="$4"
-    local base category ref text errors="" words="" skel_errors="" skel_words="" wrong
+    local base category ref text heard errors="" words="" skel_errors="" skel_words="" wrong
     base=$(basename "$wav" .wav)
     category=${base%%-*}
-    text=$(jq -r '.text // ""' <<<"$result")
+    heard=$(jq -r '.text // ""' <<<"$result")
+    text=$heard
+    if [[ -n "$formatter" ]]; then
+        text=$(tr '\n' ' ' <<<"$heard" | "$formatter" format "$dictionary")
+    fi
     ref=""
     [[ -f "${wav%.wav}.txt" ]] && ref=$(<"${wav%.wav}.txt")
     if [[ -n "$ref" ]]; then
@@ -149,10 +169,10 @@ row() {
     jq -rn --arg model "${label:-$model}" --arg category "$category" --arg clip "$base" \
         --arg ms "$ms" --arg errors "$errors" --arg words "$words" \
         --arg skel_errors "$skel_errors" --arg skel_words "$skel_words" --arg wrong "$wrong" \
-        --arg text "$text" --argjson r "$result" \
+        --arg text "$text" --arg heard "$heard" --argjson r "$result" \
         '[$model, $category, $clip, $ms, $errors, $words, $skel_errors, $skel_words, $wrong,
           ($r.language // ""), ($r.quality.avgLogprob // ""), ($r.quality.compressionRatio // ""),
-          ($r.quality.noSpeechProb // ""), ($r.quality.confidence // ""), $text] | @tsv'
+          ($r.quality.noSpeechProb // ""), ($r.quality.confidence // ""), $text, $heard] | @tsv'
 }
 
 shopt -s nullglob
@@ -161,7 +181,7 @@ wavs=("$clips"/*.wav)
 
 tsv=$(mktemp)
 trap 'rm -f "$tsv"' EXIT
-printf 'model\tcategory\tclip\tms\terrors\twords\tskeleton_errors\tskeleton_words\twrong_script\tlanguage\tavg_logprob\tcompression_ratio\tno_speech_prob\tconfidence\ttext\n' >"$tsv"
+printf 'model\tcategory\tclip\tms\terrors\twords\tskeleton_errors\tskeleton_words\twrong_script\tlanguage\tavg_logprob\tcompression_ratio\tno_speech_prob\tconfidence\ttext\theard\n' >"$tsv"
 
 IFS=',' read -r -a model_list <<<"$models"
 for model in "${model_list[@]}"; do
@@ -176,8 +196,8 @@ for model in "${model_list[@]}"; do
     for wav in "${wavs[@]}"; do
         id=$((id + 1))
         request=$(jq -cn --argjson id "$id" --arg m "$model" --arg w "$(cd "$(dirname "$wav")" && pwd)/$(basename "$wav")" \
-            --argjson l "$languages_json" --arg p "$prompt" \
-            '{id: $id, cmd: "transcribe", model: $m, wavPath: $w, languages: $l, prompt: $p}')
+            --argjson l "$languages_json" --arg p "$prompt" --argjson v "$vocabulary_json" \
+            '{id: $id, cmd: "transcribe", model: $m, wavPath: $w, languages: $l, prompt: $p, vocabulary: $v}')
         start=$(now_ms)
         printf '%s\n' "$request" >&"${ENGINE[1]}"
         while IFS= read -r line <&"${ENGINE[0]}"; do

@@ -1,8 +1,9 @@
 // FilePath: crates/sv-domain/src/models.rs
 //! Models: on-device transcription models shown in Settings → Transcription, language models
 //! shown in Settings → Formatting (and used by meetings), the speaker diarization model meetings
-//! use, and the optional Groq cloud models. Every catalog model runs on the Mac (downloads carry
-//! no user content); only the Groq models, which the user opts into, send anything out.
+//! use, the Parakeet dictionary booster, and the optional Groq cloud models. Every catalog model
+//! runs on the Mac (downloads carry no user content); only the Groq models, which the user opts
+//! into, send anything out.
 
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +23,8 @@ pub const LOCAL_LLM: &str = "qwen3-4b-instruct";
 pub const DIARIZER: &str = "speaker-diarization";
 /// The dedicated translation model meeting translations use (MADLAD-400 3B MT).
 pub const TRANSLATOR: &str = "madlad400-3b-mt";
+/// Checks a Parakeet TDT recording for the personal dictionary's names (Parakeet CTC 110M).
+pub const PARAKEET_VOCABULARY: &str = "parakeet-vocabulary";
 /// Groq Whisper (cloud), the id history records for a dictation Groq transcribed. Chosen with
 /// `TranscriptionProvider::Groq`, never as `Settings::transcription_model`.
 pub const GROQ_WHISPER: &str = "groq-whisper";
@@ -80,6 +83,7 @@ pub const DOWNLOADABLE_MODELS: &[&str] = &[
     LOCAL_LLM,
     DIARIZER,
     TRANSLATOR,
+    PARAKEET_VOCABULARY,
 ];
 
 /// Display name of a model id, including ids only old history rows carry. A formatting pass
@@ -98,6 +102,7 @@ pub fn model_name(id: &str) -> Option<&'static str> {
         LOCAL_LLM => Some("Qwen3 4B Instruct"),
         DIARIZER => Some("Speaker Diarization"),
         TRANSLATOR => Some("MADLAD-400 Translation"),
+        PARAKEET_VOCABULARY => Some("Dictionary names for Parakeet"),
         GROQ_WHISPER => Some("Groq Whisper"),
         "groq" => Some("Groq"),
         "custom" => Some("Custom endpoint (removed)"),
@@ -125,6 +130,8 @@ pub enum ModelKind {
     Diarization,
     /// Translates meeting transcripts.
     Translation,
+    /// Writes the personal dictionary's names into Parakeet transcripts from the audio.
+    Vocabulary,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

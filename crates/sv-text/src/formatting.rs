@@ -8,12 +8,14 @@
 use sv_domain::Style;
 
 use crate::hesitation::strip_hesitations;
+use crate::sound_alike;
 use crate::vocabulary::Vocabulary;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Formatted {
     pub text: String,
-    /// Rule applications that changed the text; feeds the "dictionary fixes" insight.
+    /// Dictionary rule applications and sound-alike name corrections that changed the text;
+    /// feeds the "dictionary fixes" insight.
     pub rule_hits: u32,
 }
 
@@ -34,6 +36,13 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
             chars = rewritten;
             rule_hits += hits;
         }
+    }
+    // After the user's own rules, so an explicit "heard -> written" pair always wins.
+    if !vocabulary.spellings.is_empty() {
+        let text: String = chars.iter().collect();
+        let corrected = sound_alike::correct(&text, &vocabulary.spellings);
+        rule_hits += corrected.hits;
+        chars = corrected.text.chars().collect();
     }
 
     let mut chars = tighten_spacing(&chars);

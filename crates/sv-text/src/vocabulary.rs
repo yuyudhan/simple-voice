@@ -1,7 +1,8 @@
 // FilePath: crates/sv-text/src/vocabulary.rs
 //! Turns the personal dictionary and the built-in vocabulary (the product's name and the packs
-//! the user picked) into the three things dictation needs: the Whisper spelling-bias prompt,
-//! the preferred spellings handed to the formatting pass, and the deterministic rewrite rules.
+//! the user picked) into what dictation needs: the Whisper spelling-bias prompt, the preferred
+//! spellings handed to the formatting pass, the deterministic rewrite rules, and the names the
+//! sound-alike pass and Parakeet's booster snap misheard words to.
 //!
 //! Prompt priority, highest first: the product's name, the personal dictionary in its own
 //! order, then the packs, interleaved word by word so every enabled pack gets its best words
@@ -14,6 +15,7 @@ use sv_domain::{DictionaryEntry, VocabularyPack};
 
 use crate::language_prompts;
 use crate::packs::{self, is_casing_word, Pack, PRODUCT};
+use crate::sound_alike::Spelling;
 use crate::tokens::estimate_tokens;
 
 /// Bounds the prompt in characters alongside the token estimate: about what 200 tokens of
@@ -46,6 +48,9 @@ pub struct Vocabulary {
     pub rules: Vec<Rule>,
     /// Personal dictionary words left out of the prompt because it was full.
     pub omitted: usize,
+    /// Personal dictionary entries written as names, in dictionary order: what misheard words
+    /// snap to (see [`crate::sound_alike`]). Built-in pack words are never targets.
+    pub spellings: Vec<Spelling>,
 }
 
 impl Default for Vocabulary {
@@ -68,6 +73,7 @@ impl Vocabulary {
 
         let mut user_rules = Vec::new();
         let mut omitted = 0;
+        let mut spellings = Vec::new();
         for entry in entries {
             let phrase = entry.phrase.trim();
             if phrase.is_empty() {
@@ -80,7 +86,7 @@ impl Vocabulary {
                 });
                 continue;
             }
-
+            spellings.extend(Spelling::new(phrase));
             // Once one word does not fit, every later word is omitted too, so the prompt keeps
             // the dictionary's own priority order instead of back-filling with short words.
             if omitted > 0 || !prompt.push(phrase, PROMPT_MAX_TOKENS) {
@@ -121,7 +127,20 @@ impl Vocabulary {
             terms: prompt.terms,
             rules,
             omitted,
+            spellings,
         }
+    }
+
+    /// The single-word names Parakeet's dictionary booster checks the audio for. Multi-word
+    /// entries, ordinary English words ("Agents") and names that sound exactly like one
+    /// ("Kargo" for "cargo") are left out: the booster matches by sound, so it would write them
+    /// over the everyday word, and turned "and" into the second word of a name.
+    pub fn boost_terms(&self) -> Vec<String> {
+        self.spellings
+            .iter()
+            .filter(|spelling| spelling.is_single_word() && !spelling.sounds_like_ordinary_word())
+            .map(|spelling| spelling.written.clone())
+            .collect()
     }
 
     /// Appends terms read from the focused app (see [`crate::context`]) for this dictation only,

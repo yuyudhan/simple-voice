@@ -75,6 +75,9 @@ pub struct EngineTranscript {
     /// Timed segments, present when the request asked for `timestamps`.
     #[serde(default)]
     pub segments: Vec<TimedSegment>,
+    /// Dictionary terms Parakeet's booster wrote in from the audio (`vocabulary` requests).
+    #[serde(default)]
+    pub dictionary_fixes: u32,
 }
 
 /// A stretch of transcript and its place in the audio, in milliseconds from the start.
@@ -95,6 +98,9 @@ pub struct TranscribeOptions<'a> {
     pub languages: &'a [String],
     /// Whisper conditioning prompt (`sv_text::whisper_prompt`); empty = none.
     pub prompt: &'a str,
+    /// Personal dictionary names Parakeet TDT rescores its transcript against, once the
+    /// `parakeet-vocabulary` model is downloaded (`Vocabulary::boost_terms`); empty = none.
+    pub vocabulary: &'a [String],
     /// Return timed `segments` (meetings); also allows hours of audio instead of a dictation.
     pub timestamps: bool,
 }
@@ -271,8 +277,8 @@ impl EngineClient {
             .await
     }
 
-    /// `wav_path` must be 16 kHz mono PCM16. Empty `languages` and `prompt` are left out of the
-    /// request; models other than Whisper ignore both.
+    /// `wav_path` must be 16 kHz mono PCM16. Empty `languages`, `prompt` and `vocabulary` are
+    /// left out of the request; Whisper reads the first two, Parakeet TDT the last.
     pub async fn transcribe(
         &self,
         model: &str,
@@ -285,22 +291,14 @@ impl EngineClient {
                 wav_path.display()
             ))
         })?;
-        let languages = (!options.languages.is_empty()).then(|| {
-            Value::Array(
-                options
-                    .languages
-                    .iter()
-                    .map(|code| Value::from(code.as_str()))
-                    .collect(),
-            )
-        });
         let prompt = (!options.prompt.is_empty()).then(|| Value::from(options.prompt));
         let params = params([
             ("model", text(model)),
             ("wavPath", text(path)),
             ("language", optional_text(options.language)),
-            ("languages", languages),
+            ("languages", Self::strings(options.languages)),
             ("prompt", prompt),
+            ("vocabulary", Self::strings(options.vocabulary)),
             (
                 "timestamps",
                 options.timestamps.then_some(Value::from(true)),
@@ -313,6 +311,12 @@ impl EngineClient {
         };
         self.request_cancellable("transcribe", params, None, timeout)
             .await
+    }
+
+    /// A JSON array of `values`, or `None` (left out of the request) when there are none.
+    fn strings(values: &[String]) -> Option<Value> {
+        (!values.is_empty())
+            .then(|| Value::Array(values.iter().map(|v| Value::from(v.as_str())).collect()))
     }
 
     pub async fn permissions(&self) -> AppResult<Permissions> {
@@ -552,12 +556,19 @@ mod tests {
                 language: Some("en".to_owned()),
                 quality: TranscriptQuality::default(),
                 segments: Vec::new(),
+                dictionary_fixes: 0,
             }
         );
         let request = transport.seen.lock()[0].clone();
         assert_eq!(request["cmd"], "transcribe");
         assert_eq!(request["wavPath"], "/tmp/a.wav");
-        for omitted in ["language", "languages", "prompt", "timestamps"] {
+        for omitted in [
+            "language",
+            "languages",
+            "prompt",
+            "vocabulary",
+            "timestamps",
+        ] {
             assert!(request.get(omitted).is_none(), "{omitted}");
         }
     }
@@ -606,6 +617,7 @@ mod tests {
             language: None,
             languages: &languages,
             prompt: "Kubernetes, Anjali",
+            vocabulary: &[],
             timestamps: false,
         };
         let reply = client
@@ -625,6 +637,29 @@ mod tests {
         assert_eq!(request["languages"], serde_json::json!(["en", "hi"]));
         assert_eq!(request["prompt"], "Kubernetes, Anjali");
         assert!(request.get("language").is_none());
+    }
+
+    #[tokio::test]
+    async fn transcribe_sends_the_dictionary_to_parakeet_and_reads_its_fixes() {
+        let (client, transport) = scripted(
+            r#"{"id":$ID,"ok":true,"result":{"text":"Ask Ujjwal","language":"en",
+                "dictionaryFixes":1}}"#,
+        );
+        let vocabulary = vec!["Ujjwal".to_owned(), "Himanshu".to_owned()];
+        let options = TranscribeOptions {
+            vocabulary: &vocabulary,
+            ..TranscribeOptions::default()
+        };
+        let reply = client
+            .transcribe("parakeet-tdt-v3", Path::new("/tmp/a.wav"), options)
+            .await
+            .unwrap();
+        assert_eq!(reply.dictionary_fixes, 1);
+        let request = transport.seen.lock()[0].clone();
+        assert_eq!(
+            request["vocabulary"],
+            serde_json::json!(["Ujjwal", "Himanshu"])
+        );
     }
 
     #[tokio::test]

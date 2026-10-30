@@ -200,7 +200,7 @@ final class Engine: Sendable {
     private func baseStatus(_ id: ModelID, language: String?) async -> ModelStatusResult {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish,
-            .qwen3Instruct, .speakerDiarization, .madlad:
+            .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             guard let hub = HubModel.forModel(id) else { return .unsupported("unknown model") }
             return store.status(of: hub)
         case .appleSpeech:
@@ -217,7 +217,7 @@ final class Engine: Sendable {
     private func download(_ id: ModelID, language: String?, progress: ProgressSink) async throws {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish,
-            .qwen3Instruct, .speakerDiarization, .madlad:
+            .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             let hub = try hubModel(id)
             try await store.download(hub, progress: progress)
         case .appleSpeech:
@@ -234,7 +234,7 @@ final class Engine: Sendable {
 
     private func delete(_ id: ModelID) async throws {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .parakeetVocabulary:
             await parakeet.unload(id)
             if id == .parakeetFlash {
                 await flashStreaming.unload()
@@ -266,6 +266,8 @@ final class Engine: Sendable {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
             try await parakeet.preload(id)
+        case .parakeetVocabulary:
+            try await parakeet.preloadVocabulary()
         case .whisperLargeV3Turbo, .whisperHinglish:
             try await whisper.preload(id)
         case .qwen3Instruct:
@@ -293,7 +295,8 @@ final class Engine: Sendable {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
             let samples = try AudioLoader.loadSamples(path: params.wavPath)
             return try await parakeet.transcribe(
-                id, samples: samples, language: params.language, timestamps: timestamps)
+                id, samples: samples, language: params.language, timestamps: timestamps,
+                vocabulary: params.vocabulary ?? [])
         case .whisperLargeV3Turbo, .whisperHinglish:
             let samples = try AudioLoader.loadSamples(path: params.wavPath)
             let request = WhisperRequest(
@@ -307,7 +310,7 @@ final class Engine: Sendable {
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             return try await AppleSpeech.transcribe(
                 path: params.wavPath, language: params.language, timestamps: timestamps)
-        case .appleIntelligence, .qwen3Instruct, .speakerDiarization, .madlad:
+        case .appleIntelligence, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a transcription model")
         }
     }
@@ -332,7 +335,7 @@ final class Engine: Sendable {
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             recognizer = try await AppleSpeech.live(language: params.language)
         case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
-            .madlad:
+            .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) does not support live transcription")
         }
         let streamId = await live.start(recognizer, overlay: params.overlay ?? false)
@@ -397,7 +400,7 @@ final class Engine: Sendable {
             return try await languageModel.generate(
                 turns, maxTokens: maxTokens, temperature: temperature, progress: progress)
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech,
-            .speakerDiarization, .madlad:
+            .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a text model")
         }
     }

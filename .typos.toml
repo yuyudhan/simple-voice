@@ -16,6 +16,8 @@ extend-exclude = [
     "dist/",
     "engine/.build/",
     "engine/Package.resolved",
+    # Generated from SCOWL (see its header); British and archaic spellings are words there.
+    "crates/sv-text/src/sound_alike/common_words.txt",
 ]
 
 [default.extend-words]

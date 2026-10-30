@@ -157,7 +157,7 @@ CREATE TABLE history (
     source_text      TEXT,               -- edits only: the selection replaced; raw_text = instruction,
                                          -- final_text = edited text, word_count = instruction words (0005)
     word_count       INTEGER NOT NULL,
-    dictionary_fixes INTEGER NOT NULL,   -- replacement-rule hits
+    dictionary_fixes INTEGER NOT NULL,   -- rule hits + sound-alike name fixes + Parakeet booster fixes
     words_corrected  INTEGER NOT NULL,   -- word-level edit distance raw → final
     app_name         TEXT,
     bundle_id        TEXT,
@@ -407,7 +407,7 @@ pub struct NewSegment { pub start_ms: i64, pub end_ms: i64, pub speaker: Option<
 
 // ── sv-text ─────────────────────────────────────────────────────────────────────────────
 pub struct Rule { pub from: String, pub to: String }
-pub struct Vocabulary { pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize }
+pub struct Vocabulary { pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize, pub spellings: Vec<Spelling> }
 impl Vocabulary { pub fn new(entries: &[DictionaryEntry], packs: &[VocabularyPack]) -> Vocabulary; }
     // terms: prompt words in priority order: "Simple Voice", "SimpleVoice", the dictionary's
     // words, then pack words in turns across packs within PACK_PROMPT_MAX_TOKENS; also the
@@ -415,7 +415,10 @@ impl Vocabulary { pub fn new(entries: &[DictionaryEntry], packs: &[VocabularyPac
     // casing (product + every pack word that is one letter-led word with a later capital) and
     // pack `heard -> written` rules, longest first, user first among equals; a phrase the user
     // has (word or heard side) gets no built-in rule or prompt word. omitted: dictionary words
-    // left out of the prompt.
+    // left out of the prompt. spellings: dictionary entries written as names (sound_alike targets,
+    // requirement D-18).
+impl Vocabulary { pub fn boost_terms(&self) -> Vec<String>; }
+    // the single-word, non-ordinary names sent to Parakeet TDT as `vocabulary`
 impl Default for Vocabulary { .. }                                // no dictionary, no packs
 impl Vocabulary { pub fn add_context_terms(&mut self, terms: &[String]); }
     // appends this dictation's context hints after the dictionary and pack words (first to go
@@ -438,8 +441,13 @@ pub fn vocabulary_pack_infos() -> Vec<VocabularyPackInfo>;       // every pack's
 // per style (hi-Latn: the Hinglish formal and casual shots). A tag's content reaches a prompt
 // only when that tag is selected, so an English-only user gets neither. Adding a language's
 // prompt content is one table entry.
-pub struct Formatted { pub text: String, pub rule_hits: u32 }
+pub struct Formatted { pub text: String, pub rule_hits: u32 } // rule_hits: rules + name fixes
 pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted;
+// sound_alike: after the rules, capitalised runs of 1-3 words that sound like 1-3 dictionary
+// names (phonetic key, ≤ 1 edit per 4 sounds) become those names; lowercase, ordinary English
+// (bundled SCOWL 10-35 list) and already-correct words are never rewritten (D-18).
+pub struct Spelling { pub written: String, .. }
+pub fn sound_alike::correct(text: &str, spellings: &[Spelling]) -> Corrected; // { text, hits }
 // Post-processing ("polish"). One prompt shape, two on-device backends, both through the engine
 // helper's `generate` command from the app's features/llm.rs (temperature 0):
 //   apple → Apple Intelligence (PolishTarget::OnDevice)
@@ -860,7 +868,7 @@ Events (unsolicited, no id):
 | `download_model`     | `model`, `language`?                                                                                                                              | `{"status": "ready"}` after progress events                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `delete_model`       | `model`                                                                                                                                           | `{}`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `preload`            | `model`                                                                                                                                           | `{}` (loads into memory so the first use is fast; `qwen3-4b-instruct` takes ~2.5 GB and is unloaded after 10 idle minutes)                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`?, `languages`?, `prompt`?, `timestamps`?                                                  | `{"text": s, "language"?: s, "quality"?: {"avgLogprob"?, "compressionRatio"?, "noSpeechProb"?, "confidence"?}, "segments"?: [{"startMs", "endMs", "text"}]}`; `segments` only with `timestamps: true` (Parakeet TDT: sentence-sized from token timings, split at ≥ 0.8 s pauses, ≤ 15 s; Parakeet Flash: token start times; Whisper: decoder segments, Hinglish in 30 s windows; Apple Speech: final-result time ranges). Cancellable                                                                                         |
+| `transcribe`         | `model`, `wavPath` (16 kHz mono 16-bit PCM), `language`?, `languages`?, `prompt`?, `vocabulary`?: [s], `timestamps`?                              | `{"text": s, "language"?: s, "quality"?: {"avgLogprob"?, "compressionRatio"?, "noSpeechProb"?, "confidence"?}, "segments"?: [{"startMs", "endMs", "text"}], "dictionaryFixes"?: n}`; `segments` only with `timestamps: true` (Parakeet TDT: sentence-sized from token timings, split at ≥ 0.8 s pauses, ≤ 15 s; Parakeet Flash: token start times; Whisper: decoder segments, Hinglish in 30 s windows; Apple Speech: final-result time ranges). `vocabulary` (dictionary names) is read by Parakeet TDT only, once `parakeet-vocabulary` is downloaded; `dictionaryFixes` is then the names it wrote in from the audio. Cancellable |
 | `stream_start`       | `model`, `language`?, `overlay`?: bool                                                                                                            | `{"streamId": n}`; fails for models that do not stream ("<model> does not support live transcription"); ends any running stream; `overlay` shows the hypothesis in the pill while it records                                                                                                                                                                                                                                                                                                                                  |
 | `stream_finish`      | `streamId`                                                                                                                                        | `{"text": s, "language"?: s}` from the model's own flush. Cancellable                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `stream_cancel`      | `streamId`                                                                                                                                        | `{}` (idempotent)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -907,6 +915,7 @@ Model ids (the only ones the helper knows):
 | `apple-intelligence`     | text, macOS 26+              | —       | built into macOS (Foundation Models); never downloads                                                                           |
 | `qwen3-4b-instruct`      | text, any Apple Silicon Mac  | —       | 2,497,281,120 B (Apache-2.0; unsloth/Qwen3-4B-Instruct-2507-GGUF, Q4_K_M, pinned revision), run by llama.cpp (MIT) on Metal     |
 | `speaker-diarization`    | diarization                  | —       | 21,599,417 B (CC-BY-4.0; FluidInference/speaker-diarization-coreml, pinned revision: pyannote community-1, WeSpeaker, BUT PLDA) |
+| `parakeet-vocabulary`    | Parakeet dictionary booster  | —       | 102,802,455 B (CC-BY-4.0; FluidInference/parakeet-ctc-110m-coreml, pinned revision: Parakeet TDT-CTC 110M's CTC encoder for FluidAudio's keyword spotter) |
 
 `download_model`, `delete_model` and `preload` accept every id except `apple-intelligence`
 (`delete_model` unloads first). `language` (optional everywhere) is a language code such as

@@ -200,7 +200,7 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     row.retry_reason = heard.retry_reason;
     row.transcribe_ms = Some(heard.ms);
     row.language = heard.language;
-    row.dictionary_fixes = i64::from(formatted.rule_hits);
+    row.dictionary_fixes = i64::from(formatted.rule_hits) + i64::from(heard.dictionary_fixes);
     match &delivered {
         Delivery::Pasted => {}
         Delivery::Dropped => status = HistoryStatus::Dropped,
@@ -339,7 +339,7 @@ pub(crate) async fn retry(app: &AppHandle, id: i64) -> AppResult<HistoryEntry> {
     row.transcribe_ms = Some(heard.ms);
     row.final_text = final_text;
     row.language = heard.language;
-    row.dictionary_fixes = i64::from(formatted.rule_hits);
+    row.dictionary_fixes = i64::from(formatted.rule_hits) + i64::from(heard.dictionary_fixes);
     row.latency_ms = elapsed_ms(started);
     row.audio_path = None;
     let updated = db.update_history(id, row).await?;

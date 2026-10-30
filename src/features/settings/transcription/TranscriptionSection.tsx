@@ -1,12 +1,13 @@
 // FilePath: src/features/settings/transcription/TranscriptionSection.tsx
 // Settings → Transcription: the voice model, the languages it is allowed to detect, the optional
-// Groq Whisper provider, and the live transcript. With Smart Select the languages sit inside the
-// Smart Select panel (they decide the model); with a chosen model they get their own group.
+// Groq Whisper provider, the live transcript, and the optional model that writes Dictionary names
+// into Parakeet dictations. With Smart Select the languages sit inside the Smart Select panel
+// (they decide the model); with a chosen model they get their own group.
 import { useSettings } from "../../../app/SettingsContext";
 import { SettingRow, SettingsGroup, Toggle } from "../../../ui";
 import { GroqTranscriptionGroup } from "../groq/GroqTranscriptionGroup";
 import { useModels, type ModelsState } from "../models/useModels";
-import { VoiceModelList } from "../models/VoiceModelList";
+import { ModelList, VoiceModelList } from "../models/VoiceModelList";
 import { LanguagePicker } from "./LanguagePicker";
 import { SmartSelectPanel, VoiceModelModeSwitch } from "./SmartSelectPanel";
 import { useSmartSelect, type SmartSelectState } from "./useSmartSelect";
@@ -95,6 +96,22 @@ export function TranscriptionSection() {
 
             <SettingsGroup title="While you speak">
                 <LiveTranscriptRow models={models} smart={smart} />
+            </SettingsGroup>
+
+            <SettingsGroup title="Dictionary names">
+                <p className="sv-models-section__intro">
+                    Names from your Dictionary are always respelled when a voice model writes them
+                    close to how you spell them. Parakeet takes no word list, so this small model
+                    also checks each Parakeet recording for those names and writes the ones it
+                    hears; it adds a fraction of a second after you stop.
+                </p>
+                <div className="sv-models-section__flush">
+                    <ModelList
+                        state={models}
+                        models={(models.models ?? []).filter((m) => m.kind === "vocabulary")}
+                        label="Dictionary names model"
+                    />
+                </div>
             </SettingsGroup>
         </>
     );

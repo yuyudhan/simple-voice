@@ -277,8 +277,10 @@ export interface ModelInsights {
 }
 
 /** "post_processing" = a language model: Apple Intelligence or a downloadable local one;
- * "translation" = the dedicated meeting translation model. */
-export type ModelKind = "transcription" | "post_processing" | "diarization" | "translation";
+ * "translation" = the dedicated meeting translation model; "vocabulary" = Parakeet's dictionary
+ * booster. */
+export type ModelKind =
+    "transcription" | "post_processing" | "diarization" | "translation" | "vocabulary";
 export type ModelProvider = "parakeet" | "whisper" | "apple" | "llm" | "diarizer" | "translator";
 export type ModelStatus = "ready" | "not_downloaded" | "downloading" | "unsupported";
 
