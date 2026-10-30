@@ -32,7 +32,9 @@ which, in order:
 1. sets `0.2.0` in `package.json`, `src-tauri/tauri.conf.json` and the root `Cargo.toml`, and
    refreshes `Cargo.lock`;
 2. runs `scripts/release/build.sh`: `tauri build --bundles app` (its `beforeBuildCommand` builds
-   the release engine helper), verifies the signature, and packs the bundle with `ditto` into
+   the release engine helper), re-signs the engine helper (see
+   [Signing and notarization](#signing-and-notarization)), verifies the signature, launches the
+   bundled engine helper and requires its `started` line, and packs the bundle with `ditto` into
    `target/release-assets/0.2.0/Simple-Voice_0.2.0_aarch64.zip`;
 3. commits `🔖 Release v0.2.0`, tags `v0.2.0`, and pushes the branch and tag (the pre-push hook
    runs `just check`);
@@ -105,6 +107,15 @@ login keychain and writes a passphrase-protected backup. Keep the backup and its
 a password manager, outside this repository: a lost certificate means the next release is
 signed with a new one and every user re-grants permissions once. codesign uses the certificate
 without it being trusted, so no trust setting is needed.
+
+The self-signed certificate has no Team ID, and under the hardened runtime dyld loads a
+non-system library only when it carries the process's Team ID. The engine helper links
+`llama.framework` from `Contents/Frameworks`, so it is refused even when signed with the same
+certificate, and the helper dies at launch (v0.1.0 shipped like that). `build.sh` therefore
+re-signs the helper alone with `src-tauri/Entitlements.engine.plist`, which adds
+`com.apple.security.cs.disable-library-validation`, then re-signs the app around it; the main
+app keeps library validation. The comment in that file states the tradeoff. A Developer ID build
+(`APPLE_TEAM_ID` set) has a Team ID, needs no exception and is left as Tauri signed it.
 
 To sign with a Developer ID instead ($99 a year) and notarize, export these before
 `just release`:

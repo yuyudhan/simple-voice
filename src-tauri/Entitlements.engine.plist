@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FilePath: src-tauri/Entitlements.engine.plist -->
+<!--
+    Entitlements of the engine helper (Contents/MacOS/simple-voice-engine) in release builds;
+    scripts/release/build.sh re-signs the helper with them after `tauri build`, which signs every
+    binary with Entitlements.plist.
+
+    disable-library-validation: the helper links llama.framework from Contents/Frameworks. Under
+    the hardened runtime, dyld loads a non-system library only when it carries the process's Team
+    ID, and the self-signed "Simple Voice Release" certificate has none, so even a framework
+    signed with that same certificate is refused ("mapping process and mapped file (non-platform)
+    have different Team IDs") and the helper dies at launch. The tradeoff: the helper may load a
+    library signed by anyone, so whoever can write into the app bundle can get code into it
+    (DYLD_* variables stay ignored; that would need allow-dyld-environment-variables). Only the
+    helper gets it; the main app keeps library validation. A Developer ID build (APPLE_TEAM_ID
+    set) does not need it and build.sh leaves that signature alone.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

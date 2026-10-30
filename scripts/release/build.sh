@@ -52,7 +52,28 @@ target_dir="${CARGO_TARGET_DIR:-$(pwd)/target}"
 } >&2
 
 app="${target_dir}/aarch64-apple-darwin/release/bundle/macos/Simple Voice.app"
+engine="${app}/Contents/MacOS/simple-voice-engine"
+# Tauri signs every binary with src-tauri/Entitlements.plist. Without a Team ID the hardened
+# runtime refuses the bundled llama.framework, so the engine helper alone is re-signed with
+# src-tauri/Entitlements.engine.plist (which explains the tradeoff), then the app around it.
+# A Developer ID build has a Team ID, needs neither, and is notarized as built.
+if [ -z "${APPLE_TEAM_ID:-}" ]; then
+    codesign --force --sign "$identity" --options runtime --timestamp=none \
+        --entitlements src-tauri/Entitlements.engine.plist "$engine" >&2
+    codesign --force --sign "$identity" --options runtime --timestamp=none \
+        --entitlements src-tauri/Entitlements.plist "$app" >&2
+fi
 codesign --verify --deep --strict "$app" >&2
+# v0.1.0 shipped an engine that dyld killed at launch; launch the bundled one exactly as signed
+# and require its startup line. Closing stdin makes it exit right after starting.
+probe_dir=$(mktemp -d)
+engine_log=$("$engine" --models-dir "${probe_dir}/models" </dev/null 2>&1) || true
+rm -rf "$probe_dir"
+if ! grep -q "\[info\] started" <<<"$engine_log"; then
+    echo "build: the bundled engine helper does not start:" >&2
+    echo "$engine_log" >&2
+    exit 1
+fi
 # A designated requirement naming a hash would tie grants to this one build.
 requirement=$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')
 case "$requirement" in
