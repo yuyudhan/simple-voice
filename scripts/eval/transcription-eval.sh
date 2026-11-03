@@ -7,12 +7,17 @@
 #
 # Clips: `<category>-<name>.wav` (16 kHz mono PCM16) with the expected text in `<same>.txt`.
 # The category is the prefix before the first dash (`en`, `hi`, `hing`, ...). A clip without a
-# `.txt` is still transcribed and reported, with an empty WER.
+# `.txt` is still transcribed and reported, with an empty WER. An optional `<same>.terms` lists
+# the clip's key terms, one per line (`!term` for one that must not appear).
 #
 # Scoring, per clip:
 # - WER: word edit distance over the reference length, case and punctuation ignored, Devanagari
 #   nukta and chandrabindu folded (spelling variants, not recognition errors). Left empty when
 #   the reference is not in the script the category expects (a Devanagari reference in `hing`).
+# - Key terms: each line of `.terms` is a hit only on an exact, case-sensitive substring of the
+#   pasted text, so `ankit@sienzo.com` or `Ctrl+Alt+Delete` count only when written exactly.
+#   Recall is reported per clip (`term_hits`, `terms`, `missed_terms`) and per term category
+#   (email, shortcut, math, negative, term) on stderr.
 # - sWER: the same over consonant skeletons that read alike in either script ("kal ki meeting"
 #   and "कल की मीटिंग" both become "kl k mtng"), so romanised output is scored against any
 #   reference without one spelling convention winning.
@@ -48,16 +53,46 @@ dictionary=""
 
 while (($# > 0)); do
     case "$1" in
-        --clips) clips="$2"; shift 2 ;;
-        --models) models="$2"; shift 2 ;;
-        --languages) languages="$2"; shift 2 ;;
-        --prompt) prompt="$2"; shift 2 ;;
-        --dictionary) dictionary="$2"; shift 2 ;;
-        --models-dir) models_dir="$2"; shift 2 ;;
-        --engine) engine="$2"; shift 2 ;;
-        --out) out="$2"; shift 2 ;;
-        --label) label="$2"; shift 2 ;;
-        *) echo "unknown argument: $1" >&2; exit 2 ;;
+    --clips)
+        clips="$2"
+        shift 2
+        ;;
+    --models)
+        models="$2"
+        shift 2
+        ;;
+    --languages)
+        languages="$2"
+        shift 2
+        ;;
+    --prompt)
+        prompt="$2"
+        shift 2
+        ;;
+    --dictionary)
+        dictionary="$2"
+        shift 2
+        ;;
+    --models-dir)
+        models_dir="$2"
+        shift 2
+        ;;
+    --engine)
+        engine="$2"
+        shift 2
+        ;;
+    --out)
+        out="$2"
+        shift 2
+        ;;
+    --label)
+        label="$2"
+        shift 2
+        ;;
+    *)
+        echo "unknown argument: $1" >&2
+        exit 2
+        ;;
     esac
 done
 if [[ -z "$clips" || -z "$models" ]]; then
@@ -65,7 +100,10 @@ if [[ -z "$clips" || -z "$models" ]]; then
     exit 2
 fi
 for tool in jq awk perl; do
-    command -v "$tool" >/dev/null || { echo "missing required tool: $tool" >&2; exit 1; }
+    command -v "$tool" >/dev/null || {
+        echo "missing required tool: $tool" >&2
+        exit 1
+    }
 done
 if [[ -n "$label" && "$models" == *,* ]]; then
     echo "--label names one model; run each candidate separately" >&2
@@ -140,6 +178,34 @@ my @hs = grep { length } map { skeleton($_) } @h;
 printf "%d\t%d\t%d\t%d\n", distance(\@r, \@h), scalar @r, distance(\@rs, \@hs), scalar @rs;
 PERL
 
+# Prints one `model category clip term hit` row per key term of a clip. A term is a hit only
+# on an exact, case-sensitive substring of the pasted text; a `!term` line is a negative check
+# ("meet at the office" must not grow an `@`), a hit when the text does not contain it. The
+# category comes from the term's shape: email, shortcut, math, negative or term (names and
+# product spellings).
+read -r -d '' terms_pl <<'PERL' || true
+use strict; use warnings; use utf8;
+my ($model, $clip, $text, $file) = @ARGV;
+open my $fh, '<:encoding(UTF-8)', $file or die "$file: $!";
+while (my $term = <$fh>) {
+    chomp $term;
+    $term =~ s/^\s+|\s+$//g;
+    next if $term eq '';
+    my ($category, $hit);
+    if ($term =~ s/^!//) {
+        $category = 'negative';
+        $hit = index($text, $term) < 0 ? 1 : 0;
+    } else {
+        $hit = index($text, $term) >= 0 ? 1 : 0;
+        $category = $term =~ /\@/ ? 'email'
+            : $term =~ /^(?:Ctrl|Cmd|Opt|Alt|Shift|Fn)\+/ ? 'shortcut'
+            : $term =~ /^\d[\d\s.]*(?:[-+\/×=]|ms\b)/ ? 'math'
+            : 'term';
+    }
+    print join("\t", $model, $category, $clip, $term, $hit), "\n";
+}
+PERL
+
 has_devanagari() { ! perl -CSA -e 'exit($ARGV[0] =~ /\p{Devanagari}/ ? 1 : 0)' "$1"; }
 
 row() {
@@ -158,7 +224,8 @@ row() {
         IFS=$'\t' read -r errors words skel_errors skel_words \
             < <(perl -CSA -e "$score_pl" "$ref" "$text")
         if [[ "$category" != "hi" ]] && has_devanagari "$ref"; then
-            errors=""; words=""
+            errors=""
+            words=""
         fi
     fi
     if [[ "$category" == "hi" ]]; then
@@ -166,26 +233,43 @@ row() {
     else
         if has_devanagari "$text"; then wrong=1; else wrong=0; fi
     fi
+    local term_hits="" term_total="" missed=""
+    if [[ -f "${wav%.wav}.terms" ]]; then
+        perl -CSA -e "$terms_pl" "${label:-$model}" "$base" "$text" "${wav%.wav}.terms" >>"$terms_tsv"
+        IFS=$'\t' read -r term_hits term_total missed < <(awk -F'\t' -v m="${label:-$model}" -v c="$base" '
+            $1 == m && $3 == c { n++; if ($5 == 1) h++; else miss = miss (miss == "" ? "" : "; ") $4 }
+            END { printf "%d\t%d\t%s\n", h, n, (miss == "" ? "-" : miss) }' "$terms_tsv")
+        [[ "$missed" == "-" ]] && missed=""
+    fi
     jq -rn --arg model "${label:-$model}" --arg category "$category" --arg clip "$base" \
         --arg ms "$ms" --arg errors "$errors" --arg words "$words" \
         --arg skel_errors "$skel_errors" --arg skel_words "$skel_words" --arg wrong "$wrong" \
         --arg text "$text" --arg heard "$heard" --argjson r "$result" \
+        --arg term_hits "$term_hits" --arg term_total "$term_total" --arg missed "$missed" \
         '[$model, $category, $clip, $ms, $errors, $words, $skel_errors, $skel_words, $wrong,
           ($r.language // ""), ($r.quality.avgLogprob // ""), ($r.quality.compressionRatio // ""),
-          ($r.quality.noSpeechProb // ""), ($r.quality.confidence // ""), $text, $heard] | @tsv'
+          ($r.quality.noSpeechProb // ""), ($r.quality.confidence // ""), $text, $heard,
+          $term_hits, $term_total, $missed] | @tsv'
 }
 
 shopt -s nullglob
 wavs=("$clips"/*.wav)
-((${#wavs[@]} > 0)) || { echo "no .wav clips in $clips" >&2; exit 1; }
+((${#wavs[@]} > 0)) || {
+    echo "no .wav clips in $clips" >&2
+    exit 1
+}
 
 tsv=$(mktemp)
-trap 'rm -f "$tsv"' EXIT
-printf 'model\tcategory\tclip\tms\terrors\twords\tskeleton_errors\tskeleton_words\twrong_script\tlanguage\tavg_logprob\tcompression_ratio\tno_speech_prob\tconfidence\ttext\theard\n' >"$tsv"
+terms_tsv=$(mktemp)
+trap 'rm -f "$tsv" "$terms_tsv"' EXIT
+printf 'model\tcategory\tclip\tms\terrors\twords\tskeleton_errors\tskeleton_words\twrong_script\tlanguage\tavg_logprob\tcompression_ratio\tno_speech_prob\tconfidence\ttext\theard\tterm_hits\tterms\tmissed_terms\n' >"$tsv"
 
 IFS=',' read -r -a model_list <<<"$models"
 for model in "${model_list[@]}"; do
-    [[ -x "$engine" ]] || { echo "engine helper not built: $engine (run: just engine)" >&2; exit 1; }
+    [[ -x "$engine" ]] || {
+        echo "engine helper not built: $engine (run: just engine)" >&2
+        exit 1
+    }
     coproc ENGINE { "$engine" --models-dir "$models_dir" 2>/dev/null; }
     id=0
     # Load first, so the per-clip times measure inference only.
@@ -236,3 +320,17 @@ awk -F'\t' 'NR > 1 {
                 (cfn[k] ? sprintf("%.3f", cf[k] / cfn[k]) : "-")
         }
     }' "$tsv" | sort >&2
+if [[ -s "$terms_tsv" ]]; then
+    echo >&2
+    awk -F'\t' '{
+            k = $1 "\t" $2; n[k]++; if ($5 == 1) h[k]++
+            t = $1 "\tall"; n[t]++; if ($5 == 1) h[t]++
+        }
+        END {
+            printf "%-24s %-9s %6s %8s\n", "model", "terms", "count", "recall%"
+            for (k in n) {
+                split(k, p, "\t")
+                printf "%-24s %-9s %6d %7.1f%%\n", p[1], p[2], n[k], 100 * h[k] / n[k]
+            }
+        }' "$terms_tsv" | sort >&2
+fi

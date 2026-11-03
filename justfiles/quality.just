@@ -12,9 +12,9 @@ fmt: deps-present
     taplo fmt
     bun run format
     if command -v swift-format >/dev/null 2>&1; then
-        swift-format format --in-place --recursive --parallel engine/Package.swift engine/Sources
+        swift-format format --in-place --recursive --parallel engine/Package.swift engine/Sources engine/Tests
     elif swift format --version >/dev/null 2>&1; then
-        swift format format --in-place --recursive --parallel engine/Package.swift engine/Sources
+        swift format format --in-place --recursive --parallel engine/Package.swift engine/Sources engine/Tests
     else
         echo "fmt: swift-format not found - engine/ left as is"
     fi
@@ -33,9 +33,9 @@ fmt-check: deps-present
     bun run format:check
     sv_step 4 4 "swift-format lint"
     if command -v swift-format >/dev/null 2>&1; then
-        swift-format lint --strict --recursive --parallel engine/Package.swift engine/Sources
+        swift-format lint --strict --recursive --parallel engine/Package.swift engine/Sources engine/Tests
     elif swift format --version >/dev/null 2>&1; then
-        swift format lint --strict --recursive --parallel engine/Package.swift engine/Sources
+        swift format lint --strict --recursive --parallel engine/Package.swift engine/Sources engine/Tests
     else
         echo "fmt-check: swift-format not found - engine/ not checked"
     fi
@@ -60,23 +60,26 @@ lint: deps-present engine-present
     git ls-files -z -- '*.sh' '.githooks/*' | xargs -0 shellcheck -x
     sv_ok "lint ($(sv_duration "$start"))"
 
-# Run the Rust test suite (nextest when installed), the UI tests, and compile the engine helper.
+# Run the Rust test suite (nextest when installed), the UI tests, compile the engine helper and
+# run its EngineCore checks.
 [group('quality')]
 test: deps-present engine-present
     #!/usr/bin/env bash
     set -euo pipefail
     source scripts/lib/status.sh
     start=$(date +%s)
-    sv_step 1 3 "rust tests"
+    sv_step 1 4 "rust tests"
     if cargo nextest --version >/dev/null 2>&1; then
         SQLX_OFFLINE=true cargo nextest run --workspace --no-tests=pass
     else
         SQLX_OFFLINE=true cargo test --workspace
     fi
-    sv_step 2 3 "ui tests (bun test)"
+    sv_step 2 4 "ui tests (bun test)"
     bun test src
-    sv_step 3 3 "swift build (engine)"
+    sv_step 3 4 "swift build (engine)"
     swift build --package-path engine
+    sv_step 4 4 "engine checks (booster spelling gate, prompt reuse)"
+    swift run --package-path engine engine-core-checks
     sv_ok "test ($(sv_duration "$start"))"
 
 # Run every hygiene guard via scripts/guard/run-all.sh, or one by name (e.g. just guard no-todo).

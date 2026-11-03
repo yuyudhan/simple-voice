@@ -31,3 +31,6 @@ Canva = "Canva"
 # (will go).
 tak = "tak"
 chalenge = "chalenge"
+# The heard side of a pack rule (crates/sv-text/src/packs/backend.rs): how Parakeet spells a
+# spoken "Postgres".
+postgress = "postgress"

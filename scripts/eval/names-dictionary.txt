@@ -3,25 +3,25 @@
 # the Dictionary → Export format: one entry per line, "heard -> written" for a rule. The names
 # are the ones the clips speak; the rest are entries of a real dictionary that sound like
 # ordinary words ("Kargo", "rust", "pods"), so the eval also shows they are not forced in.
-Ujjwal
-Himanshu
-Vedant
-Shilpa
-Ankur
-Agastya
-Kalki
-Signzy
+Ajjwar
+Hitanshu
+Nishant
+Swati
+Ankit
+Atharva
+Kalvi
+Sienzo
 Groq
 Kargo
-Deepak
-Dhruv
+Rupak
+Dhaval
 Harbor
 Polaris
 Agents
 Crates
 Graphics
-Money trace
-Ankur fpandey
+Penny trail
+Ankit fmehra
 lint
 pods
 rust

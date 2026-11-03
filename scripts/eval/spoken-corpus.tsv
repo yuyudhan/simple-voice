@@ -1,0 +1,31 @@
+# FilePath: scripts/eval/spoken-corpus.tsv
+# Sentences with spoken forms and tech product names, for the `spoken` clip set of
+# scripts/eval/make-clips.sh, scored by key-term recall in scripts/eval/transcription-eval.sh.
+# Columns (tab-separated): id, text as said, text as it should be pasted with formatting off,
+# key terms separated by `;` (`!term`: must not appear). The id's prefix is the category:
+# `mail` spoken email addresses, `keys` key chords, `math` spoken arithmetic, `tech` product
+# names, `neg` ordinary sentences the spoken-form rules must leave alone.
+mail-01	Send it to priya dot sharma at gmail dot com	Send it to priya.sharma@gmail.com	priya.sharma@gmail.com
+mail-02	My email is rahul at the rate example dot in	My email is rahul@example.in	rahul@example.in
+mail-03	Write to support at sign acme dot io	Write to support@acme.io	support@acme.io
+keys-01	Press control plus alt plus delete	Press Ctrl+Alt+Delete	Ctrl+Alt+Delete
+keys-02	Press control alt delete	Press Ctrl+Alt+Delete	Ctrl+Alt+Delete
+keys-03	Hit command shift p and type reload window	Hit Cmd+Shift+P and type reload window	Cmd+Shift+P
+keys-04	Use option command escape to force quit	Use Opt+Cmd+Esc to force quit	Opt+Cmd+Esc
+keys-05	Toggle it with control backtick	Toggle it with Ctrl+`	Ctrl+`
+math-01	Two plus two plus two equal to six	2 + 2 + 2 = 6	2 + 2 + 2 = 6
+math-02	Ten divided by two equals five	10 / 2 = 5	10 / 2 = 5
+neg-01	Let's meet at the office at five	Let's meet at the office at five	!@
+neg-02	I have control over all of it	I have control over all of it	!Ctrl
+tech-01	We moved the events from ClickHouse into the Lakehouse	We moved the events from ClickHouse into the Lakehouse	ClickHouse;Lakehouse
+tech-02	The Kafka consumer writes to Postgres and Redis	The Kafka consumer writes to Postgres and Redis	Kafka;Postgres;Redis
+tech-03	Deploy it on EKS with Terraform and ArgoCD	Deploy it on EKS with Terraform and ArgoCD	EKS;Terraform;ArgoCD
+tech-04	Query it in BigQuery or Snowflake through dbt	Query it in BigQuery or Snowflake through dbt	BigQuery;Snowflake;dbt
+tech-05	The Airflow DAG loads Iceberg tables for Trino	The Airflow DAG loads Iceberg tables for Trino	Airflow;DAG;Iceberg;Trino
+tech-06	Add pgvector to Postgres for the embeddings	Add pgvector to Postgres for the embeddings	pgvector;Postgres
+tech-07	Grafana and Sentry alerts fire on Datadog	Grafana and Sentry alerts fire on Datadog	Grafana;Sentry;Datadog
+tech-08	Put the key in the dot env file and update package dot json	Put the key in the .env file and update package.json	.env;package.json
+tech-09	The Next.js app talks to FastAPI over gRPC	The Next.js app talks to FastAPI over gRPC	Next.js;FastAPI;gRPC
+tech-10	Run kubectl get pods in the staging namespace	Run kubectl get pods in the staging namespace	kubectl
+tech-11	Karpenter scales the GKE nodes and Pulumi manages Cloudflare	Karpenter scales the GKE nodes and Pulumi manages Cloudflare	Karpenter;GKE;Pulumi;Cloudflare
+tech-12	Debezium streams the changes from Postgres into Kafka	Debezium streams the changes from Postgres into Kafka	Debezium;Postgres;Kafka

@@ -36,11 +36,11 @@ mix-09	Server का CPU usage बहुत high है, logs check करके
 mix-10	Invoice का payment अभी pending है, accounts team को एक reminder भेज दो।	Invoice ka payment abhi pending hai, accounts team ko ek reminder bhej do.
 mix-11	मैंने सारे unit tests pass कर लिए हैं, अब बस documentation update करना बाकी है।	Maine saare unit tests pass kar liye hain, ab bas documentation update karna baaki hai.
 mix-12	Office से निकलने से पहले मुझे एक message कर देना।	Office se nikalne se pehle mujhe ek message kar dena.
-names-01	Ujjwal Himanshu Vedant Shilpa Ankur Agastya	
-names-02	Please ask Ujjwal and Himanshu to review the pull request today.	
-names-03	Vedant and Shilpa will join the call with Ankur and Agastya.	
-names-04	Kalki should open a merge request for Signzy.	
+names-01	Ajjwar Hitanshu Nishant Swati Ankit Atharva	
+names-02	Please ask Ajjwar and Hitanshu to review the pull request today.	
+names-03	Nishant and Swati will join the call with Ankit and Atharva.	
+names-04	Kalvi should open a merge request for Sienzo.	
 names-05	If somebody wants to use Groq, let them use it.	
-names-06	Agastya told Vedant that the cargo build is fixed.	
-names-07	Himanshu and Ujjwal moved the Kargo pipeline to staging.	
-names-08	Ankur, can you send Shilpa the invoice before lunch?	
+names-06	Atharva told Nishant that the cargo build is fixed.	
+names-07	Hitanshu and Ajjwar moved the Kargo pipeline to staging.	
+names-08	Ankit, can you send Swati the invoice before lunch?	
