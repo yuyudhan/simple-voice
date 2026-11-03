@@ -54,7 +54,7 @@ cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked
 | Formatting | `just fmt-check`  | `cargo fmt --check`, `taplo fmt --check`, `prettier --check`, `swift-format lint --strict`         |
 | Guards     | `just guard`      | `scripts/guard/run-all.sh`, every hygiene guard below                                              |
 | Lint       | `just lint`       | `cargo clippy --workspace --all-targets -- -D warnings`, eslint, `tsc --noEmit`, typos, shellcheck |
-| Tests      | `just test`       | `cargo nextest run` (or `cargo test`) for the workspace, `bun test src`, `swift build` for the engine |
+| Tests      | `just test`       | `cargo nextest run` (or `cargo test`) for the workspace, `bun test src`, `swift build` for the engine, `engine-core-checks` |
 | sqlx cache | `just sqlx-check` | `cargo sqlx prepare --check` against a fresh migrated database                                     |
 
 `just fmt` fixes formatting in place. Rust compiles with `SQLX_OFFLINE=true` in every gate except
@@ -118,7 +118,10 @@ describes its protocol, models and permissions. `just engine` (or
 `bash engine/build.sh debug|release`) builds it and copies it to
 `src-tauri/binaries/simple-voice-engine-aarch64-apple-darwin`, where Tauri expects it. Every
 recipe that compiles `src-tauri` builds the debug helper first if it is missing, because the
-Tauri build script refuses to run without it. `just test` also runs `swift build` on the package.
+Tauri build script refuses to run without it. `just test` also runs `swift build` on the package
+and `swift run engine-core-checks`: the checks of `Sources/EngineCore` (the booster's spelling
+gate, the local model's prompt reuse) in `Tests/EngineCoreChecks`, a plain executable because
+the Command Line Tools alone ship no XCTest and cannot load swift-testing.
 
 Building needs the macOS 26 SDK (Xcode 26+ or its Command Line Tools) for SpeechAnalyzer and
 FoundationModels; the binary links FoundationModels weakly and still runs on macOS 14.

@@ -21,7 +21,7 @@
     <a href="#install">Install</a> · <a href="docs/features.md">Features</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/privacy.md">Privacy</a>
 </p>
 
-![Holding fn while saying "um so hi ankur, the launch is on friday, no wait, thursday", then the cleaned-up email pasted into Mail](docs/images/demo.gif)
+![Holding fn while saying a short greeting that changes its mind ("the launch is on friday, no wait, thursday"), then the cleaned-up email pasted into Mail](docs/images/demo.gif)
 
 ## Install
 

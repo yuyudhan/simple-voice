@@ -138,10 +138,18 @@ Local models are stored under the `--models-dir` the app passes (by default
   transcript word for a name only where the audio supports the name better; without the model
   the vocabulary is ignored. The rescorer's decisions are applied to the TDT transcript itself,
   so its punctuation and casing stay; a replacement much shorter than the word it replaces
-  ("Ujvalhimanshu" → "Himanshu") is refused, since it would drop a spoken name. The result's
+  ("Ajvarhitanshu" → "Hitanshu") is refused, since it would drop a spoken name, and so is one
+  spelled less than 75% like the words it replaces (on real recordings the rescorer alone wrote a
+  team's product name over "Press control" and a five-letter name over "Kafka"). The result's
   `dictionaryFixes` counts the names written in. The booster loads once (`preload` of
   `parakeet-vocabulary`, or the first dictation that sends a vocabulary) and stays resident; a
-  failed rescore is logged and the TDT text is returned unchanged.
+  failed rescore is logged and the TDT text is returned unchanged. The app downloads it (103 MB)
+  on its own once the Dictionary holds a name and Parakeet TDT (or Smart Select) transcribes
+  (`models::fetch_booster`, at launch, on a settings change and after a Dictionary addition or
+  import), unless `Settings.boosterAutoDownload` is off (Settings → Transcription → Dictionary
+  names, which states the size); then only the Models list's Download fetches it and a deleted
+  copy stays deleted. Only Dictionary names are boosted: the built-in packs' terms, even long
+  compound brands, made it write "ClickHouse" over "Lakehouse" and "AirPods" over "get pods".
 - Parakeet Flash is a streaming model; for a finished recording the whole file is fed through the
   streaming manager and then flushed.
 - `apple-speech` assets belong to macOS. `download_model` installs them for the requested locale
