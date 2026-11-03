@@ -3,23 +3,31 @@
 //! the deterministic formatter, so it works for every voice model and with formatting off.
 //!
 //! Parakeet takes no prompt and Whisper's prompt only nudges, so a name the user taught is
-//! still heard as "Ujwal", "Udjval", "Vedanta" or "Angora Gastya". The pass compares how words
+//! still heard as "Ajwar", "Adjvar", "Nishanta" or "Angita Tharva". The pass compares how words
 //! sound ([`phonetic`]) and only ever writes a dictionary term. The rules, strictest first:
 //!
-//! - Only dictionary words without a replacement, written as names: every word starts with a
-//!   capital ("Ujjwal", "ArgoCD", "Money Trace"), letters only, four sounds or more. Lowercase
-//!   entries ("lint", "pods", "rust") are ordinary words the user wants spelled, never targets.
-//! - Only words the model capitalised, so it took them for a name. A lowercase word is never
-//!   rewritten.
+//! - Only dictionary words without a replacement. Names, written with a capital on every word
+//!   ("Ajjwar", "ArgoCD", "Penny Trail"), letters only, four sounds or more, are the main
+//!   targets. A single lowercase entry that is no ordinary word ("robosienzo", "nuvo") is a
+//!   target too and is written in lowercase; lowercase ordinary words ("lint", "pods", "rust")
+//!   are words the user wants spelled, never targets. An entry that is neither ("ankit/nightly",
+//!   "Ankit fmehra") gives its parts instead: each part between spaces or slashes that is a
+//!   name, and for a slash-joined entry also each lowercase part that is no ordinary word.
+//! - Names snap only words the model capitalised, so it took them for a name; a lowercase
+//!   target snaps one word of any case.
 //! - Never an ordinary English word ([`common_words.txt`](common_words.txt)): "Cargo" stays
 //!   "Cargo" with "Kargo" in the dictionary, at a sentence start or anywhere else.
 //! - Never a word that already is a dictionary entry, in any case.
-//! - The sounds must be close: at most one edit per four sounds (similarity 0.75). "Vedanta" and
-//!   "Vedan" become "Vedant" because "Vedant" is in the dictionary and one sound apart; with
-//!   no such entry they stay as heard.
+//! - The sounds must be close: at most one edit per four sounds (similarity 0.75). "Nishanta" and
+//!   "Nishan" become "Nishant" because "Nishant" is in the dictionary and one sound apart; with
+//!   no such entry they stay as heard. A word of four sounds or fewer keeps its number of
+//!   sounds: "Kulvi" becomes "Kalvi", but the real name "Kali" never does. A target of five
+//!   sounds or more also takes a word that differs from it only in vowels and breath `h`s
+//!   ("Angkit", "Unket" → "Ankit"; "Itansho" → "Hitanshu"), since accents move vowels far more
+//!   than consonants.
 //! - A run of up to three capitalised words can become up to three dictionary words, which
-//!   repairs merged words ("Ankuragastya" → "Ankur Agastya") and split ones ("Angora Gastya" →
-//!   "Ankur Agastya", "Ujwali Manshu" → "Ujjwal Himanshu").
+//!   repairs merged words ("Ankitatharva" → "Ankit Atharva") and split ones ("Angita Tharva" →
+//!   "Ankit Atharva", "Ajwari Tanshu" → "Ajjwar Hitanshu").
 
 mod phonetic;
 
@@ -37,7 +45,13 @@ pub struct Spelling {
     /// Sound keys of the entry's words, run together.
     key: Vec<u8>,
     words: usize,
+    /// Written in lowercase ("robosienzo"): snaps one word of any case, not only a name.
+    lowercase_target: bool,
 }
+
+/// A target of this many sounds also takes a word only its vowels apart
+/// ([`phonetic::vowels_apart`]); shorter names would match too much by chance.
+const VOWEL_TOLERANT_SOUNDS: usize = 5;
 
 /// Fewer sounds than this match too much by chance ("Amp", "Cmd").
 const MIN_SOUNDS: usize = 4;
@@ -57,26 +71,47 @@ fn is_common(folded: &str) -> bool {
     COMMON.binary_search(&folded).is_ok()
 }
 
+/// An ordinary English word in any case ("Snowflake", "iceberg"), which no rule may recase.
+pub(crate) fn is_ordinary_word(word: &str) -> bool {
+    phonetic::folded(word).is_some_and(|folded| is_common(&folded))
+}
+
+/// The sound key of one word, or `None` when it holds anything but Latin letters.
+pub(crate) fn sound_key(word: &str) -> Option<Vec<u8>> {
+    phonetic::folded(word).map(|folded| phonetic::key(&folded))
+}
+
+/// The edit distance between two sound keys.
+pub(crate) fn sound_distance(a: &[u8], b: &[u8]) -> usize {
+    phonetic::prefix_distances(a, b)[b.len()]
+}
+
 /// Sound keys of the ordinary words, built on first use (a few milliseconds, once).
 static COMMON_SOUNDS: LazyLock<std::collections::HashSet<Vec<u8>>> =
     LazyLock::new(|| COMMON.iter().map(|word| phonetic::key(word)).collect());
 
 impl Spelling {
-    /// The entry as a sound-alike target, or `None` when it is not written as a name.
+    /// The entry as a sound-alike target: a name, or one lowercase word that is no ordinary
+    /// word. `None` for anything else.
     pub(crate) fn new(phrase: &str) -> Option<Spelling> {
         let words: Vec<&str> = phrase.split(' ').collect();
         if words.len() > MAX_SPAN {
             return None;
         }
+        let starts_upper = |word: &str| word.chars().next().is_some_and(char::is_uppercase);
+        let lowercase_target = words.len() == 1 && !starts_upper(words[0]);
         let mut folded = String::new();
         let mut key = Vec::new();
         for word in &words {
-            if !word.chars().next().is_some_and(char::is_uppercase) {
+            if !lowercase_target && !starts_upper(word) {
                 return None;
             }
             let word_folded = phonetic::folded(word)?;
             key.extend(phonetic::key(&word_folded));
             folded.push_str(&word_folded);
+        }
+        if lowercase_target && is_common(&folded) {
+            return None;
         }
         (key.len() >= MIN_SOUNDS).then(|| Spelling {
             written: phrase.to_owned(),
@@ -84,7 +119,23 @@ impl Spelling {
             lowercase: phrase.to_lowercase(),
             key,
             words: words.len(),
+            lowercase_target,
         })
+    }
+
+    /// The targets a dictionary entry gives (rules in the module docs): the entry itself, or
+    /// else its parts.
+    pub(crate) fn from_entry(phrase: &str) -> Vec<Spelling> {
+        if let Some(whole) = Spelling::new(phrase) {
+            return vec![whole];
+        }
+        let slashed = phrase.contains('/');
+        phrase
+            .split([' ', '/'])
+            .filter(|part| part.chars().next().is_some_and(char::is_uppercase) || slashed)
+            .filter(|part| !is_ordinary_word(part))
+            .filter_map(Spelling::new)
+            .collect()
     }
 
     /// One word, as the Parakeet booster takes its terms.
@@ -110,8 +161,11 @@ struct Word {
     start: usize,
     end: usize,
     key: Vec<u8>,
-    /// May join a span: capitalised, Latin letters, not an ordinary or already correct word.
-    eligible: bool,
+    /// May join a span of names: capitalised, Latin letters, not an ordinary or already
+    /// correct word.
+    name: bool,
+    /// May become a lowercase target: the same in any case.
+    loose: bool,
 }
 
 struct Candidate {
@@ -123,7 +177,7 @@ struct Candidate {
 
 impl Candidate {
     /// Covering more words always wins, so a misheard name split over two words ("Angora
-    /// Gastya") is repaired as a whole instead of only its closer half. At equal coverage the
+    /// Tharva") is repaired as a whole instead of only its closer half. At equal coverage the
     /// similarities add up, so two separately close names beat one run-together match.
     fn score(&self) -> usize {
         self.len * 2000 + self.similarity
@@ -173,8 +227,9 @@ pub fn correct(text: &str, spellings: &[Spelling]) -> Corrected {
     Corrected { text: out, hits }
 }
 
-/// Every span of eligible words that sounds close to a run of spellings, grouped by the span's
-/// first word. Spans that would come out unchanged are left out.
+/// Every span of capitalised words that sounds close to a run of names, and every single word
+/// close to a lowercase target, grouped by the span's first word. Spans that would come out
+/// unchanged are left out.
 fn candidates(text: &str, words: &[Word], spellings: &[Spelling]) -> Vec<Vec<Candidate>> {
     let mut by_first: Vec<Vec<Candidate>> = Vec::with_capacity(words.len());
     for first in 0..words.len() {
@@ -182,31 +237,51 @@ fn candidates(text: &str, words: &[Word], spellings: &[Spelling]) -> Vec<Vec<Can
         let mut key = Vec::new();
         for len in 1..=MAX_SPAN.min(words.len() - first) {
             let last = first + len - 1;
-            if !words[last].eligible || (len > 1 && !joined(text, &words[last - 1], &words[last])) {
+            if !words[last].name || (len > 1 && !joined(text, &words[last - 1], &words[last])) {
                 break;
             }
             key.extend_from_slice(&words[last].key);
-            let Some((distance, terms)) = best_match(&key, spellings) else {
-                continue;
-            };
-            let written: Vec<&str> = terms
-                .iter()
-                .map(|&t| spellings[t].written.as_str())
-                .collect();
-            let replacement = written.join(" ");
-            if text[words[first].start..words[last].end] == replacement {
-                continue;
-            }
-            let sounds: usize = terms.iter().map(|&t| spellings[t].key.len()).sum();
-            here.push(Candidate {
-                len,
-                similarity: 1000 - distance * 1000 / key.len().max(sounds).max(1),
-                replacement,
-            });
+            here.extend(candidate(
+                text,
+                &words[first..=last],
+                &key,
+                spellings,
+                false,
+            ));
+        }
+        // A capitalised word goes to a lowercase target only when no name took it.
+        if here.is_empty() && words[first].loose {
+            let word = &words[first..=first];
+            here.extend(candidate(text, word, &word[0].key, spellings, true));
         }
         by_first.push(here);
     }
     by_first
+}
+
+fn candidate(
+    text: &str,
+    span: &[Word],
+    key: &[u8],
+    spellings: &[Spelling],
+    lowercase: bool,
+) -> Option<Candidate> {
+    let (first, last) = (span.first()?, span.last()?);
+    let (distance, terms) = best_match(key, spellings, lowercase)?;
+    let written: Vec<&str> = terms
+        .iter()
+        .map(|&t| spellings[t].written.as_str())
+        .collect();
+    let replacement = written.join(" ");
+    if text[first.start..last.end] == replacement {
+        return None;
+    }
+    let sounds: usize = terms.iter().map(|&t| spellings[t].key.len()).sum();
+    Some(Candidate {
+        len: span.len(),
+        similarity: 1000 - distance * 1000 / key.len().max(sounds).max(1),
+        replacement,
+    })
 }
 
 /// Two words of one span are separated by spaces only.
@@ -236,34 +311,51 @@ fn words(text: &str, spellings: &[Spelling]) -> Vec<Word> {
 
 fn word(written: &str, start: usize, spellings: &[Spelling]) -> Word {
     let end = start + written.len();
-    let capitalised = written.chars().next().is_some_and(char::is_uppercase);
-    let folded = capitalised.then(|| phonetic::folded(written)).flatten();
-    let Some(folded) = folded else {
+    let Some(folded) = phonetic::folded(written) else {
         return Word {
             start,
             end,
             key: Vec::new(),
-            eligible: false,
+            name: false,
+            loose: false,
         };
     };
+    let capitalised = written.chars().next().is_some_and(char::is_uppercase);
     let lowercase = written.to_lowercase();
-    let eligible = folded.len() >= MIN_WORD_LETTERS
+    let loose = folded.len() >= MIN_WORD_LETTERS
         && !is_common(&folded)
         && !spellings.iter().any(|s| s.lowercase == lowercase);
     Word {
         start,
         end,
         key: phonetic::key(&folded),
-        eligible,
+        name: capitalised && loose,
+        loose,
     }
 }
 
-/// The closest run of up to [`MAX_SPAN`] spellings to `key`, as (distance, spelling indexes),
-/// when it is close enough to count: one edit per four sounds of the longer side.
-fn best_match(key: &[u8], spellings: &[Spelling]) -> Option<(usize, Vec<usize>)> {
-    let found = search(key, spellings, MAX_SPAN, key.len() / 4 + 1)?;
-    let written: usize = found.1.iter().map(|&t| spellings[t].key.len()).sum();
-    (found.0 * 4 <= key.len().max(written)).then_some(found)
+/// The closest run of up to [`MAX_SPAN`] names (or one lowercase target) to `key`, as
+/// (distance, spelling indexes), when it is close enough to count: one edit per four sounds of
+/// the longer side, or only vowels apart from one target of [`VOWEL_TOLERANT_SOUNDS`] or more.
+/// A heard word shorter than that only takes a target of its own length: a real short name
+/// ("Kali", "Ravi") is one added sound away from many dictionary names ("Kalvi", "Ravin"),
+/// while a misheard name keeps its number of sounds and swaps one.
+fn best_match(key: &[u8], spellings: &[Spelling], lowercase: bool) -> Option<(usize, Vec<usize>)> {
+    let terms = if lowercase { 1 } else { MAX_SPAN };
+    if let Some(found) = search(key, spellings, lowercase, terms, key.len() / 4 + 1) {
+        let written: usize = found.1.iter().map(|&t| spellings[t].key.len()).sum();
+        let grows_short_word = key.len() < VOWEL_TOLERANT_SOUNDS && written != key.len();
+        if found.0 * 4 <= key.len().max(written) && !grows_short_word {
+            return Some(found);
+        }
+    }
+    spellings
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| s.lowercase_target == lowercase && s.key.len() >= VOWEL_TOLERANT_SOUNDS)
+        .filter(|(_, s)| phonetic::vowels_apart(key, &s.key))
+        .map(|(index, s)| (sound_distance(&s.key, key), vec![index]))
+        .min_by_key(|(distance, _)| *distance)
 }
 
 /// The closest run of at most `terms_left` spellings to `key` within `budget` edits. Each
@@ -272,6 +364,7 @@ fn best_match(key: &[u8], spellings: &[Spelling]) -> Option<(usize, Vec<usize>)>
 fn search(
     key: &[u8],
     spellings: &[Spelling],
+    lowercase: bool,
     terms_left: usize,
     budget: usize,
 ) -> Option<(usize, Vec<usize>)> {
@@ -281,6 +374,9 @@ fn search(
             .is_none_or(|(d, t)| distance < *d || (distance == *d && terms < t.len()))
     };
     for (index, spelling) in spellings.iter().enumerate() {
+        if spelling.lowercase_target != lowercase {
+            continue;
+        }
         let local = budget.min((spelling.key.len() + 1) / 3);
         let prefixes = phonetic::prefix_distances(&spelling.key, key);
         let whole = prefixes[key.len()];
@@ -296,9 +392,13 @@ fn search(
             if head > local {
                 continue;
             }
-            let Some((tail, mut rest)) =
-                search(&key[split..], spellings, terms_left - 1, budget - head)
-            else {
+            let Some((tail, mut rest)) = search(
+                &key[split..],
+                spellings,
+                lowercase,
+                terms_left - 1,
+                budget - head,
+            ) else {
                 continue;
             };
             if better(&best, head + tail, rest.len() + 1) {
@@ -318,7 +418,7 @@ mod tests {
         phrases.iter().filter_map(|p| Spelling::new(p)).collect()
     }
 
-    const TEAM: &[&str] = &["Ujjwal", "Himanshu", "Vedant", "Shilpa", "Ankur", "Agastya"];
+    const TEAM: &[&str] = &["Ajjwar", "Hitanshu", "Nishant", "Swati", "Ankit", "Atharva"];
 
     fn fixed(text: &str, phrases: &[&str]) -> String {
         correct(text, &spellings(phrases)).text
@@ -326,17 +426,17 @@ mod tests {
 
     #[test]
     fn names_only_become_targets_when_written_as_names() {
-        assert!(Spelling::new("Ujjwal").is_some());
-        assert!(Spelling::new("Money Trace").is_some());
+        assert!(Spelling::new("Ajjwar").is_some());
+        assert!(Spelling::new("Penny Trail").is_some());
         assert!(Spelling::new("ArgoCD").is_some());
         for phrase in [
             "lint",
             "pods",
             "rust",
-            "Money trace",
+            "Penny trail",
             "Amp",
             "AGENTS.md",
-            "ankur/nightly",
+            "ankit/nightly",
         ] {
             assert!(Spelling::new(phrase).is_none(), "{phrase}");
         }
@@ -346,11 +446,11 @@ mod tests {
 
     #[test]
     fn the_captains_three_dictations_come_out_right() {
-        let expected = "Ujjwal Himanshu Vedant Shilpa Ankur Agastya.";
+        let expected = "Ajjwar Hitanshu Nishant Swati Ankit Atharva.";
         for heard in [
-            "Ujwal Himanšu Vedan Shilpa Ankuragastya.",
-            "Ujwal Himanju Vedanta Shilpa Angora Gastya.",
-            "Ujwali Manshu Vedanta Shilpa Ankura Gastya.",
+            "Ajwar Hitanšu Nishan Swati Ankitatharva.",
+            "Ajwar Hitanju Nishanta Swati Angita Tharva.",
+            "Ajwari Tanshu Nishanta Swati Ankita Tharva.",
         ] {
             assert_eq!(fixed(heard, TEAM), expected, "{heard}");
         }
@@ -359,42 +459,73 @@ mod tests {
     #[test]
     fn parakeet_misspellings_of_the_synthetic_clips() {
         assert_eq!(
-            fixed("Please ask Udjaval and Himanshuk to review it.", TEAM),
-            "Please ask Ujjwal and Himanshu to review it."
+            fixed("Please ask Adjavar and Hitanshuk to review it.", TEAM),
+            "Please ask Ajjwar and Hitanshu to review it."
         );
         assert_eq!(
-            fixed("Vidant will call Ankur and Agustya.", TEAM),
-            "Vedant will call Ankur and Agastya."
+            fixed("Nishunt will call Ankit and Atherva.", TEAM),
+            "Nishant will call Ankit and Atharva."
         );
         assert_eq!(
-            fixed("Ujjavalhimanshu Vedant Shilparankura Gastya.", TEAM),
-            "Ujjwal Himanshu Vedant Shilpa Ankur Agastya."
+            fixed("Ajjavarhitanshu Nishant Swatirankita Tharva.", TEAM),
+            "Ajjwar Hitanshu Nishant Swati Ankit Atharva."
         );
         assert_eq!(
-            fixed("Kulki should open it.", &["Kalki"]),
-            "Kalki should open it."
+            fixed("Kulvi should open it.", &["Kalvi"]),
+            "Kalvi should open it."
+        );
+    }
+
+    #[test]
+    fn a_long_name_takes_a_word_only_its_vowels_apart() {
+        for heard in ["Angkit", "Unket"] {
+            assert_eq!(
+                fixed(&format!("{heard} pushed the fix."), TEAM),
+                "Ankit pushed the fix.",
+                "{heard}"
+            );
+        }
+        assert_eq!(fixed("Itansho is here.", TEAM), "Hitanshu is here.");
+    }
+
+    #[test]
+    fn a_short_real_name_never_grows_a_sound_to_become_a_dictionary_name() {
+        assert_eq!(
+            fixed("Kali is a goddess.", &["Kalvi"]),
+            "Kali is a goddess."
+        );
+        for heard in ["Kulvi", "Khalvi", "Culvy"] {
+            assert_eq!(
+                fixed(&format!("{heard} should open it."), &["Kalvi"]),
+                "Kalvi should open it.",
+                "{heard}"
+            );
+        }
+        assert_eq!(
+            fixed("Meet Nishan today.", &["Nishant"]),
+            "Meet Nishant today."
         );
     }
 
     #[test]
     fn counts_each_corrected_place_once() {
-        let out = correct("Ujwal Himanšu Vedan Shilpa Ankuragastya.", &spellings(TEAM));
+        let out = correct("Ajwar Hitanšu Nishan Swati Ankitatharva.", &spellings(TEAM));
         assert_eq!(out.hits, 4);
-        assert_eq!(correct("Shilpa and Ankur.", &spellings(TEAM)).hits, 0);
+        assert_eq!(correct("Swati and Ankit.", &spellings(TEAM)).hits, 0);
     }
 
     #[test]
     fn ordinary_words_are_never_rewritten() {
         let dictionary = &[
-            "Kargo", "Groq", "Vedant", "Signzy", "Kalki", "Polaris", "Harbor", "Dhruv", "Hurl",
-            "Curl", "Kitty", "Agents", "Crates", "Deepak", "Ankur",
+            "Kargo", "Groq", "Nishant", "Sienzo", "Kalvi", "Polaris", "Harbor", "Dhaval", "Hurl",
+            "Curl", "Kitty", "Agents", "Crates", "Rupak", "Ankit",
         ];
         for text in [
             "Cargo builds the crate.",
             "Use cargo and grok it.",
-            "Signs of progress, signs everywhere.",
+            "Science of progress, science everywhere.",
             "Grow the team. Drag it here. Lent me a pen.",
-            "the vedanta school of thought",
+            "the nishanta school of thought",
             "Deep work and anchor points.",
             "Curly braces and hurled stones.",
             "I think it is fine.",
@@ -406,35 +537,35 @@ mod tests {
     #[test]
     fn a_close_name_wins_only_when_it_is_in_the_dictionary() {
         assert_eq!(
-            fixed("Meet Vedanta today.", &["Vedant"]),
-            "Meet Vedant today."
+            fixed("Meet Nishanta today.", &["Nishant"]),
+            "Meet Nishant today."
         );
         assert_eq!(
-            fixed("Meet Vedanta today.", &["Kalki"]),
-            "Meet Vedanta today."
+            fixed("Meet Nishanta today.", &["Kalvi"]),
+            "Meet Nishanta today."
         );
         // Two edits on a six-sound name is too far.
-        assert_eq!(fixed("Ask Rajesh.", &["Rajdeep"]), "Ask Rajesh.");
-        assert_eq!(fixed("Ask Deepika.", &["Deepak"]), "Ask Deepika.");
+        assert_eq!(fixed("Ask Rajesh.", &["Rajveep"]), "Ask Rajesh.");
+        assert_eq!(fixed("Ask Rupika.", &["Rupak"]), "Ask Rupika.");
     }
 
     #[test]
     fn keeps_punctuation_and_surrounding_text() {
         assert_eq!(
             fixed(
-                "Hi Ujwal, meet Vedan (and Kulki)!",
-                &["Ujjwal", "Vedant", "Kalki"]
+                "Hi Ajwar, meet Nishan (and Kulvi)!",
+                &["Ajjwar", "Nishant", "Kalvi"]
             ),
-            "Hi Ujjwal, meet Vedant (and Kalki)!"
+            "Hi Ajjwar, meet Nishant (and Kalvi)!"
         );
-        assert_eq!(fixed("Ujwal's laptop", TEAM), "Ujjwal's laptop");
+        assert_eq!(fixed("Ajwar's laptop", TEAM), "Ajjwar's laptop");
     }
 
     #[test]
     fn words_across_punctuation_or_lines_never_merge() {
-        assert_eq!(fixed("Angora. Gastya", TEAM), "Angora. Agastya");
+        assert_eq!(fixed("Angita. Tharva", TEAM), "Angita. Atharva");
         // A run-on name is still repaired on its own; it just never joins the next line.
-        assert_eq!(fixed("Ujwali\nManshu", TEAM), "Ujjwal\nManshu");
+        assert_eq!(fixed("Ajwari\nTanshu", TEAM), "Ajjwar\nTanshu");
     }
 
     #[test]
@@ -446,20 +577,20 @@ mod tests {
     #[test]
     fn multi_word_names_are_targets_too() {
         assert_eq!(
-            fixed("Ask Shilparao now.", &["Shilpa Rao"]),
-            "Ask Shilpa Rao now."
+            fixed("Ask Swatirao now.", &["Swati Rao"]),
+            "Ask Swati Rao now."
         );
         // An ordinary word never joins a span, even inside a multi-word name.
         assert_eq!(
-            fixed("Open Mani Trace now.", &["Money Trace"]),
-            "Open Mani Trace now."
+            fixed("Open Peni Trail now.", &["Penny Trail"]),
+            "Open Peni Trail now."
         );
     }
 
     #[test]
     fn the_common_word_list_is_sorted_for_binary_search() {
         assert!(COMMON.windows(2).all(|pair| pair[0] < pair[1]));
-        assert!(is_common("cargo") && is_common("signs") && !is_common("vedanta"));
+        assert!(is_common("cargo") && is_common("science") && !is_common("nishanta"));
     }
 
     #[test]
@@ -468,7 +599,7 @@ mod tests {
             |phrase: &str| Spelling::new(phrase).is_some_and(|s| s.sounds_like_ordinary_word());
         assert!(flagged("Kargo") && flagged("Agents") && flagged("Kitty"));
         for name in [
-            "Groq", "Ujjwal", "Himanshu", "Vedant", "Shilpa", "Ankur", "Agastya", "Kalki",
+            "Groq", "Ajjwar", "Hitanshu", "Nishant", "Swati", "Ankit", "Atharva", "Kalvi",
         ] {
             assert!(!flagged(name), "{name}");
         }

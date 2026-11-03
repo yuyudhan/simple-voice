@@ -40,7 +40,8 @@ let package = Package(
     name: "SimpleVoiceEngine",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "simple-voice-engine", targets: ["SimpleVoiceEngine"])
+        .executable(name: "simple-voice-engine", targets: ["SimpleVoiceEngine"]),
+        .executable(name: "engine-core-checks", targets: ["EngineCoreChecks"]),
     ],
     dependencies: [
         .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.4"),
@@ -52,6 +53,7 @@ let package = Package(
             dependencies: [
                 .product(name: "FluidAudio", package: "FluidAudio"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
+                "EngineCore",
                 "llama",
             ],
             path: "Sources/SimpleVoiceEngine",
@@ -69,6 +71,21 @@ let package = Package(
                 runtimeSearchPath("@executable_path/../Frameworks"),
                 runtimeSearchPath(devFrameworks, .debug),
             ]
+        ),
+        // The helper's pure decisions (the booster's spelling gate, the local model's prompt reuse),
+        // apart from Apple frameworks and models so `just test` checks them in seconds.
+        .target(
+            name: "EngineCore",
+            path: "Sources/EngineCore",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // A plain executable, not a test bundle: it runs the same with the Command Line Tools alone
+        // (no XCTest, and swift-testing does not load there) as with Xcode.
+        .executableTarget(
+            name: "EngineCoreChecks",
+            dependencies: ["EngineCore"],
+            path: "Tests/EngineCoreChecks",
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // llama.cpp b11575 (MIT), the official Apple XCFramework release asset. b11576 ("graph: pad
         // the KV dimension of the no-cache attention to 256", #30416) breaks T5 encoders, which the

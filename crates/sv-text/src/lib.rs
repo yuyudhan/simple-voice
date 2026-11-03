@@ -19,6 +19,7 @@ pub mod polish;
 pub mod preview;
 pub mod snippets;
 pub mod sound_alike;
+mod spoken;
 mod tokens;
 pub mod vocabulary;
 

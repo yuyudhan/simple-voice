@@ -48,9 +48,17 @@ pub struct Vocabulary {
     pub rules: Vec<Rule>,
     /// Personal dictionary words left out of the prompt because it was full.
     pub omitted: usize,
-    /// Personal dictionary entries written as names, in dictionary order: what misheard words
-    /// snap to (see [`crate::sound_alike`]). Built-in pack words are never targets.
+    /// Personal dictionary entries written as names or as unusual lowercase words, and the name
+    /// parts of other entries, in dictionary order: what misheard words snap to (see
+    /// [`crate::sound_alike`]). Built-in pack words are never targets.
     pub spellings: Vec<Spelling>,
+    /// Every lowercase word of every dictionary entry ("sienzo" of "Sienzo", "ankit" and
+    /// "nightly" of "ankit/nightly"): what a word inside a spoken email address snaps to,
+    /// ordinary words included (see [`crate::spoken`]).
+    pub email_words: Vec<String>,
+    /// Dictionary entries that are email addresses, lowercased: a spoken address that comes
+    /// out close to one is written as it.
+    pub addresses: Vec<String>,
 }
 
 impl Default for Vocabulary {
@@ -73,11 +81,22 @@ impl Vocabulary {
 
         let mut user_rules = Vec::new();
         let mut omitted = 0;
-        let mut spellings = Vec::new();
+        let mut spellings: Vec<Spelling> = Vec::new();
+        let mut email_words: Vec<String> = Vec::new();
+        let mut addresses: Vec<String> = Vec::new();
         for entry in entries {
             let phrase = entry.phrase.trim();
             if phrase.is_empty() {
                 continue;
+            }
+            for word in phrase
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|word| word.chars().count() >= 3)
+            {
+                let word = word.to_lowercase();
+                if !email_words.contains(&word) {
+                    email_words.push(word);
+                }
             }
             if let Some(replacement) = &entry.replacement {
                 user_rules.push(Rule {
@@ -86,7 +105,14 @@ impl Vocabulary {
                 });
                 continue;
             }
-            spellings.extend(Spelling::new(phrase));
+            if crate::spoken::is_address(phrase) {
+                addresses.push(phrase.to_lowercase());
+            }
+            for spelling in Spelling::from_entry(phrase) {
+                if !spellings.iter().any(|s| s.written == spelling.written) {
+                    spellings.push(spelling);
+                }
+            }
             // Once one word does not fit, every later word is omitted too, so the prompt keeps
             // the dictionary's own priority order instead of back-filling with short words.
             if omitted > 0 || !prompt.push(phrase, PROMPT_MAX_TOKENS) {
@@ -116,7 +142,6 @@ impl Vocabulary {
                 break;
             }
         }
-
         // Longest phrase first, so "git status" wins over a "git" rule. The sort is stable,
         // which keeps the user's rules ahead and dictionary order among equal lengths.
         let mut rules = user_rules;
@@ -128,13 +153,18 @@ impl Vocabulary {
             rules,
             omitted,
             spellings,
+            email_words,
+            addresses,
         }
     }
 
     /// The single-word names Parakeet's dictionary booster checks the audio for. Multi-word
     /// entries, ordinary English words ("Agents") and names that sound exactly like one
     /// ("Kargo" for "cargo") are left out: the booster matches by sound, so it would write them
-    /// over the everyday word, and turned "and" into the second word of a name.
+    /// over the everyday word, and turned "and" into the second word of a name. Built-in pack
+    /// words never go: measured on the say clips and the owner's recordings, even the long
+    /// compound names ("ClickHouse", "PostgreSQL") made it write "ClickHouse" over
+    /// "Lakehouse", "PostgreSQL" over "Postgres" and "AirPods" over "get pods".
     pub fn boost_terms(&self) -> Vec<String> {
         self.spellings
             .iter()

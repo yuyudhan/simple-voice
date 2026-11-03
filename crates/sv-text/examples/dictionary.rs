@@ -6,11 +6,13 @@
 //!   dictionary format FILE        each stdin line through the deterministic formatter
 //!
 //! FILE holds one dictionary entry per line, "heard -> written" for a rule, as the app imports.
+//! The built-in vocabulary packs are a new install's defaults, as most users run them.
 #![forbid(unsafe_code)]
 
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
+use sv_domain::vocabulary_packs::default_vocabulary_packs;
 use sv_domain::{DictionaryEntry, DictionarySource, Style};
 use sv_text::Vocabulary;
 
@@ -38,7 +40,7 @@ fn entries(path: &str) -> io::Result<Vec<DictionaryEntry>> {
 }
 
 fn run(mode: &str, path: &str) -> io::Result<()> {
-    let vocabulary = Vocabulary::new(&entries(path)?, &[]);
+    let vocabulary = Vocabulary::new(&entries(path)?, &default_vocabulary_packs());
     let mut out = io::stdout().lock();
     match mode {
         "boost-terms" => {

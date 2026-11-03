@@ -26,13 +26,28 @@ enum AppleIntelligence {
         LanguageModelSession().prewarm()
     }
 
+    /// Builds the session the next request with these instructions and examples answers on, and
+    /// has the system model read them now, while the user is still speaking. The system model
+    /// goes cold after a few idle minutes and a fresh session rereads its instructions (0.9 s),
+    /// so preparing at recording start takes both off the formatting pass.
+    static func prepare(system: String, shots: [PolishShot]) async throws {
+        if let reason = unavailableReason() {
+            throw EngineError(reason)
+        }
+        let session = LanguageModelSession(transcript: transcript(system: system, shots: shots))
+        session.prewarm(promptPrefix: Prompt(promptPrefix))
+        await PreparedSessions.shared.keep(session, for: key(system: system, shots: shots))
+    }
+
     static func polish(_ params: PolishParams) async throws -> PolishResult {
         try await generate(
             system: params.system, shots: params.shots, user: params.user, maxTokens: nil, temperature: 0)
     }
 
     /// Few-shot examples go into the session transcript as real prompt/response turns, which the
-    /// model follows more reliably than examples pasted into the instructions.
+    /// model follows more reliably than examples pasted into the instructions. A session
+    /// `prepare` made for the same instructions and examples is used once, then dropped: its
+    /// transcript then holds this answer.
     static func generate(
         system: String,
         shots: [PolishShot],
@@ -43,14 +58,8 @@ enum AppleIntelligence {
         if let reason = unavailableReason() {
             throw EngineError(reason)
         }
-        var entries: [Transcript.Entry] = [
-            .instructions(Transcript.Instructions(segments: [text(system)], toolDefinitions: []))
-        ]
-        for shot in shots {
-            entries.append(.prompt(Transcript.Prompt(segments: [text(shot.user)])))
-            entries.append(.response(Transcript.Response(assetIDs: [], segments: [text(shot.assistant)])))
-        }
-        let session = LanguageModelSession(transcript: Transcript(entries: entries))
+        let prepared = await PreparedSessions.shared.take(key(system: system, shots: shots))
+        let session = prepared ?? LanguageModelSession(transcript: transcript(system: system, shots: shots))
         let options = GenerationOptions(temperature: temperature, maximumResponseTokens: maxTokens)
         do {
             let response = try await session.respond(to: user, options: options)
@@ -58,6 +67,24 @@ enum AppleIntelligence {
         } catch let error as LanguageModelSession.GenerationError {
             throw EngineError(message(for: error))
         }
+    }
+
+    /// Every formatting prompt's user turn opens with the transcript tag.
+    private static let promptPrefix = "<transcript>\n"
+
+    private static func transcript(system: String, shots: [PolishShot]) -> Transcript {
+        var entries: [Transcript.Entry] = [
+            .instructions(Transcript.Instructions(segments: [text(system)], toolDefinitions: []))
+        ]
+        for shot in shots {
+            entries.append(.prompt(Transcript.Prompt(segments: [text(shot.user)])))
+            entries.append(.response(Transcript.Response(assetIDs: [], segments: [text(shot.assistant)])))
+        }
+        return Transcript(entries: entries)
+    }
+
+    private static func key(system: String, shots: [PolishShot]) -> [String] {
+        [system] + shots.flatMap { [$0.user, $0.assistant] }
     }
 
     private static func text(_ content: String) -> Transcript.Segment {
@@ -99,5 +126,24 @@ enum AppleIntelligence {
         default:
             return "Apple Intelligence failed: \(describe(error))"
         }
+    }
+}
+
+/// The one session `prepare` built, keyed by its instructions and examples. A newer prepare
+/// replaces it; a request with other instructions builds its own and leaves it.
+@available(macOS 26, *)
+actor PreparedSessions {
+    static let shared = PreparedSessions()
+
+    private var prepared: (key: [String], session: LanguageModelSession)?
+
+    func keep(_ session: LanguageModelSession, for key: [String]) {
+        prepared = (key, session)
+    }
+
+    func take(_ key: [String]) -> LanguageModelSession? {
+        guard let prepared, prepared.key == key else { return nil }
+        self.prepared = nil
+        return prepared.session
     }
 }

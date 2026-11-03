@@ -356,7 +356,7 @@ mod tests {
         let access_key = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
         let text = format!(
             "Send Priya's file to bob@Example.com via https://Example.com/Path or \
-             /Users/Ankur/Docs, code 123456 key {access_key} and aBcDeFgHiJkLmN OK, plus Raycast"
+             /Users/Ankit/Docs, code 123456 key {access_key} and aBcDeFgHiJkLmN OK, plus Raycast"
         );
         assert_eq!(context_terms(&text, None), vec!["Raycast", "Priya"]);
     }
@@ -384,7 +384,7 @@ mod tests {
     fn ide_terms_are_file_names_then_identifiers_by_frequency() {
         let title = "● main.rs — simple-voice — Visual Studio Code";
         let text = "use crate::features::llm; fn polish_prompt(userName: &str) { let \
-                    MAX_RETRIES = 3; see src/features/llm.rs and /Users/ankur/secret/notes.md. \
+                    MAX_RETRIES = 3; see src/features/llm.rs and /Users/ankit/secret/notes.md. \
                     this.userName.length; ContentView Hello hello __init__ ok }";
         assert_eq!(
             ide_terms(text, Some(title)),

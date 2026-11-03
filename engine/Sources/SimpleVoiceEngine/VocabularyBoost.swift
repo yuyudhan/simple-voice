@@ -4,6 +4,7 @@
 // download) scores every term against the audio, and its rescorer swaps transcript words for a
 // term only where the audio supports the term better than what was written.
 
+import EngineCore
 import FluidAudio
 import Foundation
 
@@ -82,7 +83,7 @@ actor VocabularyBooster {
             var applied = 0
             for replacement in output.replacements where replacement.shouldReplace {
                 guard let word = replacement.replacementWord,
-                    Self.keepsEveryWord(replacement.originalWord, replacedBy: word),
+                    SpellingGate.keepsEveryWord(replacement.originalWord, replacedBy: word),
                     let range = Self.wholeWords(replacement.originalWord, in: rewritten)
                 else { continue }
                 rewritten.replaceSubrange(range, with: word)
@@ -93,13 +94,6 @@ actor VocabularyBooster {
             Log.info("dictionary boosting skipped: \(error.localizedDescription)")
             return nil
         }
-    }
-
-    /// A word TDT ran together from two names ("Ujvalhimanshu") must not collapse into one of
-    /// them: a replacement half again shorter than what it replaces would drop a spoken word.
-    static func keepsEveryWord(_ original: String, replacedBy replacement: String) -> Bool {
-        let letters = { (text: String) in text.filter { $0.isLetter || $0.isNumber }.count }
-        return letters(original) * 2 <= letters(replacement) * 3
     }
 
     /// The first occurrence of `words` that begins and ends on a word frontier, matched

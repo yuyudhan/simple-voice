@@ -1,11 +1,11 @@
 // FilePath: crates/sv-text/src/sound_alike/phonetic.rs
 //! How a written word sounds, coarsely: the key two spellings of the same spoken name share
-//! ("Ujwal", "Udjval" and "Ujjwal" all become `ujval`; "Himanšu" and "Himanshu" `himansu`), and
+//! ("Ajwar", "Adjvar" and "Ajjwar" all become `ajvar`; "Hitanšu" and "Hitanshu" `hitansu`), and
 //! the edit distance between two keys.
 //!
 //! The key folds Latin diacritics (Parakeet v3 writes Czech-style "š" for an Indian "sh"),
-//! spelling variants of one sound (w/v, y/i, c/k/q, z/s, ph/f, dj/j), an `h` that only aspirates
-//! the consonant before it (bh, dh, sh, th), and doubled letters.
+//! spelling variants of one sound (w/v, y/i, c/k/q, soft c/s, z/s, ph/f, dj/j, ngk/nk), an `h`
+//! that only aspirates the consonant before it (bh, dh, sh, th), and doubled letters.
 
 /// The lowercase ASCII letters a non-ASCII `c` folds to, or `None` for a character that is not
 /// a Latin letter (CJK, Devanagari, Cyrillic): such words are never matched.
@@ -73,6 +73,10 @@ pub(crate) fn key(folded: &str) -> Vec<u8> {
             Some(b"ph") => (b"f", 2),
             Some(b"dj") => (b"j", 2),
             Some(b"ck") => (b"k", 2),
+            // A soft c ("science", "Vincent") sounds like s.
+            Some([b'c', b'e' | b'i' | b'y']) => (b"s", 1),
+            // The g of "Angkit" is the nasal of "Ankit", not a sound of its own.
+            Some(b"ng") if matches!(bytes.get(i + 2), Some(b'k' | b'c' | b'q')) => (b"n", 2),
             _ => match bytes[i] {
                 b'x' => (b"ks", 1),
                 b'w' => (b"v", 1),
@@ -99,6 +103,19 @@ pub(crate) fn key(folded: &str) -> Vec<u8> {
         out.push(b);
     }
     out
+}
+
+/// Whether two keys differ only in their vowels and breath `h`s: the shape a misheard name
+/// keeps when only its vowels drift ("Angkit", "Unket" and "Ankit"; "Ojwar" and "Ajjwar";
+/// "Itansho" and "Hitanshu"). Leaving out every `h`, the keys have the same length and the same
+/// consonants in the same places, so a vowel is swapped for a vowel but never added or dropped
+/// ("Rupika" stays apart from "Rupak").
+pub(crate) fn vowels_apart(a: &[u8], b: &[u8]) -> bool {
+    let a = a.iter().filter(|&&c| c != b'h');
+    let b = b.iter().filter(|&&c| c != b'h');
+    a.clone().count() == b.clone().count()
+        && a.zip(b)
+            .all(|(&x, &y)| x == y || (is_vowel(x) && is_vowel(y)))
 }
 
 /// The distance from `pattern` to every prefix of `text`: entry `p` is the distance to
@@ -131,18 +148,18 @@ mod tests {
 
     #[test]
     fn spellings_of_one_spoken_name_share_a_key() {
-        for heard in ["Ujwal", "Udjval", "Ujval", "Ujjwal"] {
-            assert_eq!(key_of(heard), "ujval", "{heard}");
+        for heard in ["Ajwar", "Adjvar", "Ajvar", "Ajjwar"] {
+            assert_eq!(key_of(heard), "ajvar", "{heard}");
         }
-        for heard in ["Himanšu", "Hymanšu", "Himanshu"] {
-            assert_eq!(key_of(heard), "himansu", "{heard}");
+        for heard in ["Hitanšu", "Hytanšu", "Hitanshu"] {
+            assert_eq!(key_of(heard), "hitansu", "{heard}");
         }
-        assert_eq!(key_of("Šilpa"), key_of("Shilpa"));
+        assert_eq!(key_of("Šruti"), key_of("Shruti"));
         assert_eq!(
-            distance(key_of("Culky").as_bytes(), key_of("Kalki").as_bytes()),
+            distance(key_of("Culvy").as_bytes(), key_of("Kalvi").as_bytes()),
             1
         );
-        assert_eq!(key_of("Dhruv"), key_of("Druv"));
+        assert_eq!(key_of("Dhaval"), key_of("Daval"));
     }
 
     #[test]
@@ -161,12 +178,12 @@ mod tests {
 
     #[test]
     fn distances() {
-        assert_eq!(distance(b"vedant", b"vedanta"), 1);
+        assert_eq!(distance(b"nishant", b"nishanta"), 1);
         assert_eq!(distance(b"", b"abc"), 3);
-        assert_eq!(distance(b"angoragastia", b"ankuragastia"), 2);
-        let prefixes = prefix_distances(b"ankur", b"ankuragastia");
+        assert_eq!(distance(b"angetatarva", b"ankitatarva"), 2);
+        let prefixes = prefix_distances(b"ankit", b"ankitatarva");
         assert_eq!(prefixes[5], 0);
-        assert_eq!(prefixes.len(), 13);
+        assert_eq!(prefixes.len(), 12);
         assert_eq!(prefixes[0], 5);
     }
 }

@@ -67,10 +67,18 @@ impl VocabularyPack {
     }
 }
 
-/// A new install recognises everyday tech and programming terms; the rest are opt-in, because
-/// each enabled pack shares the recognition prompt with the others.
+/// A new install recognises the software stack most dictation about work names: everyday tech,
+/// programming, the web, backend and databases, cloud, and data and AI. The rest are opt-in,
+/// because each enabled pack shares the recognition prompt with the others.
 pub fn default_vocabulary_packs() -> Vec<VocabularyPack> {
-    vec![VocabularyPack::Everyday, VocabularyPack::Programming]
+    vec![
+        VocabularyPack::Everyday,
+        VocabularyPack::Programming,
+        VocabularyPack::Web,
+        VocabularyPack::Backend,
+        VocabularyPack::Cloud,
+        VocabularyPack::DataAi,
+    ]
 }
 
 /// One pack as the Dictionary page shows it.

@@ -221,17 +221,17 @@ mod tests {
 
     #[test]
     fn restore_puts_payloads_back_into_the_polished_reply() {
-        let s = snippets(&[("my email", "me@example.com"), ("sig", "Best,\nAnkur")]);
+        let s = snippets(&[("my email", "me@example.com"), ("sig", "Best,\nAnkit")]);
         let protected = protect("um send it to my email ok sig", &s);
         assert_eq!(protected.text(), "um send it to [[S1]] ok [[S2]]");
         let polished = "Send it to [[S1]].\n\n[[S2]]";
         assert_eq!(
             protected.restore(polished).as_deref(),
-            Some("Send it to me@example.com.\n\nBest,\nAnkur")
+            Some("Send it to me@example.com.\n\nBest,\nAnkit")
         );
         assert_eq!(
             protected.expanded(),
-            "um send it to me@example.com ok Best,\nAnkur"
+            "um send it to me@example.com ok Best,\nAnkit"
         );
     }
 
@@ -269,16 +269,16 @@ mod tests {
 
     #[test]
     fn transcript_with_marker_text_is_expanded_but_never_restored() {
-        let s = snippets(&[("sig", "Ankur")]);
+        let s = snippets(&[("sig", "Ankit")]);
         let protected = protect("literal [[S1]] then sig", &s);
-        assert_eq!(protected.text(), "literal [[S1]] then Ankur");
-        assert_eq!(protected.expanded(), "literal [[S1]] then Ankur");
-        assert_eq!(protected.restore("Literal [[S1]] then Ankur"), None);
+        assert_eq!(protected.text(), "literal [[S1]] then Ankit");
+        assert_eq!(protected.expanded(), "literal [[S1]] then Ankit");
+        assert_eq!(protected.restore("Literal [[S1]] then Ankit"), None);
     }
 
     #[test]
     fn without_hits_the_reply_passes_through() {
-        let s = snippets(&[("sig", "Ankur")]);
+        let s = snippets(&[("sig", "Ankit")]);
         let protected = protect("nothing here", &s);
         assert_eq!(protected.text(), "nothing here");
         assert_eq!(

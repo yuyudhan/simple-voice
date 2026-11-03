@@ -106,6 +106,16 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     let mut vocabulary = vocabulary(&state, &settings).await;
     vocabulary.add_context_terms(&context::collect(context).await);
     let snippets = snippets::load(&state).await;
+    // The formatting model reads its instructions while the recording is transcribed.
+    llm::prepare(&app, &settings, |target| {
+        sv_text::polish_prompt(
+            "",
+            &vocabulary.terms,
+            settings.style,
+            target,
+            &settings.languages,
+        )
+    });
     let (app_name, bundle_id) =
         frontmost.map_or((None, None), |front| (front.name, front.bundle_id));
     let mut row = NewHistory {

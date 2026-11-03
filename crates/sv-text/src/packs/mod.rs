@@ -10,6 +10,10 @@
 //!   "EC2") also becomes a casing rule, applied case-insensitively to whole words. Never list
 //!   one whose lowercase form is an ordinary English or romanised Hindi word ("IT", "RAM",
 //!   "SPA", "MoM", "LoRA", "SAP", "PE"): every such word in a dictation would be capitalised.
+//! - So does a capitalised brand name of four letters or more that is no ordinary English word
+//!   ("Kafka", "Postgres", "Trino"): "postgres" is never anything else. One that is ("Snowflake",
+//!   "Python", "Sentry") keeps whatever case the speech model wrote. A lowercase technical word
+//!   that is no ordinary word ("dbt", "kubectl", "pgvector") is snapped to lowercase the same way.
 //! - A rule rewrites how a term is heard ("node js") into how it is written ("Node.js"). Never
 //!   add one whose heard side is a normal phrase ("linked in", "sales force", "open ai").
 
@@ -59,7 +63,25 @@ pub(crate) fn pack(id: VocabularyPack) -> &'static Pack {
 pub(crate) fn is_casing_word(word: &str) -> bool {
     let mut chars = word.chars();
     let starts_with_letter = chars.next().is_some_and(char::is_alphabetic);
-    starts_with_letter && !word.contains(char::is_whitespace) && chars.any(char::is_uppercase)
+    let internal_capital =
+        starts_with_letter && !word.contains(char::is_whitespace) && chars.any(char::is_uppercase);
+    internal_capital || is_brand_name(word)
+}
+
+/// A capitalised word of four letters or more, or a lowercase word of three or more, that is no
+/// ordinary English word (see the module docs).
+fn is_brand_name(word: &str) -> bool {
+    let mut chars = word.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    let rest_lower = chars.all(|c| c.is_ascii_lowercase());
+    let shaped = if first.is_uppercase() {
+        word.len() >= 4
+    } else {
+        first.is_ascii_lowercase() && word.len() >= 3
+    };
+    shaped && rest_lower && !crate::sound_alike::is_ordinary_word(word)
 }
 
 /// Every pack with the spellings it teaches: its words, then the written side of each rule
@@ -150,5 +172,16 @@ mod tests {
         assert!(!is_casing_word("Python"));
         assert!(!is_casing_word("VS Code"));
         assert!(!is_casing_word(".NET"));
+    }
+
+    #[test]
+    fn hinglish_matlab_stays_lowercase_with_every_pack_on() {
+        let vocab = crate::Vocabulary::new(&[], &VocabularyPack::ALL);
+        let out = crate::formatting::format(
+            "haan matlab we need an index",
+            &vocab,
+            sv_domain::Style::Formal,
+        );
+        assert_eq!(out.text, "Haan matlab we need an index");
     }
 }

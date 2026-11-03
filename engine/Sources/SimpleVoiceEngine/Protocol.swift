@@ -143,6 +143,13 @@ struct GenerateParams: Decodable, Sendable {
     let temperature: Double?
 }
 
+/// `prepare_generate`: the instructions and examples a coming `generate` starts with.
+struct PrepareParams: Decodable, Sendable {
+    let model: String
+    let system: String
+    let shots: [PolishShot]?
+}
+
 struct CancelParams: Decodable {
     let target: Int64
 }

@@ -195,7 +195,7 @@ mod tests {
         let (_dir, db) = open().await;
         let address = "  221B Baker Street\n\tLondon NW1 6XE\n\n";
         let sig = db
-            .add_snippet("  my sign off ".to_owned(), "Cheers,\nAnkur".to_owned())
+            .add_snippet("  my sign off ".to_owned(), "Cheers,\nAnkit".to_owned())
             .await
             .unwrap();
         assert_eq!(sig.trigger, "my sign off");

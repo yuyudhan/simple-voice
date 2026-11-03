@@ -18,16 +18,30 @@ use crate::features::groq;
 use crate::features::models::model_status;
 use crate::state::{lock, AppState};
 
-/// On-device generation is slower than the hosted models the per-pass budgets in sv-text were
-/// first tuned for (Apple Intelligence measured 4.8–8.9 s on the formatting sample, the local
-/// model ~1.2 s), so no request gets less than this once its model is loaded.
-const WARM_FLOOR: Duration = Duration::from_secs(15);
 /// Extra time for a model that is probably not in memory: the local model loads in ~2.6 s from
-/// disk; Apple Intelligence's first request after launch measured 34.6 s.
+/// disk; Apple Intelligence's first request after launch measured 34.6 s. A warm model gets the
+/// caller's budget as is (requirements D-10 for formatting): a late answer is dropped and the
+/// deterministic text pasted.
 const COLD_START: Duration = Duration::from_secs(45);
-/// The helper unloads the local model after 10 minutes without a request; a little earlier
-/// than that a model counts as cold again.
-const WARM_FOR: Duration = Duration::from_secs(9 * 60);
+/// The helper keeps the local model loaded for an hour without a request; a little earlier
+/// than that it counts as cold again.
+const LOCAL_WARM_FOR: Duration = Duration::from_secs(55 * 60);
+/// Apple's system model goes cold after about 200 s without a request (measured in T238).
+const APPLE_WARM_FOR: Duration = Duration::from_secs(180);
+
+fn warm_for(model: &str) -> Duration {
+    if model == APPLE_INTELLIGENCE {
+        APPLE_WARM_FOR
+    } else {
+        LOCAL_WARM_FOR
+    }
+}
+
+fn is_warm(state: &AppState, model: &str) -> bool {
+    lock(&state.llm_used)
+        .get(model)
+        .is_some_and(|at| at.elapsed() < warm_for(model))
+}
 
 /// A model reply; `finished` is false when it stopped at the token limit.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,21 +213,17 @@ async fn on_device_fallback<'a>(
     None
 }
 
-/// The time a request to `model` gets, given the caller's budget for the work itself: at least
-/// [`WARM_FLOOR`], plus [`COLD_START`] when the model has not answered or loaded recently.
+/// The time a request to `model` gets, given the caller's budget for the work itself: that
+/// budget, plus [`COLD_START`] when the model has not answered or loaded recently.
 pub(crate) fn budget(state: &AppState, model: &str, work: Duration) -> Duration {
-    let warm = lock(&state.llm_used)
-        .get(model)
-        .is_some_and(|at| at.elapsed() < WARM_FOR);
-    budget_for(work, warm)
+    budget_for(work, is_warm(state, model))
 }
 
 fn budget_for(work: Duration, warm: bool) -> Duration {
-    let limit = work.max(WARM_FLOOR);
     if warm {
-        limit
+        work
     } else {
-        limit + COLD_START
+        work + COLD_START
     }
 }
 
@@ -230,10 +240,7 @@ pub(crate) fn warm_up(app: &AppHandle, settings: &Settings) {
         return;
     };
     let state = app.state::<AppState>();
-    let warm = lock(&state.llm_used)
-        .get(&model)
-        .is_some_and(|at| at.elapsed() < WARM_FOR);
-    if warm {
+    if is_warm(&state, &model) {
         return;
     }
     let app = app.clone();
@@ -242,6 +249,34 @@ pub(crate) fn warm_up(app: &AppHandle, settings: &Settings) {
         match state.engine.preload(&model).await {
             Ok(()) => mark_used(&state, &model),
             Err(error) => tracing::info!(%error, model, "language model preload skipped"),
+        }
+    });
+}
+
+/// Has the on-device formatting model read the instructions and examples `build` makes while
+/// the recording is transcribed: the local model decodes them into its cache, Apple
+/// Intelligence builds and prewarms the session the request then answers on. The formatting
+/// pass after it decodes only the dictation.
+pub(crate) fn prepare(
+    app: &AppHandle,
+    settings: &Settings,
+    build: impl Fn(PolishTarget) -> PolishPrompt,
+) {
+    let Some(model) = post_processing_model(settings).filter(|m| groq_chat_model(m).is_none())
+    else {
+        return;
+    };
+    let prompt = build(target(&model));
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<AppState>();
+        let prepared = state
+            .engine
+            .prepare_generate(&model, &prompt.system, &prompt.shots)
+            .await;
+        match prepared {
+            Ok(()) => mark_used(&state, &model),
+            Err(error) => tracing::info!(%error, model, "formatting prompt not prepared"),
         }
     });
 }
@@ -301,16 +336,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn on_device_budgets_cover_measured_load_and_generation_times() {
+    fn a_warm_model_gets_the_callers_budget_and_a_cold_one_its_load_time() {
+        // D-10: formatting a short dictation gets 2.5 s plus 30 ms per word, no floor.
         let short = sv_text::polish_timeout("move the standup to ten tomorrow");
-        // Apple Intelligence answered the formatting sample in up to 8.9 s once loaded, and its
-        // first request after launch took 34.6 s; the old 2.6 s budget failed both.
-        assert!(budget_for(short, true) >= Duration::from_secs(9));
+        assert_eq!(budget_for(short, true), Duration::from_millis(2_680));
+        // Apple Intelligence's first request after launch took 34.6 s.
         assert!(budget_for(short, false) >= Duration::from_millis(34_600));
-        // A caller's longer budget (a long edit, a meeting summary) is never shortened.
         let long = Duration::from_secs(120);
         assert_eq!(budget_for(long, true), long);
         assert_eq!(budget_for(long, false), long + COLD_START);
+    }
+
+    #[test]
+    fn apple_counts_as_cold_long_before_the_local_model() {
+        assert!(warm_for(APPLE_INTELLIGENCE) < Duration::from_secs(200));
+        assert!(warm_for("qwen3-4b-instruct") > Duration::from_secs(30 * 60));
     }
 
     #[test]

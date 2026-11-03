@@ -13,8 +13,59 @@ use crate::language_prompts::{self, writing_line};
 
 /// Below this many words there is nothing for the model to improve.
 const MIN_WORDS: usize = 3;
+/// Up to this many words, one sentence without anything the model rewrites (a correction, a
+/// list, a spelled number) is pasted as the rules wrote it. About half of all dictations are
+/// this short (T238); the model costs 0.5-0.9 s on them and changes nothing.
+const CLEAN_MAX_WORDS: usize = 12;
+/// Words the model acts on: self-corrections, list structure and spelled numbers.
+const MODEL_CUES: &[&str] = &[
+    "actually",
+    "mean",
+    "wait",
+    "scratch",
+    "sorry",
+    "correction",
+    "rather",
+    "instead",
+    "first",
+    "second",
+    "third",
+    "firstly",
+    "secondly",
+    "next",
+    "then",
+    "bullet",
+    "point",
+    "list",
+    "line",
+    "paragraph",
+    "colon",
+    "comma",
+    "period",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "twenty",
+    "thirty",
+    "hundred",
+    "thousand",
+    "million",
+    "percent",
+    "o'clock",
+];
 const TIMEOUT_BASE_MS: u64 = 2_500;
-const TIMEOUT_PER_WORD_MS: u64 = 5;
+/// Apple Intelligence rewrites the whole text, so its time grows with the words: warm, with the
+/// prompt prepared, 88 words took 2.7 s, 183 words 5.5 s and 336 words 9.4 s (T242).
+const TIMEOUT_PER_WORD_MS: u64 = 30;
 
 // Chat models are tuned to answer the last user turn. Without a task framing that says the
 // transcript is someone else's speech, qwen3 answered dictated questions ("who is the prime
@@ -213,7 +264,7 @@ pub fn polish_prompt(
     }
 }
 
-/// How long the pass may take before the deterministic text is pasted: 2.5 s + 5 ms per word.
+/// How long the pass may take before the deterministic text is pasted: 2.5 s + 30 ms per word.
 pub fn polish_timeout(text: &str) -> Duration {
     let words = u64::try_from(word_count(text)).unwrap_or(u64::MAX);
     let millis = TIMEOUT_BASE_MS.saturating_add(words.saturating_mul(TIMEOUT_PER_WORD_MS));
@@ -221,7 +272,27 @@ pub fn polish_timeout(text: &str) -> Duration {
 }
 
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome> {
-    (word_count(text) < MIN_WORDS).then(|| PolishOutcome::Skipped("too short".to_owned()))
+    let words = word_count(text);
+    if words < MIN_WORDS {
+        return Some(PolishOutcome::Skipped("too short".to_owned()));
+    }
+    (words <= CLEAN_MAX_WORDS && is_clean_sentence(text))
+        .then(|| PolishOutcome::Skipped("already clean".to_owned()))
+}
+
+/// One sentence, a capital first and closing punctuation last, on one line, without a word
+/// the model would act on.
+fn is_clean_sentence(text: &str) -> bool {
+    let text = text.trim();
+    let starts_upper = text.chars().next().is_some_and(char::is_uppercase);
+    let body = text.trim_end_matches(['.', '?', '!']);
+    let one_sentence = body.len() < text.len()
+        && !body.contains(['.', '?', '!', ';', '\n'])
+        && !body.contains(", and ");
+    let cue = body
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .any(|word| MODEL_CUES.contains(&word.to_lowercase().as_str()));
+    starts_upper && one_sentence && !cue
 }
 
 /// Decides whether a model reply may replace the transcript. `finished` is false when the model
@@ -402,14 +473,26 @@ mod tests {
     }
 
     #[test]
-    fn timeout_grows_five_ms_per_word() {
+    fn timeout_grows_thirty_ms_per_word() {
         assert_eq!(polish_timeout(""), Duration::from_millis(2_500));
         assert_eq!(
             polish_timeout("one two three four"),
-            Duration::from_millis(2_520)
+            Duration::from_millis(2_620)
         );
         let long = "word ".repeat(200);
-        assert_eq!(polish_timeout(&long), Duration::from_millis(3_500));
+        assert_eq!(polish_timeout(&long), Duration::from_millis(8_500));
+    }
+
+    #[test]
+    fn long_dictations_get_longer_than_apple_intelligence_took_to_format_them() {
+        // Slowest of three warm runs per length, prompt prepared (T242 round 2).
+        for (words, slowest_ms) in [(88, 2_711), (153, 4_217), (183, 5_476), (336, 9_418)] {
+            let text = "word ".repeat(words);
+            assert!(
+                polish_timeout(&text) > Duration::from_millis(slowest_ms),
+                "{words} words"
+            );
+        }
     }
 
     #[test]
@@ -419,6 +502,29 @@ mod tests {
             Some(PolishOutcome::Skipped("too short".into()))
         );
         assert_eq!(should_skip_polish("hello there friend"), None);
+    }
+
+    #[test]
+    fn a_short_clean_sentence_skips_the_model_and_anything_it_would_rewrite_does_not() {
+        let clean = Some(PolishOutcome::Skipped("already clean".into()));
+        assert_eq!(
+            should_skip_polish("Ask Ajjwar to review the pull request."),
+            clean
+        );
+        assert_eq!(should_skip_polish("Can you send Swati the invoice?"), clean);
+        for text in [
+            // a correction, a list, spelled numbers, two sentences, no closing punctuation
+            "Send it to Priya, actually to Kalvi.",
+            "First the backend, then the UI.",
+            "Move the standup to ten tomorrow.",
+            "Deploy it. Then tell the team.",
+            "Deploy it on staging",
+            "deploy it on staging.",
+            "We moved the events from ClickHouse into the lakehouse yesterday after the long \
+             migration finished.",
+        ] {
+            assert_eq!(should_skip_polish(text), None, "{text}");
+        }
     }
 
     #[test]

@@ -164,6 +164,9 @@ final class Engine: Sendable {
             return try await polish(request.params(PolishParams.self), progress: progress)
         case "generate":
             return try await generate(request.params(GenerateParams.self), progress: progress)
+        case "prepare_generate":
+            try await prepareGenerate(request.params(PrepareParams.self))
+            return EmptyResult()
         case "translate":
             let params = try request.params(TranslateParams.self)
             guard try ModelID.parse(params.model) == .madlad else {
@@ -391,17 +394,26 @@ final class Engine: Sendable {
             return try await AppleIntelligence.generate(
                 system: system, shots: shots, user: user, maxTokens: maxTokens, temperature: temperature)
         case .qwen3Instruct:
-            var turns = [ChatTurn(role: "system", content: system)]
-            for shot in shots {
-                turns.append(ChatTurn(role: "user", content: shot.user))
-                turns.append(ChatTurn(role: "assistant", content: shot.assistant))
-            }
-            turns.append(ChatTurn(role: "user", content: user))
             return try await languageModel.generate(
-                turns, maxTokens: maxTokens, temperature: temperature, progress: progress)
+                ChatTurn.conversation(system: system, shots: shots, user: user), maxTokens: maxTokens,
+                temperature: temperature, progress: progress)
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech,
             .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a text model")
+        }
+    }
+
+    /// Readies a text model for a `generate` that starts with these instructions and examples.
+    private func prepareGenerate(_ params: PrepareParams) async throws {
+        let shots = params.shots ?? []
+        switch try ModelID.parse(params.model) {
+        case .appleIntelligence:
+            guard #available(macOS 26, *) else { throw EngineError("Apple Intelligence requires macOS 26 or later") }
+            try await AppleIntelligence.prepare(system: params.system, shots: shots)
+        case .qwen3Instruct:
+            try await languageModel.prepare(ChatTurn.conversation(system: params.system, shots: shots, user: nil))
+        default:
+            throw EngineError("\(params.model) is not a text model")
         }
     }
 

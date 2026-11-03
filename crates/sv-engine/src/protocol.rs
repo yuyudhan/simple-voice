@@ -28,8 +28,6 @@ const TRANSCRIBE_LONG: Duration = Duration::from_secs(2 * 60 * 60);
 const GENERATE: Duration = Duration::from_secs(15 * 60);
 /// The user may leave the system prompt open for a while before answering it.
 const REQUEST_PERMISSION: Duration = Duration::from_secs(10 * 60);
-/// Apple Intelligence answers in seconds; a first local-model polish also loads the model.
-const POLISH: Duration = Duration::from_secs(120);
 /// The helper answers `watch_edits` when its watch window closes; this covers the rest.
 const EDIT_WATCH_SLACK: Duration = Duration::from_secs(10);
 
@@ -410,24 +408,21 @@ impl EngineClient {
         Ok(result.status)
     }
 
-    /// Runs the post-processing prompt on `model` (`None`: Apple Intelligence; or a downloaded
-    /// local model such as `qwen3-4b-instruct`). `shots` are `(user, assistant)` example pairs.
-    /// Dropping the future cancels the generation.
-    pub async fn polish(
+    /// Readies `model` for a `generate` that starts with `system` and `shots` (`(user,
+    /// assistant)` example pairs): the local model loads and reads them into its cache; Apple
+    /// Intelligence builds and prewarms the session that request answers on.
+    pub async fn prepare_generate(
         &self,
-        model: Option<&str>,
+        model: &str,
         system: &str,
         shots: &[(String, String)],
-        user: &str,
-    ) -> AppResult<PolishReply> {
+    ) -> AppResult<()> {
         let params = params([
-            ("model", optional_text(model)),
+            ("model", text(model)),
             ("system", text(system)),
             ("shots", Some(shot_values(shots))),
-            ("user", text(user)),
         ]);
-        self.request_cancellable("polish", params, None, POLISH)
-            .await
+        self.command("prepare_generate", params, PRELOAD).await
     }
 
     /// Summaries, transcript chat and translation on a local text model. Progress reports the
@@ -642,10 +637,10 @@ mod tests {
     #[tokio::test]
     async fn transcribe_sends_the_dictionary_to_parakeet_and_reads_its_fixes() {
         let (client, transport) = scripted(
-            r#"{"id":$ID,"ok":true,"result":{"text":"Ask Ujjwal","language":"en",
+            r#"{"id":$ID,"ok":true,"result":{"text":"Ask Ajjwar","language":"en",
                 "dictionaryFixes":1}}"#,
         );
-        let vocabulary = vec!["Ujjwal".to_owned(), "Himanshu".to_owned()];
+        let vocabulary = vec!["Ajjwar".to_owned(), "Hitanshu".to_owned()];
         let options = TranscribeOptions {
             vocabulary: &vocabulary,
             ..TranscribeOptions::default()
@@ -658,7 +653,7 @@ mod tests {
         let request = transport.seen.lock()[0].clone();
         assert_eq!(
             request["vocabulary"],
-            serde_json::json!(["Ujjwal", "Himanshu"])
+            serde_json::json!(["Ajjwar", "Hitanshu"])
         );
     }
 
@@ -728,35 +723,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn polish_sends_shots_as_objects() {
-        let (client, transport) =
-            scripted(r#"{"id":$ID,"ok":true,"result":{"text":"Hi.","finished":true}}"#);
+    async fn prepare_generate_sends_shots_as_objects() {
+        let (client, transport) = scripted(r#"{"id":$ID,"ok":true,"result":{}}"#);
         let shots = vec![("hey".to_owned(), "Hey.".to_owned())];
-        let reply = client
-            .polish(None, "be formal", &shots, "hi")
+        client
+            .prepare_generate("apple-intelligence", "be formal", &shots)
             .await
             .unwrap();
-        assert_eq!(
-            reply,
-            PolishReply {
-                text: "Hi.".to_owned(),
-                finished: true
-            }
-        );
         let request = transport.seen.lock()[0].clone();
+        assert_eq!(request["cmd"], "prepare_generate");
         assert_eq!(request["shots"][0]["assistant"], "Hey.");
         assert_eq!(request["system"], "be formal");
-        assert!(request.get("model").is_none());
+        assert_eq!(request["model"], "apple-intelligence");
     }
 
     #[tokio::test]
-    async fn polish_and_generate_name_the_local_model() {
+    async fn generate_names_the_local_model() {
         let (client, transport) =
             scripted(r#"{"id":$ID,"ok":true,"result":{"text":"Résumé","finished":false}}"#);
-        client
-            .polish(Some("qwen3-4b-instruct"), "be formal", &[], "hi")
-            .await
-            .unwrap();
         let request = GenerateRequest {
             model: "qwen3-4b-instruct",
             system: "Summarize the meeting.",
@@ -772,10 +756,10 @@ mod tests {
         assert!(!reply.finished);
         let seen = transport.seen.lock().clone();
         assert_eq!(seen[0]["model"], "qwen3-4b-instruct");
-        assert_eq!(seen[1]["cmd"], "generate");
-        assert_eq!(seen[1]["maxTokens"], 400);
-        assert_eq!(seen[1]["temperature"], 0.0);
-        assert_eq!(seen[1]["shots"], serde_json::json!([]));
+        assert_eq!(seen[0]["cmd"], "generate");
+        assert_eq!(seen[0]["maxTokens"], 400);
+        assert_eq!(seen[0]["temperature"], 0.0);
+        assert_eq!(seen[0]["shots"], serde_json::json!([]));
     }
 
     #[tokio::test]

@@ -9,7 +9,8 @@ use sv_domain::Style;
 
 use crate::hesitation::strip_hesitations;
 use crate::sound_alike;
-use crate::vocabulary::Vocabulary;
+use crate::spoken;
+use crate::vocabulary::{Rule, Vocabulary};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Formatted {
@@ -43,7 +44,27 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
         let corrected = sound_alike::correct(&text, &vocabulary.spellings);
         rule_hits += corrected.hits;
         chars = corrected.text.chars().collect();
+        // A rule about a name ("sienzo sign on -> Sienzo Sign on") now sees the name spelled
+        // right. Only rules that cannot fire twice on their own output run again.
+        if corrected.hits > 0 {
+            for rule in vocabulary
+                .rules
+                .iter()
+                .filter(|rule| names_a_spelling(rule, vocabulary))
+            {
+                if let Some(pattern) = Pattern::compile(&rule.from) {
+                    let (rewritten, hits) = pattern.replace_all(&chars, &rule.to);
+                    chars = rewritten;
+                    rule_hits += hits;
+                }
+            }
+        }
     }
+    // After the names, so an address is built from the dictionary's spellings; before the
+    // capitals, which never touch an address.
+    let chars: Vec<char> = spoken::rewrite(&chars.iter().collect::<String>(), vocabulary)
+        .chars()
+        .collect();
 
     let mut chars = tighten_spacing(&chars);
     capitalize_pronoun_i(&mut chars);
@@ -56,6 +77,19 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
         text: chars.into_iter().collect(),
         rule_hits,
     }
+}
+
+/// A rule whose heard side holds a dictionary name, and whose written side cannot match its
+/// heard side again (a casing rule, or one whose output does not contain its input).
+fn names_a_spelling(rule: &Rule, vocabulary: &Vocabulary) -> bool {
+    let from = rule.from.to_lowercase();
+    let to = rule.to.to_lowercase();
+    let settled = from == to || !to.contains(&from);
+    settled
+        && vocabulary
+            .spellings
+            .iter()
+            .any(|spelling| from.contains(&spelling.written.to_lowercase()))
 }
 
 /// Collapses runs of spaces and tabs to one space and drops blank lines; line breaks the model
@@ -86,7 +120,9 @@ enum Token {
 
 /// A literal phrase matched case-insensitively and tolerant of any whitespace run between its
 /// words. Word frontiers apply only on alphanumeric ends, so "btw" never fires inside "btwn"
-/// while a phrase like "c++" still matches. Dictionary rules and snippet triggers share it.
+/// while a phrase like "c++" still matches. A word right after a dot that follows a word is a
+/// file extension ("package.json", "main.rs") and never starts a match, so a casing rule for
+/// "JSON" leaves it alone. Dictionary rules and snippet triggers share it.
 pub(crate) struct Pattern {
     tokens: Vec<Token>,
     word_start: bool,
@@ -117,11 +153,10 @@ impl Pattern {
 
     /// End index of a match starting at `start`, if any.
     pub(crate) fn match_at(&self, text: &[char], start: usize) -> Option<usize> {
-        let preceded_by_word = start
-            .checked_sub(1)
-            .and_then(|i| text.get(i))
-            .is_some_and(|c| c.is_alphanumeric());
-        if self.word_start && preceded_by_word {
+        let before = |back: usize| start.checked_sub(back).and_then(|i| text.get(i));
+        let preceded_by_word = before(1).is_some_and(|c| c.is_alphanumeric());
+        let extension = before(1) == Some(&'.') && before(2).is_some_and(|c| c.is_alphanumeric());
+        if self.word_start && (preceded_by_word || extension) {
             return None;
         }
         let mut at = start;
@@ -239,7 +274,8 @@ fn capitalize_pronoun_i(text: &mut [char]) {
 }
 
 /// Uppercases the first letter of the text, of each line, and after `.`, `?` or `!` followed by
-/// whitespace. A word with its own internal capitals (iPhone, macOS) keeps its brand casing.
+/// whitespace. A word with its own internal capitals (iPhone, macOS) keeps its brand casing,
+/// and an email address stays lowercase.
 fn capitalize_sentences(text: &[char]) -> Vec<char> {
     let mut out = Vec::with_capacity(text.len());
     let mut sentence_start = true;
@@ -258,7 +294,11 @@ fn capitalize_sentences(text: &[char]) -> Vec<char> {
             out.push(c);
             continue;
         }
-        if sentence_start && c.is_lowercase() && !has_internal_capital(text, index) {
+        if sentence_start
+            && c.is_lowercase()
+            && !has_internal_capital(text, index)
+            && !is_address(text, index)
+        {
             out.extend(c.to_uppercase());
         } else {
             out.push(c);
@@ -274,6 +314,13 @@ fn has_internal_capital(text: &[char], word_start: usize) -> bool {
         .skip(word_start + 1)
         .take_while(|c| c.is_alphanumeric())
         .any(|c| c.is_uppercase())
+}
+
+fn is_address(text: &[char], word_start: usize) -> bool {
+    text.iter()
+        .skip(word_start)
+        .take_while(|c| !c.is_whitespace())
+        .any(|&c| c == '@')
 }
 
 /// Casual style: a one-sentence message loses its closing period ("Sounds good."). Ellipses,

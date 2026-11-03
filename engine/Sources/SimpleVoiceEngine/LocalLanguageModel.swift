@@ -3,6 +3,7 @@
 // Qwen3 4B Instruct 2507 (Apache-2.0, Q4_K_M GGUF) on llama.cpp with Metal. The weights are a
 // user-initiated download; prompts and outputs never leave the process.
 
+import EngineCore
 import Foundation
 import llama
 
@@ -17,11 +18,15 @@ struct LocalLanguageModel: Sendable {
     static let qwenFile = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
     /// Prompt plus answer. The KV cache for 8 k tokens is about 1.2 GB on top of 2.5 GB of weights.
     static let contextTokens = 8_192
+    /// Reloading takes about 2.7 s, longer than a whole warm formatting pass, so the model stays
+    /// in memory through an hour without dictations instead of the translator's ten minutes.
+    static let idleUnload: Duration = .seconds(3_600)
 
     private let resident: ResidentModel<LlamaRuntime>
 
     init(store: ModelStore) {
-        resident = ResidentModel(id: .qwen3Instruct, file: Self.qwenFile, store: store) { path in
+        resident = ResidentModel(id: .qwen3Instruct, file: Self.qwenFile, store: store, idleUnload: Self.idleUnload) {
+            path in
             try LlamaRuntime.load(path: path, contextTokens: Self.contextTokens)
         }
     }
@@ -43,9 +48,34 @@ struct LocalLanguageModel: Sendable {
             try await runtime.generate(turns, maxTokens: maxTokens, temperature: temperature, progress: progress)
         }
     }
+
+    /// Loads the model and reads `turns` into its cache, so a request that starts with them
+    /// decodes only what follows.
+    func prepare(_ turns: [ChatTurn]) async throws {
+        try await resident.run { runtime in try await runtime.prefill(turns) }
+    }
+}
+
+extension ChatTurn {
+    /// The system prompt, the examples as user and assistant turns, then `user` when given.
+    static func conversation(system: String, shots: [PolishShot], user: String?) -> [ChatTurn] {
+        var turns = [ChatTurn(role: "system", content: system)]
+        for shot in shots {
+            turns.append(ChatTurn(role: "user", content: shot.user))
+            turns.append(ChatTurn(role: "assistant", content: shot.assistant))
+        }
+        if let user {
+            turns.append(ChatTurn(role: "user", content: user))
+        }
+        return turns
+    }
 }
 
 /// A loaded llama.cpp model and context. Only `LocalLanguageModel` uses it, one call at a time.
+///
+/// The context keeps the tokens of the previous request. Every formatting request starts with
+/// the same instructions and examples (about 1,000 tokens), so a new request decodes only what
+/// follows the prefix it shares with the cached tokens: the dictation's own turn.
 final class LlamaRuntime: @unchecked Sendable {
     private static let batchSize = 512
 
@@ -53,6 +83,8 @@ final class LlamaRuntime: @unchecked Sendable {
     private let context: OpaquePointer
     private let vocab: OpaquePointer
     private let contextTokens: Int
+    /// The tokens whose keys and values sit in the context, at positions 0..<count of sequence 0.
+    private var cache = PromptCache()
 
     private init(model: OpaquePointer, context: OpaquePointer, vocab: OpaquePointer, contextTokens: Int) {
         self.model = model
@@ -103,28 +135,13 @@ final class LlamaRuntime: @unchecked Sendable {
         async throws -> PolishResult
     {
         let budget = max(1, maxTokens)
-        let prompt = try format(turns)
-        var tokens = try tokenize(prompt)
+        let tokens = try tokenize(try format(turns, openAnswer: true))
         guard tokens.count + budget <= contextTokens else {
             throw EngineError(
                 "The text is too long for the local model (\(tokens.count) prompt tokens + \(budget) answer tokens; "
                     + "the limit is \(contextTokens))")
         }
-        llama_memory_clear(llama_get_memory(context), true)
-
-        var index = 0
-        while index < tokens.count {
-            try Task.checkCancellation()
-            let count = min(Self.batchSize, tokens.count - index)
-            let start = index
-            let status = tokens.withUnsafeMutableBufferPointer { buffer -> Int32 in
-                guard let base = buffer.baseAddress else { return -1 }
-                return llama_decode(context, llama_batch_get_one(base + start, Int32(count)))
-            }
-            guard status == 0 else { throw EngineError("the local model failed to read the prompt (\(status))") }
-            index += count
-            await Task.yield()
-        }
+        try await read(tokens)
 
         guard let sampler = Self.sampler(temperature: temperature) else {
             throw EngineError("cannot create the local model's sampler")
@@ -149,15 +166,51 @@ final class LlamaRuntime: @unchecked Sendable {
             let status = withUnsafeMutablePointer(to: &token) { pointer in
                 llama_decode(context, llama_batch_get_one(pointer, 1))
             }
-            guard status == 0 else { throw EngineError("the local model stopped generating (\(status))") }
+            guard status == 0 else {
+                forgetCache()
+                throw EngineError("the local model stopped generating (\(status))")
+            }
+            cache.append(token)
             if produced % 16 == 0 {
                 await progress?.report(Double(produced) / Double(budget), "Generating")
                 await Task.yield()
             }
         }
-        tokens.removeAll()
         let text = String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         return PolishResult(text: text, finished: finished)
+    }
+
+    /// Reads `turns` (without an open answer) into the cache ahead of a request.
+    func prefill(_ turns: [ChatTurn]) async throws {
+        let tokens = try tokenize(try format(turns, openAnswer: false))
+        guard tokens.count < contextTokens else { return }
+        try await read(tokens)
+    }
+
+    /// Decodes the tokens the cache does not already hold ([`PromptCache.read`]).
+    private func read(_ tokens: [llama_token]) async throws {
+        let context = context
+        let memory = llama_get_memory(context)
+        try await cache.read(
+            tokens,
+            batchSize: Self.batchSize,
+            trim: { position in llama_memory_seq_rm(memory, 0, Int32(position), -1) },
+            clear: { llama_memory_clear(memory, true) },
+            decode: { tokens in
+                var batch = tokens
+                let status = batch.withUnsafeMutableBufferPointer { buffer -> Int32 in
+                    guard let base = buffer.baseAddress else { return -1 }
+                    return llama_decode(context, llama_batch_get_one(base, Int32(buffer.count)))
+                }
+                guard status == 0 else {
+                    throw EngineError("the local model failed to read the prompt (\(status))")
+                }
+            })
+    }
+
+    private func forgetCache() {
+        let memory = llama_get_memory(context)
+        cache.forget { llama_memory_clear(memory, true) }
     }
 
     /// Greedy at temperature 0 (deterministic polish); otherwise Qwen's recommended top-k 20,
@@ -175,8 +228,9 @@ final class LlamaRuntime: @unchecked Sendable {
         return chain
     }
 
-    /// The model's own chat template (ChatML for Qwen), applied by llama.cpp.
-    private func format(_ turns: [ChatTurn]) throws -> String {
+    /// The model's own chat template (ChatML for Qwen), applied by llama.cpp; `openAnswer` adds
+    /// the assistant turn's opening the model writes into.
+    private func format(_ turns: [ChatTurn], openAnswer: Bool) throws -> String {
         let roles = turns.map { strdup($0.role) }
         let contents = turns.map { strdup($0.content) }
         defer {
@@ -192,11 +246,13 @@ final class LlamaRuntime: @unchecked Sendable {
         let template = llama_model_chat_template(model, nil)
         var capacity = turns.reduce(256) { $0 + 2 * ($1.role.utf8.count + $1.content.utf8.count) }
         var buffer = [CChar](repeating: 0, count: capacity)
-        var length = llama_chat_apply_template(template, &messages, messages.count, true, &buffer, Int32(capacity))
+        var length = llama_chat_apply_template(
+            template, &messages, messages.count, openAnswer, &buffer, Int32(capacity))
         if length > Int32(capacity) {
             capacity = Int(length) + 1
             buffer = [CChar](repeating: 0, count: capacity)
-            length = llama_chat_apply_template(template, &messages, messages.count, true, &buffer, Int32(capacity))
+            length = llama_chat_apply_template(
+                template, &messages, messages.count, openAnswer, &buffer, Int32(capacity))
         }
         guard length >= 0, length <= Int32(capacity) else {
             throw EngineError("the local model's chat template is not supported")

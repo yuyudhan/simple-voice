@@ -579,7 +579,7 @@ mod tests {
             failed("Groq did not answer within 12 s"),
             RetryReason::Failed,
             PARAKEET_TDT_V3,
-            heard("Ujjwal Himanshu Vedant"),
+            heard("Ajjwar Hitanshu Nishant"),
         );
         assert_eq!(
             route_of(&settled),
@@ -591,7 +591,7 @@ mod tests {
         );
         assert_eq!(
             settled.ok().map(|heard| heard.text).as_deref(),
-            Some("Ujjwal Himanshu Vedant")
+            Some("Ajjwar Hitanshu Nishant")
         );
     }
 
