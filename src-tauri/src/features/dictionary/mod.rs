@@ -3,8 +3,9 @@
 //! built-in vocabulary packs offered beside it.
 
 use sv_domain::{AppError, AppResult, DictionaryEntry, ImportSummary, VocabularyPackInfo};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
+use crate::features::models;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -20,11 +21,17 @@ pub(crate) fn list_vocabulary_packs() -> Vec<VocabularyPackInfo> {
 
 #[tauri::command]
 pub(crate) async fn add_dictionary_entry(
+    app: AppHandle,
     state: State<'_, AppState>,
     phrase: String,
     replacement: Option<String>,
 ) -> AppResult<DictionaryEntry> {
-    state.db()?.add_dictionary_entry(phrase, replacement).await
+    let entry = state
+        .db()?
+        .add_dictionary_entry(phrase, replacement)
+        .await?;
+    fetch_booster(&app);
+    Ok(entry)
 }
 
 #[tauri::command]
@@ -49,13 +56,31 @@ pub(crate) async fn delete_dictionary_entry(state: State<'_, AppState>, id: i64)
 /// `#` comments.
 #[tauri::command]
 pub(crate) async fn import_vocabulary(
+    app: AppHandle,
     state: State<'_, AppState>,
     path: String,
 ) -> AppResult<ImportSummary> {
     let text = tokio::fs::read_to_string(&path)
         .await
         .map_err(|error| AppError::io(format!("{path}: {error}")))?;
-    state.db()?.import_vocabulary(&text).await
+    let summary = state.db()?.import_vocabulary(&text).await?;
+    fetch_booster(&app);
+    Ok(summary)
+}
+
+/// A Dictionary that gains names needs Parakeet's booster to reach the transcriber.
+fn fetch_booster(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let settings = match app.state::<AppState>().db() {
+            Ok(db) => db.settings().await,
+            Err(error) => Err(error),
+        };
+        match settings {
+            Ok(settings) => models::fetch_booster(&app, &settings).await,
+            Err(error) => tracing::info!(%error, "dictionary booster check skipped"),
+        }
+    });
 }
 
 /// Writes the dictionary to `path` in the same format `import_vocabulary` reads.

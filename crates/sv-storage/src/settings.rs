@@ -159,6 +159,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         transcription_provider,
         groq_whisper_model,
         smart_retry,
+        booster_auto_download,
         style,
         category_styles,
         app_styles,
@@ -211,6 +212,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.transcription_provider, transcription_provider);
     set_trimmed(&mut settings.groq_whisper_model, groq_whisper_model);
     set(&mut settings.smart_retry, smart_retry);
+    set(&mut settings.booster_auto_download, booster_auto_download);
     set(&mut settings.style, style);
     set(&mut settings.category_styles, category_styles);
     if let Some(apps) = app_styles {
@@ -528,6 +530,7 @@ mod tests {
             learn_from_edits: Some(true),
             escape_cancels: Some(true),
             smart_retry: Some(false),
+            booster_auto_download: Some(false),
             transcription_model: Some(sv_domain::models::WHISPER_HINGLISH.to_owned()),
             vocabulary_packs: Some(vec![
                 VocabularyPack::Sales,
@@ -554,6 +557,7 @@ mod tests {
         assert!(stored.learn_from_edits);
         assert!(stored.escape_cancels);
         assert!(!stored.smart_retry);
+        assert!(!stored.booster_auto_download);
         assert_eq!(stored.transcription_model, "whisper-hinglish");
         // Deduplicated and in the registry's order, whatever order the clicks came in.
         assert_eq!(

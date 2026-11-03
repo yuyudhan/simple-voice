@@ -90,6 +90,9 @@ export interface Settings {
     learnFromEdits: boolean;
     /** Smart Select re-runs a dictation whose result looks unclear on the route's other model. */
     smartRetry: boolean;
+    /** Download the Dictionary names model (Parakeet's booster) without a click when Parakeet may
+     *  transcribe and the Dictionary holds a name; off keeps a deleted copy deleted. */
+    boosterAutoDownload: boolean;
     /** Built-in vocabulary packs in use, deduplicated, in the registry's order. */
     vocabularyPacks: VocabularyPack[];
     databaseDir: string;

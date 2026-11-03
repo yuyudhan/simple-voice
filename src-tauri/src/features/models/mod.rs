@@ -157,6 +157,12 @@ pub(crate) async fn download_model(
         return Err(AppError::invalid(format!("{id} cannot be downloaded")));
     }
     let settings = state.db()?.settings().await?;
+    start_download(&app, id, &settings)
+}
+
+/// Starts downloading `id` in the background; progress and the result arrive as events.
+fn start_download(app: &AppHandle, id: String, settings: &Settings) -> AppResult<()> {
+    let state = app.state::<AppState>();
     {
         let mut downloads = lock(&state.downloads);
         if downloads.contains_key(&id) {
@@ -164,9 +170,10 @@ pub(crate) async fn download_model(
         }
         downloads.insert(id.clone(), 0.0);
     }
-    progress(&app, &id, 0.0, ModelProgressStatus::Downloading, None);
+    progress(app, &id, 0.0, ModelProgressStatus::Downloading, None);
 
-    let language = engine_language(&settings, &id).map(str::to_owned);
+    let language = engine_language(settings, &id).map(str::to_owned);
+    let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let state = app.state::<AppState>();
         let reporter = {
@@ -296,6 +303,7 @@ pub(crate) async fn active_model(state: &AppState, settings: &Settings) -> Optio
 /// Loads the local model the settings will start with, so the first dictation does not pay
 /// the load time; with Parakeet TDT also its dictionary booster, when it is downloaded.
 pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
+    fetch_booster(app, settings).await;
     let state = app.state::<AppState>();
     let Some(model) = active_model(&state, settings).await else {
         return;
@@ -304,6 +312,41 @@ pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
     let boosted = model == PARAKEET_TDT_V3 || model == PARAKEET_TDT_V2;
     if boosted && is_ready(&state, settings, PARAKEET_VOCABULARY).await {
         preload(app, PARAKEET_VOCABULARY).await;
+    }
+}
+
+/// Whether the settings let the booster download by themselves: the user has not switched it
+/// off and Parakeet TDT may transcribe.
+fn may_fetch_booster(settings: &Settings) -> bool {
+    settings.booster_auto_download
+        && [PARAKEET_TDT_V3, PARAKEET_TDT_V2, SMART_SELECT]
+            .contains(&settings.transcription_model.as_str())
+}
+
+/// Downloads Parakeet's dictionary booster when the settings allow it
+/// ([`may_fetch_booster`]) and the Dictionary holds names for it: without the booster Parakeet
+/// never hears the Dictionary, which is what a user who filled it expects. A booster already
+/// there or on its way is left alone.
+pub(crate) async fn fetch_booster(app: &AppHandle, settings: &Settings) {
+    let state = app.state::<AppState>();
+    if !may_fetch_booster(settings)
+        || lock(&state.downloads).contains_key(PARAKEET_VOCABULARY)
+        || is_ready(&state, settings, PARAKEET_VOCABULARY).await
+    {
+        return;
+    }
+    let entries = match state.db() {
+        Ok(db) => db.dictionary().await.unwrap_or_default(),
+        Err(_) => return,
+    };
+    if sv_text::Vocabulary::new(&entries, &[])
+        .boost_terms()
+        .is_empty()
+    {
+        return;
+    }
+    if let Err(error) = start_download(app, PARAKEET_VOCABULARY.to_owned(), settings) {
+        tracing::info!(%error, "dictionary booster download not started");
     }
 }
 
@@ -403,6 +446,21 @@ mod tests {
             preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"]), |_| false),
             None
         );
+    }
+
+    #[test]
+    fn the_booster_downloads_by_itself_only_for_parakeet_and_never_when_switched_off() {
+        use sv_domain::models::{PARAKEET_TDT_V3, WHISPER_TURBO};
+        assert!(may_fetch_booster(&settings(PARAKEET_TDT_V3, &["en"])));
+        assert!(may_fetch_booster(&settings(SMART_SELECT, &["en"])));
+        assert!(!may_fetch_booster(&settings(WHISPER_TURBO, &["en"])));
+        for model in [PARAKEET_TDT_V3, SMART_SELECT] {
+            let off = Settings {
+                booster_auto_download: false,
+                ..settings(model, &["en"])
+            };
+            assert!(!may_fetch_booster(&off), "{model}");
+        }
     }
 
     #[test]

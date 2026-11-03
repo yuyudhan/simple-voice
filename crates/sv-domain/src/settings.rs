@@ -179,6 +179,10 @@ pub struct Settings {
     /// Smart Select double-checks a low-confidence result with a second model; when off, only
     /// an error makes it try another model.
     pub smart_retry: bool,
+    /// Download Parakeet's dictionary booster (`parakeet-vocabulary`, 103 MB) by itself when
+    /// Parakeet TDT may transcribe and the Dictionary holds a name. Off: it is only fetched from
+    /// the Models page, and a deleted copy stays deleted.
+    pub booster_auto_download: bool,
     /// The global style; `category_styles` and `app_styles` override it per app.
     pub style: Style,
     /// Style per app category; a category without an entry uses `style`.
@@ -249,6 +253,7 @@ impl Default for Settings {
             transcription_provider: TranscriptionProvider::Local,
             groq_whisper_model: crate::models::DEFAULT_GROQ_WHISPER_MODEL.to_owned(),
             smart_retry: true,
+            booster_auto_download: true,
             style: Style::Formal,
             category_styles: BTreeMap::new(),
             app_styles: Vec::new(),
@@ -353,6 +358,7 @@ pub struct SettingsPatch {
     pub transcription_provider: Option<TranscriptionProvider>,
     pub groq_whisper_model: Option<String>,
     pub smart_retry: Option<bool>,
+    pub booster_auto_download: Option<bool>,
     pub style: Option<Style>,
     pub category_styles: Option<BTreeMap<AppCategory, Style>>,
     pub app_styles: Option<Vec<AppStyle>>,

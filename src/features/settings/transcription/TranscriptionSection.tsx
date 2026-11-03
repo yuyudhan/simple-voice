@@ -58,6 +58,29 @@ function LiveTranscriptRow({ models, smart }: { models: ModelsState; smart: Smar
     );
 }
 
+const BOOSTER_DOWNLOAD_TITLE = "Download it by itself";
+
+/** The booster is the one model Simple Voice fetches without a click, so the row says so. */
+function BoosterDownloadRow({ models }: { models: ModelsState }) {
+    const { settings, update } = useSettings();
+    const sizeMb = (models.models ?? []).find((m) => m.kind === "vocabulary")?.sizeMb ?? null;
+    const size = sizeMb === null ? "" : ` (${String(sizeMb)} MB)`;
+    return (
+        <SettingRow
+            title={BOOSTER_DOWNLOAD_TITLE}
+            description={`When Parakeet may transcribe and your Dictionary holds a name, Simple Voice downloads this model${size} by itself. Off: it downloads only when you click Download, and a deleted copy stays deleted.`}
+        >
+            <Toggle
+                label={BOOSTER_DOWNLOAD_TITLE}
+                checked={settings.boosterAutoDownload}
+                onChange={(boosterAutoDownload) => {
+                    void update({ boosterAutoDownload });
+                }}
+            />
+        </SettingRow>
+    );
+}
+
 export function TranscriptionSection() {
     const models = useModels();
     const smart = useSmartSelect(models);
@@ -116,6 +139,7 @@ export function TranscriptionSection() {
                         label="Dictionary names model"
                     />
                 </div>
+                <BoosterDownloadRow models={models} />
             </SettingsGroup>
         </>
     );
