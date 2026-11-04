@@ -319,12 +319,16 @@ transcript and meetings are the only users of `Recorder::start_with`.
 // user_name() (Latin → "Roman script") and contains(char). Language { tag (BCP 47: "en", "hi",
 // "hi-Latn"), name, base (the ISO 639-1 code models receive: "hi" for "hi-Latn"), script (how the
 // app writes it), native (the base language's own script), primary (a one-click chip) };
-// is_variant() = script != native. LANGUAGES (the only variant is hi-Latn), language(tag) (exact,
-// trimmed, case-insensitive), model_language(tag) / model_languages(tags) (bases, deduped, order
-// kept; unknown tags pass through), LanguageInfo { tag, name, script (Some(user_name) only when
-// another entry shares the base), primary, fallback (!is_variant) } + language_infos() for the
-// UI. Settings.languages defaults to ["en", "hi", "hi-Latn"]; validation accepts registry tags
-// only, and the fallback must be a registry tag that may be a fallback.
+// is_variant() = script != native; is_translatable() = !is_variant() and the base is not in
+// UNTRANSLATED (["hi"]: Hindi failed translation acceptance). LANGUAGES (the only variant is
+// hi-Latn), language(tag) (exact, trimmed, case-insensitive), is_translation_target(tag)
+// (a registry tag that is_translatable), model_language(tag) /
+// model_languages(tags) (bases, deduped, order kept; unknown tags pass through), LanguageInfo
+// { tag, name, script (Some(user_name) only when another entry shares the base), primary,
+// fallback (!is_variant), translatable (is_translatable) } + language_infos() for the UI.
+// Settings.languages defaults to ["en", "hi", "hi-Latn"]; validation accepts registry tags
+// only, the fallback must be a registry tag that may be a fallback, and translationLanguage a
+// translatable one (a stored untranslatable target loads as the default).
 
 // ── sv-storage ──────────────────────────────────────────────────────────────────────────
 pub mod paths {
@@ -754,7 +758,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `smart_select_plan`                                                            | —                                                                     | `SmartSelectPlan` `{ local, notice }`: the local model that runs first for the languages, a notice or `null`                                                                                                                       |
 | `engine_status`                                                                | —                                                                     | `EngineStatus` (see `engine-status`)                                                                                                                                                                                               |
 | `restart_engine`                                                               | —                                                                     | `EngineStatus` (`starting`): stops a running helper, ends the pause between automatic restarts and resets their backoff                                                                                                            |
-| `list_languages`                                                               | —                                                                     | `LanguageInfo[]` `{ tag, name, script, primary, fallback }`: the language registry for the picker                                                                                                                                  |
+| `list_languages`                                                               | —                                                                     | `LanguageInfo[]` `{ tag, name, script, primary, fallback, translatable }`: the language registry for the picker |
 | `list_known_apps`                                                              | —                                                                     | `KnownApp[]` `{ bundleId, appName, category }`: distinct apps in history (newest first) plus the frontmost app, for per-app styles and context exclusions                                                                          |
 | `list_snippets`                                                                | —                                                                     | `Snippet[]` (trigger A to Z)                                                                                                                                                                                                       |
 | `add_snippet`                                                                  | `trigger, text`                                                       | `Snippet`; a duplicate trigger (ignoring case) is an error naming the trigger                                                                                                                                                      |
@@ -1156,7 +1160,8 @@ Speaker]` and asks for an answer grounded only in them; `parse_chat_answer` keep
 - Translation (`translate_meeting { language }`, a registry tag, 240 s per batch): not the
   assistant. The dedicated `madlad400-3b-mt` model (MADLAD-400 3B MT, Q4_K_M GGUF from
   `mtsdurica/madlad400-3b-mt-Q4_K_M-GGUF`, 1.86 GB, Apache-2.0, run by llama.cpp's
-  encoder-decoder path) must be ready. Romanised variants (`hi-Latn`) are refused; the helper
+  encoder-decoder path) must be ready. Targets that are not `is_translatable()` (romanised
+  variants such as `hi-Latn`, and Hindi) are refused; the helper
   refuses a base code that is not one `<2xx>` token of the model's vocabulary. Segment texts go
   to the helper's `translate` in batches of at most 2,000 characters (each a progress and
   cancellation point); it returns exactly one text per segment, else the job fails. The

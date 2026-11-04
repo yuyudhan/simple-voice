@@ -334,6 +334,8 @@ export interface LanguageInfo {
     primary: boolean;
     /** May be the fallback language. */
     fallback: boolean;
+    /** May be a meeting translation target. */
+    translatable: boolean;
 }
 
 /** One built-in vocabulary pack, as the Dictionary page offers it. */

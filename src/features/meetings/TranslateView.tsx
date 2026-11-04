@@ -55,15 +55,15 @@ export function TranslateView({ detail, blocker, onChanged }: Props) {
     const translation =
         translations.find((t) => t.language === shown) ?? translations[translations.length - 1];
     const byId = new Map(translation?.segments.map((s) => [s.segmentId, s.text]) ?? []);
-    // The model writes each language in its own script only, so romanised variants (Hinglish)
-    // are not offered.
+    // Romanised variants (Hinglish) and languages the model failed acceptance in (Hindi) are not
+    // offered.
     const options = languages
-        .filter((language) => language.fallback)
+        .filter((language) => language.translatable)
         .map((language) => ({
             value: language.tag,
             label: language.script ? `${language.name} (${language.script})` : language.name,
         }));
-    // A saved choice the model can't write (e.g. Hinglish) falls back to the first offered one.
+    // A saved choice that is not offered (e.g. Hindi) falls back to the first offered one.
     const chosen = options.some((option) => option.value === target)
         ? target
         : (options[0]?.value ?? target);

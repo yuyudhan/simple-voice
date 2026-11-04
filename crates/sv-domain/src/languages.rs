@@ -138,7 +138,18 @@ impl Language {
     pub fn is_variant(&self) -> bool {
         self.script != self.native
     }
+
+    /// Offered as a meeting translation target. The translation model writes each language in
+    /// its own script only, so a romanised variant would come back as its base language.
+    pub fn is_translatable(&self) -> bool {
+        !self.is_variant() && !UNTRANSLATED.contains(&self.base)
+    }
 }
+
+/// Base languages the on-device translation model is not trusted with. Hindi failed acceptance:
+/// every tested local model changed names and weekdays and invented content. Dictation in them
+/// is unaffected.
+const UNTRANSLATED: &[&str] = &["hi"];
 
 const fn native(tag: &'static str, name: &'static str, script: Script) -> Language {
     Language {
@@ -231,6 +242,11 @@ pub fn language(tag: &str) -> Option<&'static Language> {
         .find(|language| language.tag.eq_ignore_ascii_case(tag))
 }
 
+/// Whether `tag` is a registry language meetings may be translated into.
+pub fn is_translation_target(tag: &str) -> bool {
+    language(tag).is_some_and(Language::is_translatable)
+}
+
 /// The language code models receive for `tag`; tags outside the registry pass through.
 pub fn model_language(tag: &str) -> &str {
     language(tag).map_or(tag, |language| language.base)
@@ -262,6 +278,8 @@ pub struct LanguageInfo {
     /// May be the fallback language. Recognition is pinned to the fallback, and models only
     /// know base languages, so variants can't be.
     pub fallback: bool,
+    /// May be a meeting translation target.
+    pub translatable: bool,
 }
 
 pub fn language_infos() -> Vec<LanguageInfo> {
@@ -277,6 +295,7 @@ pub fn language_infos() -> Vec<LanguageInfo> {
                 script: shares_base.then(|| language.script.user_name().to_owned()),
                 primary: language.primary,
                 fallback: !language.is_variant(),
+                translatable: language.is_translatable(),
             }
         })
         .collect()
@@ -375,5 +394,20 @@ mod tests {
             info("de").map(|i| (i.primary, i.fallback)),
             Some((false, true))
         );
+    }
+
+    #[test]
+    fn hindi_stays_a_dictation_language_but_is_never_a_translation_target() {
+        let infos = language_infos();
+        let info = |tag: &str| infos.iter().find(|info| info.tag == tag).cloned();
+        for tag in ["hi", "hi-Latn"] {
+            let hindi = info(tag);
+            assert_eq!(hindi.as_ref().map(|i| i.primary), Some(true), "{tag}");
+            assert_eq!(hindi.map(|i| i.translatable), Some(false), "{tag}");
+        }
+        assert_eq!(info("hi").map(|i| i.fallback), Some(true));
+        for tag in ["en", "de", "ja"] {
+            assert_eq!(info(tag).map(|i| i.translatable), Some(true), "{tag}");
+        }
     }
 }

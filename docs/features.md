@@ -141,9 +141,9 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   the text, write a summary with action items, ask questions answered only from the transcript
   with links to the moments they come from, and translate it into another language with a
   dedicated translation model (MADLAD-400, a 1.86 GB download), marked as machine translation
-  to check against the original lines. **Known limitation:** Hindi translation has not passed
-  acceptance testing. Tested models changed names and weekdays and sometimes invented sentence
-  content; do not rely on their Hindi output. This does not affect Hindi dictation.
+  to check against the original lines. Hindi is not offered as a translation target: tested
+  local models changed names and weekdays and sometimes invented content. Hindi dictation is
+  unaffected.
   Long meetings are processed in pieces, and every step can be cancelled. Recordings, transcripts and
   everything written about them stay on your Mac; export a meeting as Markdown, text or JSON.
 - **History.** Every dictation with the time, the app it went to, and the text. Copy, search,

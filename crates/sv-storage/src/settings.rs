@@ -7,7 +7,7 @@ use std::path::Path;
 
 use serde_json::{Map, Value};
 use sqlx::SqlitePool;
-use sv_domain::languages::language;
+use sv_domain::languages::{is_translation_target, language};
 use sv_domain::models::{
     is_groq_model_id, GROQ_WHISPER_MODELS, LOCAL_LLM, LOCAL_TRANSCRIPTION_MODELS, SMART_SELECT,
 };
@@ -113,6 +113,10 @@ async fn load_settings(pool: &SqlitePool, database_dir: &Path) -> AppResult<Sett
     // existed. Edit mode then starts off instead of every later settings save failing.
     if validate_edit_shortcut(&settings).is_err() {
         settings.edit_shortcut.clear();
+    }
+    // A target stored before it stopped being offered (Hindi) would fail every later save.
+    if !is_translation_target(&settings.translation_language) {
+        settings.translation_language = Settings::default().translation_language;
     }
     Ok(settings)
 }
@@ -375,7 +379,7 @@ fn validate(settings: &Settings) -> AppResult<()> {
             sv_domain::models::DEFAULT_GROQ_CHAT_MODEL
         )));
     }
-    if language(&settings.translation_language).is_none() {
+    if !is_translation_target(&settings.translation_language) {
         return Err(AppError::invalid(format!(
             "“{}” is not a supported translation language",
             settings.translation_language
@@ -653,6 +657,15 @@ mod tests {
                 translation_language: Some("klingon".to_owned()),
                 ..SettingsPatch::default()
             },
+            // Hindi translation failed acceptance; the romanised variant was never writable.
+            SettingsPatch {
+                translation_language: Some("hi".to_owned()),
+                ..SettingsPatch::default()
+            },
+            SettingsPatch {
+                translation_language: Some("hi-Latn".to_owned()),
+                ..SettingsPatch::default()
+            },
             // Seen in desktop QA: saved, and could never match an app.
             SettingsPatch {
                 app_styles: Some(vec![AppStyle {
@@ -705,6 +718,37 @@ mod tests {
             db.update_settings(later).await.unwrap().style,
             Style::Casual
         );
+    }
+
+    #[tokio::test]
+    async fn hindi_dictation_saves_while_a_stored_hindi_translation_target_resets() {
+        let (_dir, db) = open().await;
+        {
+            // Saved by a version that still offered Hindi translation.
+            let inner = db.read().await;
+            sqlx::query!(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                "translationLanguage",
+                "\"hi\""
+            )
+            .execute(&inner.pool)
+            .await
+            .unwrap();
+        }
+        let defaults = Settings::default();
+        assert_eq!(
+            db.settings().await.unwrap().translation_language,
+            defaults.translation_language
+        );
+        let hindi = SettingsPatch {
+            languages: Some(vec!["hi".to_owned(), "hi-Latn".to_owned()]),
+            fallback_language: Some("hi".to_owned()),
+            ..SettingsPatch::default()
+        };
+        let saved = db.update_settings(hindi).await.unwrap();
+        assert_eq!(saved.languages, vec!["hi", "hi-Latn"]);
+        assert_eq!(saved.fallback_language, "hi");
+        assert_eq!(saved.translation_language, defaults.translation_language);
     }
 
     #[tokio::test]

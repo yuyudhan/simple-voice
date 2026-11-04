@@ -59,6 +59,7 @@ export function languageOf(languages: LanguageInfo[], tag: string): LanguageInfo
             script: null,
             primary: false,
             fallback: false,
+            translatable: false,
         }
     );
 }

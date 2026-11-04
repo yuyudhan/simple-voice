@@ -278,14 +278,10 @@ async fn answer(
 pub(super) async fn translate(app: &AppHandle, id: i64, language: &str) -> AppResult<Translation> {
     let target = languages::language(language)
         .ok_or_else(|| AppError::invalid(format!("“{language}” is not a supported language.")))?;
-    if target.is_variant() {
-        // The model writes each language in its own script only; a romanised variant would
-        // silently come back as the base language.
+    if !target.is_translatable() {
         return Err(AppError::invalid(format!(
-            "Translation into {} is not supported: the translation model writes {} only in {}.",
-            target.name,
-            target.base,
-            target.native.user_name()
+            "Translation into {} is not offered.",
+            target.name
         )));
     }
     let state = app.state::<AppState>();
