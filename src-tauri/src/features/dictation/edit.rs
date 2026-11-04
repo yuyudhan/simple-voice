@@ -1,16 +1,15 @@
 // FilePath: src-tauri/src/features/dictation/edit.rs
 //! Edit mode: the user selects text, holds the edit shortcut and says how to change it. The
 //! selection is read the moment the shortcut goes down, the recording becomes the instruction,
-//! the configured on-device language model rewrites the selection, and the result is pasted
-//! over the still-selected text in the same app, where Cmd+Z undoes it. A failed edit leaves
-//! the selection untouched.
+//! the formatting model (with formatting off, a ready on-device model) rewrites the selection,
+//! and the result is pasted over the still-selected text in the same app, where Cmd+Z undoes
+//! it. A failed edit leaves the selection untouched.
 
 use std::time::{Duration, Instant};
 
 use sv_audio::{encode_wav, Cue};
 use sv_domain::{
-    AppError, AppResult, DictationPhase, DictationState, HistoryStatus, NewHistory, PostProcessing,
-    Settings,
+    AppError, AppResult, DictationPhase, DictationState, HistoryStatus, NewHistory, Settings,
 };
 use sv_engine::FrontmostApp;
 use sv_storage::Db;
@@ -35,8 +34,6 @@ const SELECTION_WAIT: Duration = Duration::from_secs(3);
 const FRONTMOST_TIMEOUT: Duration = Duration::from_millis(300);
 
 const NO_SELECTION: &str = "Select the text to edit first";
-const NO_PROVIDER: &str = "Edit mode needs on-device AI formatting — choose Apple Intelligence or \
-                           the local model in Settings → Formatting";
 const APP_CHANGED: &str = "Edited text copied — the app changed before the edit finished";
 
 /// Starts reading the selection in the focused app. Called when the edit shortcut goes down,
@@ -69,9 +66,6 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     let state = app.state::<AppState>();
     publish(&app, edit_state(DictationPhase::Transcribing, id));
 
-    if settings.post_processing == PostProcessing::Off {
-        return fail(&app, &settings, id, NO_PROVIDER);
-    }
     let selection = match read_selection(&app, selection).await {
         Ok(selection) => selection,
         Err(message) => return fail(&app, &settings, id, message),
@@ -153,7 +147,7 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     let started = Instant::now();
     let limit = sv_text::edit_timeout(&selection);
     let max_tokens = sv_text::edit_max_tokens(&selection);
-    let edited = match llm::post_process(&state, &settings, prompt, max_tokens, limit).await {
+    let edited = match llm::edit(&state, &settings, prompt, max_tokens, limit).await {
         Ok(answer) => {
             row.format_model = Some(answer.model);
             sv_text::accept_edit(&selection, &answer.reply.text, answer.reply.finished)

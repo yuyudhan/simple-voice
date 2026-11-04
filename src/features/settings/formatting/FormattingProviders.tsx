@@ -250,7 +250,8 @@ export function FormattingProviders({ models }: { models: ModelsState }) {
             {settings.postProcessing === "off" ? (
                 <p className="sv-inline-note">
                     Only your dictionary rules, snippets, brand casing, spacing and capitalisation
-                    are applied.
+                    are applied. Edit by voice still works: it uses the local model or Apple
+                    Intelligence, whichever is ready.
                 </p>
             ) : (
                 <TestFormatting disabled={!providerReady} />

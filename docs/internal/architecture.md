@@ -1004,9 +1004,11 @@ among them) combines with any post-processing provider (`Settings.postProcessing
 learning) through the helper's `generate` at temperature 0; Apple gets the `OnDevice` prompt
 family, the local model the `Chat` one. A provider that is not ready (not downloaded, still
 downloading, unsupported) makes the formatting pass fail with a reason, so the dictation pastes
-the deterministic text marked "unformatted"; edit mode and learning need a provider that is not
-`off`. Meetings pick their own model with `Settings.meetingAssistant` (`local` by default, or
-`apple`), independent of the dictation provider. There are no API keys and no remote endpoints.
+the deterministic text marked "unformatted"; learning needs a provider that is not `off`. With
+`off`, edit mode (`llm::edit`) runs on the first ready on-device model (the local model, then
+Apple Intelligence), never Groq. Meetings pick their own model with `Settings.meetingAssistant`
+(`local` by default, or `apple`), independent of the dictation provider. There are no API keys
+and no remote endpoints.
 
 Speed: the recording start loads the formatting model (`llm::warm_up`), and once the recording
 stops the pipeline sends `prepare_generate` with the formatting prompt's instructions and

@@ -77,6 +77,47 @@ pub(crate) fn backend_model(settings: &Settings, backend: LlmBackend) -> String 
     }
 }
 
+/// Why an edit cannot run with formatting off, for the user.
+const NO_EDIT_MODEL: &str = "With formatting off, edit mode runs on the local model \
+                             or Apple Intelligence — download the local model in Settings → \
+                             Formatting";
+
+/// The on-device models, in the order an edit or a failed Groq request tries them.
+fn on_device_models(settings: &Settings) -> [&str; 2] {
+    [settings.local_llm_model.as_str(), APPLE_INTELLIGENCE]
+}
+
+/// The models an edit may run on, best first. Formatting off only keeps dictations from being
+/// rewritten; an edit is an explicit ask for a rewrite, so it then runs on an on-device model.
+/// Groq is asked only while it is the formatting choice.
+pub(crate) fn edit_models(settings: &Settings) -> Vec<String> {
+    post_processing_model(settings).map_or_else(
+        || on_device_models(settings).map(str::to_owned).to_vec(),
+        |model| vec![model],
+    )
+}
+
+/// Sends the prompt `build` makes to the model an edit runs on: the post-processing model like
+/// [`post_process`] while formatting is on, else the first ready model of [`edit_models`].
+pub(crate) async fn edit(
+    state: &AppState,
+    settings: &Settings,
+    build: impl Fn(PolishTarget) -> PolishPrompt,
+    max_tokens: u32,
+    limit: Duration,
+) -> Result<Answer, String> {
+    if settings.post_processing != PostProcessing::Off {
+        return post_process(state, settings, build, max_tokens, limit).await;
+    }
+    for model in edit_models(settings) {
+        if unavailable(state, settings, &model).await.is_none() {
+            let reply = generate(state, &model, &build(target(&model)), max_tokens, limit).await?;
+            return Ok(Answer { reply, model });
+        }
+    }
+    Err(NO_EDIT_MODEL.to_owned())
+}
+
 /// The prompt family a model needs: Apple's small on-device model gets the shorter one.
 pub(crate) fn target(model: &str) -> PolishTarget {
     if model == APPLE_INTELLIGENCE {
@@ -202,7 +243,7 @@ async fn on_device_fallback<'a>(
     settings: &'a Settings,
     family: Option<PolishTarget>,
 ) -> Option<&'a str> {
-    for model in [settings.local_llm_model.as_str(), APPLE_INTELLIGENCE] {
+    for model in on_device_models(settings) {
         if family.is_some_and(|family| family != target(model)) {
             continue;
         }
@@ -378,5 +419,43 @@ mod tests {
             post_processing_model(&Settings::default()).as_deref(),
             Some(APPLE_INTELLIGENCE)
         );
+    }
+
+    #[test]
+    fn edit_mode_still_has_an_on_device_model_with_formatting_off() {
+        let settings = Settings {
+            post_processing: PostProcessing::Off,
+            ..Settings::default()
+        };
+        // Formatting off keeps dictations as typed; an edit is an explicit ask for a rewrite.
+        assert_eq!(
+            edit_models(&settings),
+            [
+                settings.local_llm_model.clone(),
+                APPLE_INTELLIGENCE.to_owned()
+            ]
+        );
+        // Off never sends text to Groq, even with a Groq model and key configured.
+        assert!(edit_models(&settings)
+            .iter()
+            .all(|model| groq_chat_model(model).is_none()));
+    }
+
+    #[test]
+    fn edit_mode_follows_the_formatting_choice_when_it_is_on() {
+        for (choice, model) in [
+            (PostProcessing::Apple, APPLE_INTELLIGENCE.to_owned()),
+            (PostProcessing::Local, Settings::default().local_llm_model),
+            (
+                PostProcessing::Groq,
+                groq_llm_id(&Settings::default().groq_formatting_model),
+            ),
+        ] {
+            let settings = Settings {
+                post_processing: choice,
+                ..Settings::default()
+            };
+            assert_eq!(edit_models(&settings), [model]);
+        }
     }
 }

@@ -77,10 +77,11 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
 - **Edit selected text by voice.** Select text in any input (a Gmail draft, a browser search box,
   a note), press _Toggle to edit_ (⌥/ by default), say how to change it: "make this more
   formal", "turn this into bullets", "fix the typos", then press it again. The rewrite replaces
-  the selection in place, and Cmd+Z in that app undoes it. It uses your formatting model, so
-  formatting must not be off; nothing is changed when nothing is selected or the edit fails.
-  Edits appear in History with what you said and the text they replaced. The shortcut is
-  configurable in Settings → Dictation and can be turned off.
+  the selection in place, and Cmd+Z in that app undoes it. It uses your formatting model; with
+  formatting off it still works on the local model or Apple Intelligence, whichever is ready.
+  Nothing is changed when nothing is selected or the edit fails. Edits appear in History with
+  what you said and the text they replaced. The shortcut is configurable in Settings → Dictation
+  and can be turned off.
 
 - **Two styles, per app.** _Formal_ (capitals and full punctuation) or _Casual_ (capitals,
   lighter punctuation). Set one style for everything, a style for each kind of app (work chat,
