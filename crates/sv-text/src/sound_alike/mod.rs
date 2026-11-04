@@ -28,8 +28,15 @@
 //! - A run of up to three capitalised words can become up to three dictionary words, which
 //!   repairs merged words ("Ankitatharva" → "Ankit Atharva") and split ones ("Angita Tharva" →
 //!   "Ankit Atharva", "Ajwari Tanshu" → "Ajjwar Hitanshu").
+//!
+//! An ordinary word that sounds like a name ("science" for "Sienzo") is only replaced inside the
+//! rest of a dictionary entry that names it ("science sign on" for "Sienzo Sign on"), where the
+//! entry's own words say which one the speaker meant ([`phrases`]).
 
 mod phonetic;
+mod phrases;
+
+pub use phrases::{correct_phrases, Phrase};
 
 use std::sync::LazyLock;
 

@@ -411,7 +411,7 @@ pub struct NewSegment { pub start_ms: i64, pub end_ms: i64, pub speaker: Option<
 
 // ── sv-text ─────────────────────────────────────────────────────────────────────────────
 pub struct Rule { pub from: String, pub to: String }
-pub struct Vocabulary { pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize, pub spellings: Vec<Spelling> }
+pub struct Vocabulary { pub terms: Vec<String>, pub rules: Vec<Rule>, pub omitted: usize, pub spellings: Vec<Spelling>, pub phrases: Vec<Phrase>, pub email_words: Vec<String>, pub addresses: Vec<String> }
 impl Vocabulary { pub fn new(entries: &[DictionaryEntry], packs: &[VocabularyPack]) -> Vocabulary; }
     // terms: prompt words in priority order: "Simple Voice", "SimpleVoice", the dictionary's
     // words, then pack words in turns across packs within PACK_PROMPT_MAX_TOKENS; also the
@@ -420,7 +420,9 @@ impl Vocabulary { pub fn new(entries: &[DictionaryEntry], packs: &[VocabularyPac
     // pack `heard -> written` rules, longest first, user first among equals; a phrase the user
     // has (word or heard side) gets no built-in rule or prompt word. omitted: dictionary words
     // left out of the prompt. spellings: dictionary entries written as names (sound_alike targets,
-    // requirement D-18).
+    // requirement D-18). phrases: entries mixing a name with ordinary words, written where the
+    // transcript holds those words around a word that sounds like the name (D-20).
+    // email_words / addresses: what words inside a spoken email address snap to (D-19).
 impl Vocabulary { pub fn boost_terms(&self) -> Vec<String>; }
     // the single-word, non-ordinary names sent to Parakeet TDT as `vocabulary`
 impl Default for Vocabulary { .. }                                // no dictionary, no packs

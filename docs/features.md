@@ -110,7 +110,17 @@ with no Dock icon, so the shortcuts keep working; Cmd+Q or the menu bar icon's Q
   configurable.
 - **Personal dictionary.** Teach it names, brands and jargon so they are recognised and spelled
   your way, and add replacement rules (`heard -> written`). Import an existing vocabulary file,
-  or export yours to a text file you can import again on another Mac.
+  or export yours to a text file you can import again on another Mac. Your dictionary lives only
+  in Simple Voice's database on your Mac: the app ships no one's names, so your company, products
+  and colleagues go here. Your words steer recognition itself (Whisper is primed with them, and
+  Parakeet checks the audio for your single-word names) rather than being swapped in afterwards,
+  so a name that sounds like an everyday word never replaces that word when you mean it: with
+  "Sienzo" in your dictionary, "I love science" stays "I love science". Add the phrase you
+  use the name in ("Sienzo Sign on") and that phrase comes out right even when the name was
+  heard as "science" ("science sign on" → "Sienzo Sign on"), as does a spoken email address
+  ("ankit at the rate science dot com" → `ankit@sienzo.com`). A `heard -> written` rule is the
+  one blunt tool: it replaces the heard words everywhere, so keep rules for mishearings that are
+  never real words ("Calvi -> Kalvi").
 - **Built-in vocabulary.** Simple Voice already knows its own name and, out of the box, everyday
   tech and programming terms: `github` comes out as `GitHub`, "node js" as `Node.js`. Open
   _Built-in…_ on the Dictionary page to add packs for the work you talk about (web, backend,

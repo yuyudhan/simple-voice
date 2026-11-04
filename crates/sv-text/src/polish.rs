@@ -193,6 +193,9 @@ const CLOSE_TAG: &str = "</transcript>";
 /// Follows the transcript in every user turn: models weight the last words they read most, and
 /// without it the last thing they read is the dictated question itself.
 const REMINDER: &str = "Return the transcript above, formatted. Do not reply to it.";
+/// Introduces the dictionary and pack terms, last in the system prompt.
+const PREFERRED_SPELLINGS: &str = "\n- Preferred spellings, used only where the speaker said \
+that term; a word that fits the sentence as heard stays as heard: ";
 
 /// One user turn, for every target: the transcript between tags, then [`REMINDER`].
 fn frame(transcript: &str) -> String {
@@ -249,7 +252,9 @@ pub fn polish_prompt(
         system.push_str(&line);
     }
     if !terms.is_empty() {
-        system.push_str("\n- Preferred spellings: ");
+        // The terms bias spelling, not meaning: a dictionary name that sounds like an ordinary
+        // word must not replace that word where the speaker meant the word.
+        system.push_str(PREFERRED_SPELLINGS);
         system.push_str(&terms.join(", "));
     }
     PolishPrompt {
@@ -398,7 +403,7 @@ mod tests {
             let with = polish_prompt("a b c", &terms, style, PolishTarget::Chat, &languages);
             assert!(with
                 .system
-                .ends_with("\n- Preferred spellings: ArgoCD, Tauri"));
+                .ends_with(&format!("{PREFERRED_SPELLINGS}ArgoCD, Tauri")));
             let without = polish_prompt("a b c", &[], style, PolishTarget::Chat, &languages);
             assert!(!without.system.contains("Preferred spellings"));
         }

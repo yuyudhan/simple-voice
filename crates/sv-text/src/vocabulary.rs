@@ -15,7 +15,7 @@ use sv_domain::{DictionaryEntry, VocabularyPack};
 
 use crate::language_prompts;
 use crate::packs::{self, is_casing_word, Pack, PRODUCT};
-use crate::sound_alike::Spelling;
+use crate::sound_alike::{Phrase, Spelling};
 use crate::tokens::estimate_tokens;
 
 /// Bounds the prompt in characters alongside the token estimate: about what 200 tokens of
@@ -52,6 +52,10 @@ pub struct Vocabulary {
     /// parts of other entries, in dictionary order: what misheard words snap to (see
     /// [`crate::sound_alike`]). Built-in pack words are never targets.
     pub spellings: Vec<Spelling>,
+    /// Personal dictionary entries that mix names with ordinary words ("Sienzo Sign on"), in
+    /// dictionary order: their ordinary words are the context in which a word that sounds like
+    /// the name is written as it (see [`crate::sound_alike::correct_phrases`]).
+    pub phrases: Vec<Phrase>,
     /// Every lowercase word of every dictionary entry ("sienzo" of "Sienzo", "ankit" and
     /// "nightly" of "ankit/nightly"): what a word inside a spoken email address snaps to,
     /// ordinary words included (see [`crate::spoken`]).
@@ -84,6 +88,7 @@ impl Vocabulary {
         let mut spellings: Vec<Spelling> = Vec::new();
         let mut email_words: Vec<String> = Vec::new();
         let mut addresses: Vec<String> = Vec::new();
+        let mut phrases: Vec<Phrase> = Vec::new();
         for entry in entries {
             let phrase = entry.phrase.trim();
             if phrase.is_empty() {
@@ -113,6 +118,7 @@ impl Vocabulary {
                     spellings.push(spelling);
                 }
             }
+            phrases.extend(Phrase::new(phrase));
             // Once one word does not fit, every later word is omitted too, so the prompt keeps
             // the dictionary's own priority order instead of back-filling with short words.
             if omitted > 0 || !prompt.push(phrase, PROMPT_MAX_TOKENS) {
@@ -153,6 +159,7 @@ impl Vocabulary {
             rules,
             omitted,
             spellings,
+            phrases,
             email_words,
             addresses,
         }
@@ -400,6 +407,24 @@ mod tests {
             whisper_prompt(&languages(&["hi-Latn"]), &Vocabulary::default()),
             format!("{LEAD}{PRODUCT_TERMS}")
         );
+    }
+
+    #[test]
+    fn a_users_names_bias_every_transcriber_and_only_theirs_do() {
+        let user = Vocabulary::new(&[word("Sienzo"), word("Sienzo Sign on")], &[]);
+        let prompt = whisper_prompt(&languages(&["en"]), &user);
+        assert_eq!(prompt, format!("{PRODUCT_TERMS}, Sienzo, Sienzo Sign on"));
+        assert_eq!(user.boost_terms(), vec!["Sienzo"]);
+        assert_eq!(user.phrases.len(), 1);
+
+        // A new install knows no one's names: nothing personal is primed or boosted.
+        let fresh = Vocabulary::new(
+            &[],
+            &sv_domain::vocabulary_packs::default_vocabulary_packs(),
+        );
+        assert!(fresh.boost_terms().is_empty());
+        assert!(fresh.phrases.is_empty() && fresh.spellings.is_empty());
+        assert!(!fresh.terms.iter().any(|term| term == "Sienzo"));
     }
 
     #[test]

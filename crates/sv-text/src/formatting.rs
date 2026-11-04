@@ -38,7 +38,15 @@ pub fn format(text: &str, vocabulary: &Vocabulary, style: Style) -> Formatted {
             rule_hits += hits;
         }
     }
-    // After the user's own rules, so an explicit "heard -> written" pair always wins.
+    // After the user's own rules, so an explicit "heard -> written" pair always wins. Entries
+    // that name a name among ordinary words go first: the name they write is then a dictionary
+    // word, which the single-name pass leaves alone.
+    if !vocabulary.phrases.is_empty() {
+        let text: String = chars.iter().collect();
+        let corrected = sound_alike::correct_phrases(&text, &vocabulary.phrases);
+        rule_hits += corrected.hits;
+        chars = corrected.text.chars().collect();
+    }
     if !vocabulary.spellings.is_empty() {
         let text: String = chars.iter().collect();
         let corrected = sound_alike::correct(&text, &vocabulary.spellings);
@@ -484,5 +492,25 @@ mod tests {
         assert_eq!(casual("wait..."), "Wait...");
         assert_eq!(casual("really?"), "Really?");
         assert_eq!(formal("sounds good.", &v).text, "Sounds good.");
+    }
+
+    #[test]
+    fn a_word_that_sounds_like_a_name_changes_only_in_the_names_context() {
+        let v = vocab(&[("Sienzo", None), ("Sienzo Sign on", None)]);
+        for (heard, expected) in [
+            (
+                "I love science and computer science.",
+                "I love science and computer science.",
+            ),
+            ("Science is fun.", "Science is fun."),
+            ("I said Sienzo, not science.", "I said Sienzo, not science."),
+            (
+                "we were working on science sign on today.",
+                "We were working on Sienzo Sign on today.",
+            ),
+            ("Kalvi at the rate science dot com", "kalvi@sienzo.com"),
+        ] {
+            assert_eq!(formal(heard, &v).text, expected, "{heard}");
+        }
     }
 }
