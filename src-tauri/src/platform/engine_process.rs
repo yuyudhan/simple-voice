@@ -19,7 +19,7 @@ use tokio::sync::Notify;
 
 use crate::events;
 use crate::features::{models, permissions, settings};
-use crate::platform::{overlay, shortcuts};
+use crate::platform::{output_mute, overlay, shortcuts};
 use crate::state::{lock, AppState};
 
 const SIDECAR: &str = "simple-voice-engine";
@@ -327,6 +327,7 @@ async fn on_connected(app: AppHandle) {
     }
     shortcuts::sync_fn_key(&app);
     overlay::resync(&app);
+    output_mute::recover(&app).await;
     if let Err(error) = permissions::refresh(&app).await {
         tracing::debug!(%error, "permission check after engine start failed");
     }

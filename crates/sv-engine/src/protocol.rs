@@ -177,11 +177,6 @@ struct DownloadResult {
 }
 
 #[derive(Debug, Deserialize)]
-struct MutedResult {
-    previous: bool,
-}
-
-#[derive(Debug, Deserialize)]
 struct FnKeyWatch {
     active: bool,
 }
@@ -378,13 +373,6 @@ impl EngineClient {
         )
         .await
         .map_err(|error| needs_accessibility(error, "watch for corrections"))
-    }
-
-    /// Mutes or restores system output; returns whether output was muted before the call.
-    pub async fn set_output_muted(&self, muted: bool) -> AppResult<bool> {
-        let params = params([("muted", Some(Value::from(muted)))]);
-        let result: MutedResult = self.request("set_output_muted", params, QUICK).await?;
-        Ok(result.previous)
     }
 
     /// Starts or stops the Fn key events. Returns whether the key is being watched now; while
@@ -713,13 +701,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn empty_results_and_muting() {
+    async fn empty_results() {
         let (client, _transport) = scripted(r#"{"id":$ID,"ok":true,"result":{}}"#);
         client.delete_model("parakeet-tdt-v2").await.unwrap();
         client.open_settings(PermissionKind::Speech).await.unwrap();
-        let (client, transport) = scripted(r#"{"id":$ID,"ok":true,"result":{"previous":true}}"#);
-        assert!(client.set_output_muted(true).await.unwrap());
-        assert_eq!(transport.seen.lock()[0]["muted"], true);
     }
 
     #[tokio::test]

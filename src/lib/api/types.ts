@@ -54,7 +54,8 @@ export interface Settings {
     sounds: boolean;
     soundTheme: SoundTheme;
     soundVolume: number;
-    muteWhileDictating: boolean;
+    /** Mute system output (every app and tab) while a dictation records. */
+    muteWhileRecording: boolean;
     launchAtLogin: boolean;
     showBarAlways: boolean;
     /** Seconds the pill shows the start of the pasted text after a dictation (1–10). */

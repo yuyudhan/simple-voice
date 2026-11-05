@@ -16,7 +16,9 @@ use sv_storage::Db;
 use tauri::{AppHandle, Manager, RunEvent};
 
 use crate::features::dictation::{self, DictationHandle};
-use crate::platform::{dock, engine_process, login_item, overlay, shortcuts, tray, windows};
+use crate::platform::{
+    dock, engine_process, login_item, output_mute, overlay, shortcuts, tray, windows,
+};
 use crate::state::AppState;
 
 /// Passed to a second launch to toggle dictation in the running app.
@@ -157,6 +159,9 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(engine_process::EngineProcess::default());
     app.manage(dock::DockSetting::default());
     app.manage(features::meetings::MeetingsState::default());
+    // Before the coordinator runs, so no new recording's marker is mistaken for a crashed one.
+    let marker = output_mute::marker_path();
+    app.manage(output_mute::PendingRecovery::load(marker.as_deref()));
     let events_app = app.clone();
     app.state::<AppState>()
         .engine

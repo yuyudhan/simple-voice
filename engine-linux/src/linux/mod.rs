@@ -7,8 +7,8 @@
 mod autostart;
 mod desktop;
 mod log;
-mod media;
 mod models;
+mod mute;
 mod output;
 mod router;
 mod tools;

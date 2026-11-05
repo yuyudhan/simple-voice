@@ -1,5 +1,5 @@
 // FilePath: engine-linux/src/linux/tools.rs
-//! The desktop tools the helper drives (xdotool, ydotool, xclip, wl-paste, playerctl, pactl):
+//! The desktop tools the helper drives (xdotool, ydotool, xclip, wl-paste, pactl):
 //! looked up on `PATH`, run without a shell and with a timeout, so a wedged tool never wedges a
 //! request.
 

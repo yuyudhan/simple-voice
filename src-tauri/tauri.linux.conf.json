@@ -12,7 +12,6 @@
                     "xdotool",
                     "xclip",
                     "wl-clipboard",
-                    "playerctl",
                     "pulseaudio-utils",
                     "libsecret-tools"
                 ]

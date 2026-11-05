@@ -47,7 +47,7 @@ and `just build` makes a `.deb`. Install the system libraries and tools first:
 ```sh
 sudo apt install build-essential curl wget file pkg-config cmake clang libclang-dev \
     libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
-    libasound2-dev libpulse-dev patchelf shellcheck xdotool xclip wl-clipboard playerctl
+    libasound2-dev libpulse-dev patchelf shellcheck xdotool xclip wl-clipboard pulseaudio-utils
 cargo install taplo-cli typos-cli cargo-nextest --locked
 ```
 

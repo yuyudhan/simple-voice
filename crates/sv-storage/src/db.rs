@@ -734,4 +734,27 @@ mod tests {
             TranscriptionProvider::Local
         );
     }
+
+    #[tokio::test]
+    async fn mute_while_recording_migration_turns_the_setting_on_for_existing_installs() {
+        // Installs that had "Mute all audio while dictating" off and on.
+        for old in ["false", "true"] {
+            let dir = tempfile::tempdir().unwrap();
+            database_before(
+                dir.path(),
+                14,
+                &[("onboardingComplete", "true"), ("muteWhileDictating", old)],
+            )
+            .await;
+            let db = Db::open_at(dir.path()).await.unwrap();
+            assert_eq!(stored_setting(&db, "muteWhileDictating").await, None);
+            let settings = db.settings().await.unwrap();
+            assert!(settings.mute_while_recording);
+            assert!(settings.onboarding_complete);
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = Db::open_at(dir.path()).await.unwrap();
+        assert!(db.settings().await.unwrap().mute_while_recording);
+    }
 }

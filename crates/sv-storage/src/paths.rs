@@ -174,4 +174,11 @@ mod tests {
         let mode = fs::metadata(&backups).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
     }
+
+    #[test]
+    fn debug_builds_never_open_the_installed_apps_data_directory() {
+        // `just dev` and the tests are debug builds; the installed app is a release build.
+        let dev = DATA_DIR_NAME.ends_with("-dev");
+        assert_eq!(dev, cfg!(debug_assertions), "{DATA_DIR_NAME}");
+    }
 }

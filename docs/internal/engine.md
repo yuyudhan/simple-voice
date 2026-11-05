@@ -208,8 +208,8 @@ never build whisper.cpp there.
   its copied-not-pasted notice. `frontmost_app` uses `xdotool` under X11 only; `selected_text`
   reads the primary selection (`xclip` / `wl-paste`). The microphone is always granted (Linux has
   no per-app grant); Speech and System Audio are `restricted`.
-- `pause_media` / `resume_media`: MPRIS players through `playerctl`, only those playing;
-  `set_output_muted`: the default sink through `pactl` (PulseAudio or PipeWire).
+- `mute_output` / `unmute_output`: the default sink through `pactl` (PulseAudio or PipeWire),
+  by sink name, so the sink that was muted is the one unmuted.
 - `login_item` / `set_login_item`: `$XDG_CONFIG_HOME/autostart/dev.yuyudhan.simplevoice.desktop`,
   which starts the app with `--autostart`.
 - `watch_fn_key` answers inactive (no Fn key on Linux); overlay notifications are ignored.

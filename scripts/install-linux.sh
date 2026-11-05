@@ -4,7 +4,7 @@
 # every GitHub release beside install.sh, which hands over to it on Linux, so the README's one
 # curl command works on both systems. It installs the release's .deb through apt (with sudo),
 # which also brings the libraries and desktop tools the app uses (WebKitGTK, the tray
-# indicator, xdotool, xclip, wl-clipboard, playerctl, pactl, secret-tool).
+# indicator, xdotool, xclip, wl-clipboard, pactl, secret-tool).
 #
 # It checks the .deb against the release's .sha256 and its package name before installing,
 # quits the app first and reopens it afterwards when it was running. Piping is safe: all work

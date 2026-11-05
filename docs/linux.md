@@ -15,7 +15,7 @@ curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/ins
 The script hands over to `install-linux.sh` from the same release. It checks the `.deb` against
 the release's SHA-256 checksum and installs it with apt, which asks for your password once (sudo)
 and brings in what the app uses: WebKitGTK, the tray indicator, `xdotool`, `xclip`,
-`wl-clipboard`, `playerctl`, `pactl` and `secret-tool`. `simple-voice --version` prints what is
+`wl-clipboard`, `pactl` and `secret-tool`. `simple-voice --version` prints what is
 installed. Run the same command again to update; add `-s -- --uninstall` (or `--uninstall --purge`
 to also delete your data) to remove it.
 
@@ -32,7 +32,7 @@ command above in a terminal; the app's Install button works only when sudo needs
 | Edit mode                     | With Groq formatting; the selected text is read from the primary selection.                                            |
 | Dictionary, snippets, history | As on macOS.                                                                                                           |
 | Meetings                      | Your microphone only; no system audio, no speaker diarization, no live transcript.                                     |
-| Quiet while dictating         | Pauses players over MPRIS (`playerctl`) and mutes output through PulseAudio/PipeWire (`pactl`).                        |
+| Mute speakers while recording | Mutes the default output through PulseAudio/PipeWire (`pactl`) and unmutes that same output afterwards.                |
 | Launch at login               | An XDG autostart entry (`~/.config/autostart/dev.yuyudhan.simplevoice.desktop`).                                       |
 | Floating pill, Fn key, Dock   | macOS only. The tray icon shows the state and starts or stops dictation.                                               |
 

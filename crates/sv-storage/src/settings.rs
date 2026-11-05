@@ -170,7 +170,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
         sounds,
         sound_theme,
         sound_volume,
-        mute_while_dictating,
+        mute_while_recording,
         launch_at_login,
         show_bar_always,
         pasted_text_seconds,
@@ -225,7 +225,7 @@ fn apply_patch(settings: &mut Settings, patch: SettingsPatch) {
     set(&mut settings.sounds, sounds);
     set(&mut settings.sound_theme, sound_theme);
     set(&mut settings.sound_volume, sound_volume);
-    set(&mut settings.mute_while_dictating, mute_while_dictating);
+    set(&mut settings.mute_while_recording, mute_while_recording);
     set(&mut settings.launch_at_login, launch_at_login);
     set(&mut settings.show_bar_always, show_bar_always);
     set(&mut settings.pasted_text_seconds, pasted_text_seconds);

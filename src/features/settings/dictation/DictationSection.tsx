@@ -116,14 +116,14 @@ function RecordingGroup() {
                 />
             </SettingRow>
             <SettingRow
-                title="Mute all audio while dictating"
-                description="Silences music and videos while you speak so the microphone hears only you. Your previous output state is restored afterwards."
+                title="Mute speakers while recording"
+                description="Every app and browser tab goes silent while you dictate, so the microphone hears only you. When you stop, sound comes back exactly as it was; speakers you had muted stay muted."
             >
                 <Toggle
-                    label="Mute all audio while dictating"
-                    checked={settings.muteWhileDictating}
-                    onChange={(muteWhileDictating) => {
-                        void update({ muteWhileDictating });
+                    label="Mute speakers while recording"
+                    checked={settings.muteWhileRecording}
+                    onChange={(muteWhileRecording) => {
+                        void update({ muteWhileRecording });
                     }}
                 />
             </SettingRow>

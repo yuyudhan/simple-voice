@@ -156,10 +156,10 @@ final class Engine: Sendable {
             return EmptyResult()
         case "watch_edits":
             return try await EditWatcher.shared.watch(request.params(WatchEditsParams.self))
-        case "set_output_muted":
-            let muted = try request.params(MuteParams.self).muted
-            let previous = try await muter.setMuted(muted)
-            return MutedResult(previous: previous)
+        case "mute_output":
+            return try await muter.mute()
+        case "unmute_output":
+            return UnmuteOutputResult(unmuted: try await muter.unmute(request.params(UnmuteOutputParams.self)))
         case "polish":
             return try await polish(request.params(PolishParams.self), progress: progress)
         case "generate":

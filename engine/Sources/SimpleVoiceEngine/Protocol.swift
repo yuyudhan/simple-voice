@@ -111,8 +111,10 @@ struct KindParams: Decodable {
     let kind: String
 }
 
-struct MuteParams: Decodable {
-    let muted: Bool
+/// `device` is the UID `mute_output` returned; `volume` is set when it muted by volume.
+struct UnmuteOutputParams: Decodable {
+    let device: String
+    let volume: Float32?
 }
 
 struct WatchEditsParams: Decodable, Sendable {
@@ -320,8 +322,17 @@ struct EditWatchResult: Encodable, Sendable {
     let reason: String?
 }
 
-struct MutedResult: Encodable, Sendable {
-    let previous: Bool
+/// The default output device as `mute_output` found it. `volume` is set when the device has no
+/// mute control and was silenced by turning its volume to zero: the volume to put back.
+struct MuteOutputResult: Encodable, Sendable {
+    let device: String
+    let wasMuted: Bool
+    let volume: Float32?
+}
+
+/// `unmuted` is false when the device is gone.
+struct UnmuteOutputResult: Encodable, Sendable {
+    let unmuted: Bool
 }
 
 struct PolishResult: Encodable, Sendable {

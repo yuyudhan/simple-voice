@@ -57,21 +57,24 @@ enum SystemServices {
     }
 }
 
-/// Mutes the default output device while dictating. Devices without a mute control (some USB
-/// and HDMI outputs) are silenced by setting their volume to zero; the volume is restored on
-/// unmute.
+/// Mutes the default output device while dictating, which silences every app and browser tab at
+/// once without pausing them, and unmutes exactly that device afterwards. The device is found
+/// again by its UID, so a default output that changed meanwhile (AirPods connected) is left
+/// alone. Devices without a mute control (some USB and HDMI outputs) are silenced by setting
+/// their volume to zero; the app keeps that volume and hands it back to unmute, so a crash of
+/// either process loses nothing.
 actor OutputMuter {
-    private var savedVolumes: [AudioDeviceID: Float32] = [:]
-
-    /// Returns whether the device was muted before this call.
-    func setMuted(_ muted: Bool) throws -> Bool {
+    func mute() throws -> MuteOutputResult {
         let device = try Self.defaultOutputDevice()
+        let uid = try Self.uid(of: device)
         var muteAddress = Self.address(kAudioDevicePropertyMute)
         if Self.isSettable(device, &muteAddress) {
             let previous: UInt32 = try Self.read(device, &muteAddress)
-            var value: UInt32 = muted ? 1 : 0
-            try Self.write(device, &muteAddress, &value)
-            return previous != 0
+            if previous == 0 {
+                var muted: UInt32 = 1
+                try Self.write(device, &muteAddress, &muted)
+            }
+            return MuteOutputResult(device: uid, wasMuted: previous != 0, volume: nil)
         }
 
         var volumeAddress = Self.address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
@@ -79,17 +82,30 @@ actor OutputMuter {
             throw EngineError("the current output device cannot be muted")
         }
         let volume: Float32 = try Self.read(device, &volumeAddress)
-        let wasMuted = volume == 0
-        if muted {
-            if !wasMuted {
-                savedVolumes[device] = volume
-                var zero: Float32 = 0
-                try Self.write(device, &volumeAddress, &zero)
-            }
-        } else if var saved = savedVolumes.removeValue(forKey: device) {
-            try Self.write(device, &volumeAddress, &saved)
+        if volume == 0 {
+            return MuteOutputResult(device: uid, wasMuted: true, volume: nil)
         }
-        return wasMuted
+        var zero: Float32 = 0
+        try Self.write(device, &volumeAddress, &zero)
+        return MuteOutputResult(device: uid, wasMuted: false, volume: volume)
+    }
+
+    /// Unmutes the device `mute` muted, or puts back its volume; false when the device is gone.
+    func unmute(_ params: UnmuteOutputParams) throws -> Bool {
+        guard let device = Self.device(uid: params.device) else { return false }
+        if var volume = params.volume {
+            var volumeAddress = Self.address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+            let current: Float32 = try Self.read(device, &volumeAddress)
+            // A volume the user set during the recording stays.
+            if current == 0 {
+                try Self.write(device, &volumeAddress, &volume)
+            }
+            return true
+        }
+        var muteAddress = Self.address(kAudioDevicePropertyMute)
+        var unmuted: UInt32 = 0
+        try Self.write(device, &muteAddress, &unmuted)
+        return true
     }
 
     private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
@@ -110,6 +126,41 @@ actor OutputMuter {
         guard device != kAudioObjectUnknown else {
             throw EngineError("no default audio output device")
         }
+        return device
+    }
+
+    private static func uid(of device: AudioDeviceID) throws -> String {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceUID,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var value: Unmanaged<CFString>?
+        let status = AudioObjectGetPropertyData(device, &address, 0, nil, &size, &value)
+        guard status == noErr, let uid = value?.takeRetainedValue() else {
+            throw EngineError("reading the output device UID failed (OSStatus \(status))")
+        }
+        return uid as String
+    }
+
+    /// The device with `uid` if it is still connected.
+    private static func device(uid: String) -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let qualifier = uid as CFString
+        var device = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = withUnsafePointer(to: qualifier) { pointer in
+            AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject), &address,
+                UInt32(MemoryLayout<CFString>.size), pointer, &size, &device
+            )
+        }
+        guard status == noErr, device != kAudioObjectUnknown else { return nil }
         return device
     }
 

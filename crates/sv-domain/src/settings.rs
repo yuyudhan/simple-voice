@@ -211,7 +211,8 @@ pub struct Settings {
     pub sound_theme: SoundTheme,
     /// 0.0..=1.0
     pub sound_volume: f32,
-    pub mute_while_dictating: bool,
+    /// Mute system output (every app and tab at once) while a dictation records.
+    pub mute_while_recording: bool,
     pub launch_at_login: bool,
     pub show_bar_always: bool,
     /// How long the pill shows the start of the pasted text after a dictation.
@@ -278,7 +279,7 @@ impl Default for Settings {
             sounds: true,
             sound_theme: SoundTheme::Soft,
             sound_volume: 0.3,
-            mute_while_dictating: false,
+            mute_while_recording: true,
             launch_at_login: false,
             show_bar_always: false,
             pasted_text_seconds: 2,
@@ -383,7 +384,7 @@ pub struct SettingsPatch {
     pub sounds: Option<bool>,
     pub sound_theme: Option<SoundTheme>,
     pub sound_volume: Option<f32>,
-    pub mute_while_dictating: Option<bool>,
+    pub mute_while_recording: Option<bool>,
     pub launch_at_login: Option<bool>,
     pub show_bar_always: Option<bool>,
     pub pasted_text_seconds: Option<u32>,

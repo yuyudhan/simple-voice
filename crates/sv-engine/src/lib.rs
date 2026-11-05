@@ -8,6 +8,7 @@
 mod capture;
 mod client;
 mod event;
+mod output;
 mod protocol;
 mod translation;
 

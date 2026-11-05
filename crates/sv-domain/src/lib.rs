@@ -15,6 +15,7 @@ pub mod insights;
 pub mod languages;
 pub mod meetings;
 pub mod models;
+pub mod output;
 pub mod permissions;
 pub mod quality;
 pub mod settings;
@@ -42,6 +43,7 @@ pub use meetings::{
     Speaker, TranslatedSegment, Translation,
 };
 pub use models::{ModelInfo, ModelKind, ModelProvider, ModelStatus, SmartSelectPlan};
+pub use output::MutedOutput;
 pub use permissions::{PermissionKind, PermissionStatus, Permissions};
 pub use quality::TranscriptQuality;
 pub use settings::{

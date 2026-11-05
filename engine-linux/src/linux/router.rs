@@ -14,7 +14,7 @@ use sv_domain::PermissionKind;
 
 use super::output::{Output, Progress};
 use super::whisper::{Resident, TranscribeParams};
-use super::{autostart, desktop, media, models, VERSION};
+use super::{autostart, desktop, models, mute, VERSION};
 
 const NO_LANGUAGE_MODELS: &str = "On-device language models run on macOS only; on Linux choose \
     Groq for formatting and edit mode";
@@ -55,15 +55,12 @@ struct EnabledParams {
     enabled: bool,
 }
 
+/// `device` is the sink `mute_output` returned; `volume` is set when it muted by volume.
 #[derive(Debug, Deserialize)]
-struct MutedParams {
-    muted: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct PlayersParams {
+struct UnmuteParams {
+    device: String,
     #[serde(default)]
-    players: Vec<String>,
+    volume: Option<f32>,
 }
 
 pub(crate) async fn route(
@@ -111,14 +108,10 @@ pub(crate) async fn route(
         }
         "selected_text" => Ok(desktop::selected_text().await),
         "focus_context" => Ok(desktop::focus_context().await),
-        "set_output_muted" => {
-            let MutedParams { muted } = parse(params)?;
-            media::set_output_muted(muted).await
-        }
-        "pause_media" => media::pause_media().await,
-        "resume_media" => {
-            let PlayersParams { players } = parse(params)?;
-            media::resume_media(&players).await
+        "mute_output" => mute::mute_output().await,
+        "unmute_output" => {
+            let UnmuteParams { device, volume } = parse(params)?;
+            mute::unmute_output(&device, volume).await
         }
         // Linux keyboards report no Fn key to applications.
         "watch_fn_key" => Ok(json!({ "active": false })),

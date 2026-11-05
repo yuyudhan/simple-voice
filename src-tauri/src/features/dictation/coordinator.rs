@@ -4,7 +4,7 @@
 //! pipeline task so a new dictation can start while the previous one is still transcribing.
 
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use sv_audio::{Cue, Recorder, Recording};
@@ -23,6 +23,7 @@ use super::live::{self, LiveSession};
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
 use crate::features::{llm, permissions};
+use crate::platform::output_mute::{self, Muting};
 use crate::platform::overlay;
 use crate::platform::shortcuts::{self, Binding};
 use crate::state::{lock, now_ms, AppState};
@@ -35,8 +36,6 @@ const HOLD_THRESHOLD: Duration = Duration::from_millis(350);
 const MIN_RECORDING_MS: i64 = 300;
 /// Peak amplitude below which a recording is treated as silence (about -40 dBFS).
 const SILENCE_PEAK: i32 = 330;
-/// Lets the start cue finish before system output is muted.
-const MUTE_DELAY: Duration = Duration::from_millis(250);
 /// ~30 Hz level updates.
 const LEVEL_INTERVAL: Duration = Duration::from_millis(33);
 
@@ -50,8 +49,8 @@ struct Active {
     settings: Settings,
     started_at_ms: i64,
     frontmost: Option<FrontmostApp>,
-    /// Output mute state before this session muted it; `None` while not (yet) muted.
-    mute_previous: Arc<Mutex<Option<bool>>>,
+    /// Mutes system output while recording, when the setting is on.
+    muting: Option<Muting<output_mute::Backend>>,
     watchdog: JoinHandle<()>,
     /// Set for an edit: the selection read started when the edit shortcut went down.
     selection: Option<SelectionTask>,
@@ -175,6 +174,7 @@ impl Coordinator {
         if self.active.is_some() {
             return;
         }
+        let pressed = Instant::now();
         let app = self.app.clone();
         // Read before anything else, while the selection is surely still in place.
         let selection = edit.then(|| capture_selection(&app));
@@ -228,6 +228,10 @@ impl Coordinator {
             (None, None)
         };
 
+        // Mutes in the background once the start cue played, so the microphone never waits.
+        let muting = settings
+            .mute_while_recording
+            .then(|| Muting::start(output_mute::backend(&app), output_mute::marker_path()));
         let recorder = {
             let microphone = settings.microphone.clone();
             let on_level = level_emitter(app.clone());
@@ -236,30 +240,32 @@ impl Coordinator {
             })
             .await
         };
-        let recorder = match recorder {
-            Ok(Ok(recorder)) => recorder,
-            Ok(Err(error)) => {
-                abandon(&app, live, context).await;
-                let message = format!("Could not start the microphone: {error}");
-                return self.fail_start(id, Some(&settings), &message);
-            }
+        let recorder = match recorder.map_err(AppError::audio).and_then(|result| result) {
+            Ok(recorder) => recorder,
             Err(error) => {
                 abandon(&app, live, context).await;
+                if let Some(muting) = muting {
+                    muting.end().await;
+                }
                 let message = format!("Could not start the microphone: {error}");
                 return self.fail_start(id, Some(&settings), &message);
             }
         };
+        tracing::info!(
+            session = id,
+            elapsed_ms = pressed.elapsed().as_millis(),
+            "microphone open"
+        );
 
         state.play(&settings, Cue::Start);
+        if let Some(muting) = &muting {
+            muting.cue_played();
+        }
         let started_at_ms = now_ms();
         state
             .dictation
             .recording_session
             .store(id, Ordering::SeqCst);
-        let mute_previous = Arc::new(Mutex::new(None));
-        if settings.mute_while_dictating {
-            spawn_mute(app.clone(), id, Arc::clone(&mute_previous));
-        }
 
         let mut recording = if edit {
             edit_state(DictationPhase::Recording, id)
@@ -289,7 +295,7 @@ impl Coordinator {
             settings,
             started_at_ms,
             frontmost,
-            mute_previous,
+            muting,
             watchdog,
             selection,
             style_source,
@@ -306,7 +312,7 @@ impl Coordinator {
         publish_message(&self.app, id, DictationPhase::Error, message);
     }
 
-    /// Ends the recording span shared by stop and cancel: watchdog, Esc, mute, recorder.
+    /// Ends the recording span shared by stop and cancel: watchdog, Esc, recorder, muting.
     async fn finish_recording(&mut self) -> Option<Ended> {
         let Active {
             id,
@@ -314,7 +320,7 @@ impl Coordinator {
             settings,
             started_at_ms,
             frontmost,
-            mute_previous,
+            muting,
             watchdog,
             selection,
             style_source,
@@ -324,22 +330,20 @@ impl Coordinator {
         self.hold_started = false;
         self.pressed_at = None;
         watchdog.abort();
-        let state = self.app.state::<AppState>();
-        // Cleared under the slot lock so a mute landing concurrently sees the session is over
-        // and restores output itself (see `spawn_mute`).
-        let previous_mute = {
-            let mut slot = lock(&mute_previous);
-            state.dictation.recording_session.store(0, Ordering::SeqCst);
-            slot.take()
-        };
+        self.app
+            .state::<AppState>()
+            .dictation
+            .recording_session
+            .store(0, Ordering::SeqCst);
         shortcuts::set_escape(&self.app, false);
         let recording = tauri::async_runtime::spawn_blocking(move || recorder.stop())
             .await
             .map_err(AppError::audio)
             .and_then(|result| result);
-        // Unmute before the stop cue so the cue is audible.
-        if let Some(previous) = previous_mute {
-            restore_mute(&self.app, previous).await;
+        // After the microphone stopped, so the unmuted sound is not recorded, and before the stop
+        // cue, so the cue is audible.
+        if let Some(muting) = muting {
+            muting.end().await;
         }
         Some(Ended {
             id,
@@ -451,42 +455,4 @@ fn level_emitter(app: AppHandle) -> Box<dyn Fn(f32) + Send + 'static> {
         }
         overlay::level(&app, level.clamp(0.0, 1.0));
     })
-}
-
-/// Mutes system output shortly after the start cue. If the session ended while the request was
-/// in flight, the previous state is restored here because the stop path already looked.
-fn spawn_mute(app: AppHandle, id: u64, slot: Arc<Mutex<Option<bool>>>) {
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(MUTE_DELAY).await;
-        let state = app.state::<AppState>();
-        if state.dictation.recording_session.load(Ordering::SeqCst) != id {
-            return;
-        }
-        let previous = match state.engine.set_output_muted(true).await {
-            Ok(previous) => previous,
-            Err(error) => {
-                tracing::warn!(%error, "could not mute output");
-                return;
-            }
-        };
-        {
-            let mut slot = lock(&slot);
-            if state.dictation.recording_session.load(Ordering::SeqCst) == id {
-                *slot = Some(previous);
-                return;
-            }
-        }
-        restore_mute(&app, previous).await;
-    });
-}
-
-async fn restore_mute(app: &AppHandle, previous: bool) {
-    if let Err(error) = app
-        .state::<AppState>()
-        .engine
-        .set_output_muted(previous)
-        .await
-    {
-        tracing::warn!(%error, "could not restore output mute");
-    }
 }
