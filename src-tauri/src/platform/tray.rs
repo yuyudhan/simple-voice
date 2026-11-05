@@ -20,6 +20,13 @@ const SETTINGS: &str = "tray-settings";
 const UPDATES: &str = "tray-updates";
 const QUIT: &str = "tray-quit";
 
+/// macOS tints the monochrome template to the menu bar; Linux panels show icons as they are, so
+/// they get the app icon, which reads on light and dark panels alike.
+#[cfg(target_os = "macos")]
+const TRAY_ICON: &[u8] = include_bytes!("../../icons/tray-template@2x.png");
+#[cfg(not(target_os = "macos"))]
+const TRAY_ICON: &[u8] = include_bytes!("../../icons/64x64.png");
+
 const START_LABEL: &str = "Start dictation";
 const STOP_LABEL: &str = "Stop dictation";
 const CHECK_LABEL: &str = "Check for Updates…";
@@ -56,15 +63,14 @@ pub(crate) fn create(app: &AppHandle) -> tauri::Result<()> {
     )?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(include_bytes!(
-            "../../icons/tray-template@2x.png"
-        ))?)
+        .icon(Image::from_bytes(TRAY_ICON)?)
         .icon_as_template(true)
         .tooltip("Simple Voice")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(on_menu_event)
         .build(app)?;
+    tracing::info!("tray icon created");
 
     app.manage(TrayMenu { toggle, updates });
     Ok(())

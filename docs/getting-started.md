@@ -3,7 +3,8 @@
 # Getting started
 
 Install Simple Voice with the install script as described in the
-[README](../README.md#install), then open it from Spotlight or `~/Applications`.
+[README](../README.md#install), then open it from Spotlight or `~/Applications`. This page
+describes macOS; on Linux see [Simple Voice on Linux](linux.md).
 
 ## Permissions
 

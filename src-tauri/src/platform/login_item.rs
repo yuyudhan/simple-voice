@@ -1,9 +1,12 @@
 // FilePath: src-tauri/src/platform/login_item.rs
-//! Launch at login. The engine helper registers the app with `SMAppService.mainApp`, which lists
-//! Simple Voice under System Settings → General → Login Items → Open at Login.
+//! Launch at login. On macOS the engine helper registers the app with `SMAppService.mainApp`,
+//! which lists Simple Voice under System Settings → General → Login Items → Open at Login; on
+//! Linux it writes an XDG autostart entry that starts the app with `--autostart`.
 
 use std::path::PathBuf;
+#[cfg(target_os = "macos")]
 use std::process::Command;
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
 use sv_domain::{AppError, AppResult};
@@ -14,6 +17,7 @@ use crate::state::AppState;
 
 /// A launch this soon after the Dock started (the Dock starts when the user logs in) counts as
 /// a launch at login. Generous, because login items can wait while the session settles.
+#[cfg(target_os = "macos")]
 const LOGIN_WINDOW: Duration = Duration::from_secs(120);
 
 /// What `tauri-plugin-autostart` wrote before the switch to `SMAppService`, named after the app.
@@ -22,6 +26,7 @@ const LEGACY_AGENT: &str = "Library/LaunchAgents/Simple Voice.plist";
 /// `SMAppService` launches the app without arguments, so a login launch is recognised by the
 /// Dock having started moments earlier. A manual launch right after a Dock restart
 /// (`killall Dock`) is mistaken for one and starts in the menu bar, which is harmless.
+#[cfg(target_os = "macos")]
 pub(crate) fn launched_at_login() -> bool {
     let output = match Command::new("/bin/ps")
         .args(["-x", "-o", "etime=,comm="])
@@ -39,6 +44,17 @@ pub(crate) fn launched_at_login() -> bool {
     };
     dock_uptime(&String::from_utf8_lossy(&output.stdout))
         .is_some_and(|uptime| uptime <= LOGIN_WINDOW)
+}
+
+/// The XDG autostart entry passes `--autostart`; a launch from the app menu or a terminal does not.
+#[cfg(target_os = "linux")]
+pub(crate) fn launched_at_login() -> bool {
+    is_autostart(std::env::args().skip(1))
+}
+
+#[cfg(target_os = "linux")]
+fn is_autostart(mut args: impl Iterator<Item = String>) -> bool {
+    args.any(|arg| arg == "--autostart")
 }
 
 /// Registers or removes the login item. A registration macOS holds for approval is an error so
@@ -85,6 +101,7 @@ fn legacy_agent_path() -> Option<PathBuf> {
 }
 
 /// Finds the Dock in `ps -o etime=,comm=` output and returns how long it has been running.
+#[cfg(target_os = "macos")]
 fn dock_uptime(ps: &str) -> Option<Duration> {
     ps.lines().find_map(|line| {
         let (elapsed, command) = line.trim().split_once(char::is_whitespace)?;
@@ -99,6 +116,7 @@ fn dock_uptime(ps: &str) -> Option<Duration> {
 }
 
 /// Parses ps's `[[dd-]hh:]mm:ss` elapsed time.
+#[cfg(target_os = "macos")]
 fn parse_elapsed(elapsed: &str) -> Option<Duration> {
     let (days, clock) = match elapsed.split_once('-') {
         Some((days, clock)) => (days.parse::<u64>().ok()?, clock),
@@ -122,6 +140,16 @@ fn parse_elapsed(elapsed: &str) -> Option<Duration> {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn only_the_autostart_entry_counts_as_a_login_launch() {
+        let args = |values: &[&str]| values.iter().map(|v| (*v).to_owned()).collect::<Vec<_>>();
+        assert!(is_autostart(args(&["--autostart"]).into_iter()));
+        assert!(!is_autostart(args(&[]).into_iter()));
+        assert!(!is_autostart(args(&["--version"]).into_iter()));
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn parses_every_elapsed_form() {
         assert_eq!(parse_elapsed("01:30"), Some(Duration::from_secs(90)));
@@ -134,6 +162,7 @@ mod tests {
         assert_eq!(parse_elapsed("ab:cd"), None);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn finds_the_dock_and_not_similar_names() {
         let ps = "   02:41 /usr/libexec/DockHelper\n  01:05 Dock\n 00:10 Finder\n";

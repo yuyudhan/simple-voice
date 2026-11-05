@@ -2,7 +2,8 @@
 
 # Features
 
-Simple Voice is a small, quiet dictation app for macOS on Apple Silicon. Hold a shortcut, talk,
+Simple Voice is a small, quiet dictation app for macOS on Apple Silicon (and Debian/Ubuntu Linux,
+with fewer models: see [Simple Voice on Linux](linux.md)). Hold a shortcut, talk,
 let go: your words are transcribed, tidied up, and pasted into the focused text field of any
 app: mail, chat, your editor, a terminal. It is local by default: everything runs on your Mac,
 and your audio, transcripts, the text around your cursor, meeting recordings, summaries, chat and

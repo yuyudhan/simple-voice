@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # FilePath: engine/build.sh
-# Builds the Swift engine helper and installs it where Tauri expects the sidecar:
-# src-tauri/binaries/simple-voice-engine-<target-triple> (bundle.externalBin naming rule), next
-# to llama.framework (llama.cpp ships only as a dynamic framework; tauri.conf.json bundles it).
+# Builds the engine helper and installs it where Tauri expects the sidecar:
+# src-tauri/binaries/simple-voice-engine-<target-triple> (bundle.externalBin naming rule).
+#   macOS: the Swift helper in engine/, next to llama.framework (llama.cpp ships only as a
+#          dynamic framework; tauri.conf.json bundles it).
+#   Linux: the Rust helper in engine-linux/ (whisper.cpp, linked statically).
 #
 # Usage: engine/build.sh [debug|release]   (default: debug)
 set -euo pipefail
@@ -19,12 +21,28 @@ esac
 engine_dir="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$engine_dir/.." && pwd)"
 binaries="$root/src-tauri/binaries"
+mkdir -p "$binaries"
+
+if [ "$(uname -s)" = "Linux" ]; then
+    triple="$(rustc -vV | sed -n 's/^host: //p')"
+    target="$binaries/simple-voice-engine-$triple"
+    profile_flag=()
+    if [ "$configuration" = "release" ]; then
+        profile_flag=(--release)
+    fi
+    SQLX_OFFLINE=true cargo build --manifest-path "$root/Cargo.toml" "${profile_flag[@]}" \
+        -p simple-voice-engine-linux --bin simple-voice-engine
+    cp "$root/target/$configuration/simple-voice-engine" "$target"
+    chmod 755 "$target"
+    echo "installed $target ($configuration)"
+    exit 0
+fi
+
 target="$binaries/simple-voice-engine-aarch64-apple-darwin"
 
 swift build --package-path "$engine_dir" -c "$configuration" --arch arm64 --product simple-voice-engine
 bin_dir="$(swift build --package-path "$engine_dir" -c "$configuration" --arch arm64 --show-bin-path)"
 
-mkdir -p "$binaries"
 cp "$bin_dir/simple-voice-engine" "$target"
 chmod 755 "$target"
 # ditto keeps the framework's version symlinks intact.

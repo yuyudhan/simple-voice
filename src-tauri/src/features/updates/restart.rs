@@ -22,8 +22,12 @@ const PLIST_BUDDY: &str = "/usr/libexec/PlistBuddy";
 const RELAUNCHER: &str = "(while /bin/kill -0 \"$1\" 2>/dev/null; do /bin/sleep 0.2; done; \
     /usr/bin/open -n \"$2\") </dev/null >/dev/null 2>&1 &";
 
-/// The `.app` bundle this executable runs from; `None` outside one, as under `just dev`.
+/// The `.app` bundle this executable runs from; `None` outside one, as under `just dev`, and on
+/// Linux, where the install script quits and restarts the app itself.
 pub(crate) fn bundle_path() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
     let executable = std::env::current_exe().ok()?;
     let macos = executable.parent()?;
     let contents = macos.parent()?;

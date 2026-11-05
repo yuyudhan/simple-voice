@@ -1,35 +1,41 @@
 // FilePath: src-tauri/src/platform/windows.rs
 //! The main window and the app menu.
 
+#[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItem, MenuItemKind};
 use tauri::window::Color;
-use tauri::{
-    AppHandle, LogicalPosition, Manager, TitleBarStyle, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, WindowEvent,
-};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::events;
-use crate::features::{settings, updates};
+use crate::features::settings;
+#[cfg(target_os = "macos")]
+use crate::features::updates;
 use crate::platform::dock;
 
 pub(crate) const MAIN: &str = "main";
+#[cfg(target_os = "macos")]
 const APP_MENU_SETTINGS: &str = "app-settings";
+#[cfg(target_os = "macos")]
 const APP_MENU_UPDATES: &str = "app-updates";
 
 /// Matches the UI background so the window never flashes white while the webview loads.
 const BACKGROUND: Color = Color(0xFB, 0xF9, 0xF6, 0xFF);
 
 pub(crate) fn create_main(app: &AppHandle, visible: bool) -> tauri::Result<()> {
-    let window = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::default())
+    let builder = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::default())
         .title("Simple Voice")
         .inner_size(1080.0, 720.0)
         .min_inner_size(860.0, 600.0)
-        .title_bar_style(TitleBarStyle::Overlay)
-        .hidden_title(true)
-        .traffic_light_position(LogicalPosition::new(18.0, 22.0))
         .background_color(BACKGROUND)
-        .visible(visible)
-        .build()?;
+        .visible(visible);
+    // The content runs under a transparent title bar beside the traffic lights on macOS; other
+    // desktops keep their own title bar.
+    #[cfg(target_os = "macos")]
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(tauri::LogicalPosition::new(18.0, 22.0));
+    let window = builder.build()?;
 
     // Closing only hides: the app keeps running in the menu bar so the shortcuts keep working.
     // Focus re-reads the login item, which the user may have removed in System Settings.
@@ -63,6 +69,7 @@ pub(crate) fn show_main(app: &AppHandle) {
     };
     dock::follow_window(app, true);
     // An Accessory (no Dock icon) app must be activated explicitly or the window opens behind.
+    #[cfg(target_os = "macos")]
     if let Err(error) = app.show() {
         tracing::debug!(%error, "could not activate the app");
     }
@@ -82,7 +89,8 @@ pub(crate) fn open_settings(app: &AppHandle) {
 }
 
 /// The default macOS menu (Cmd+W closes the window, Cmd+Q quits) plus "Check for Updates…" and
-/// "Settings…" (Cmd+,) in the app menu.
+/// "Settings…" (Cmd+,) in the app menu. Other desktops have no app menu; the tray offers the same.
+#[cfg(target_os = "macos")]
 pub(crate) fn install_app_menu(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::default(app)?;
     let settings = MenuItem::with_id(

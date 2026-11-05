@@ -2,6 +2,9 @@
 
 # Privacy and your data
 
+This applies to Linux as well: read "Mac" as "computer", the keyring (Secret Service) for the
+Keychain, and `~/.local/share/simplevoice/` for `~/.simplevoice/` ([Linux](linux.md)).
+
 ## What leaves your Mac
 
 By default, nothing you say or write. Every speech, formatting, meeting and translation model

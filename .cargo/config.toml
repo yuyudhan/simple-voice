@@ -1,0 +1,10 @@
+# FilePath: .cargo/config.toml
+# whisper.cpp (the Linux engine helper, via whisper-rs-sys) builds for the CPU it compiles on
+# unless told otherwise, and such a binary dies with SIGILL on an older CPU. Releases target any
+# x86-64 CPU with AVX2 and FMA (Intel Haswell, AMD Zen and later). Only whisper-rs-sys reads these.
+[env]
+GGML_NATIVE = "OFF"
+GGML_AVX = "ON"
+GGML_AVX2 = "ON"
+GGML_FMA = "ON"
+GGML_F16C = "ON"

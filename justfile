@@ -19,7 +19,8 @@ sqlx_db_url := "sqlite:" + sqlx_db
 migrations_dir := "crates/sv-storage/migrations"
 
 # Tauri resolves the sidecar as binaries/<name>-<target triple>; engine/build.sh writes it here.
-engine_bin := "src-tauri/binaries/simple-voice-engine-aarch64-apple-darwin"
+# macOS builds the Swift helper (engine/), Linux the Rust one (engine-linux/).
+engine_bin := "src-tauri/binaries/simple-voice-engine-" + if os() == "linux" { arch() + "-unknown-linux-gnu" } else { "aarch64-apple-darwin" }
 
 # List every recipe.
 [group('help')]

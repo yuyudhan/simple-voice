@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/publish.sh
-# Publishes a release built by scripts/release/build.sh: uploads the zip, its checksum and
-# scripts/install.sh (served as releases/latest/download/install.sh) to the GitHub release of the
-# pushed tag vVERSION, creating the release if needed.
+# Publishes a release built by scripts/release/build.sh: uploads the zip, its checksum,
+# scripts/install.sh (served as releases/latest/download/install.sh) and the Linux installer it
+# hands over to, scripts/install-linux.sh, to the GitHub release of the pushed tag vVERSION,
+# creating the release if needed. The Linux .deb is built on Linux and added afterwards by
+# scripts/release/publish-linux.sh.
 #
 # Usage: scripts/release/publish.sh VERSION
 #   The zip is read from $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir:
@@ -29,11 +31,11 @@ fi
 sha256=$(shasum -a 256 "${assets}/${asset}" | cut -d' ' -f1)
 printf '%s  %s\n' "$sha256" "$asset" >"${assets}/${asset}.sha256"
 
-installer="${root}/scripts/install.sh"
+installers=("${root}/scripts/install.sh" "${root}/scripts/install-linux.sh")
 if gh release view "$tag" >/dev/null 2>&1; then
-    gh release upload "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "$installer" --clobber
+    gh release upload "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "${installers[@]}" --clobber
 else
-    gh release create "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "$installer" \
+    gh release create "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" "${installers[@]}" \
         --title "Simple Voice ${tag}" --generate-notes --verify-tag
 fi
-echo "publish: uploaded ${asset} (sha256 ${sha256}) and install.sh to ${GH_REPO} ${tag}"
+echo "publish: uploaded ${asset} (sha256 ${sha256}), install.sh and install-linux.sh to ${GH_REPO} ${tag}"

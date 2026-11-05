@@ -2,7 +2,8 @@
 # FilePath: scripts/install.sh
 # Installs, updates or uninstalls Simple Voice. Published with every GitHub release as
 # releases/latest/download/install.sh; README.md#install has the one-line curl command that
-# pipes it into bash.
+# pipes it into bash. On Linux it hands over to install-linux.sh from the same release, so one
+# command serves both systems; everything below describes macOS.
 #
 # Piping is safe: all work happens in main, called on the last line, so bash has read the whole
 # script before anything runs. Options go after `bash -s --`.
@@ -66,7 +67,16 @@ EOF
 }
 
 check_macos() {
-    [ "$(uname -s)" = "Darwin" ] || fail "Simple Voice runs on macOS only"
+    [ "$(uname -s)" = "Darwin" ] || fail "Simple Voice runs on macOS and Debian/Ubuntu Linux only"
+}
+
+# The Linux installer is its own script, published beside this one. It is read whole before it
+# runs, like this one, and gets the same options.
+run_linux_installer() {
+    local script
+    script=$(curl -fsSL "https://github.com/${repo}/releases/latest/download/install-linux.sh") ||
+        fail "could not download the Linux installer from GitHub"
+    bash -c "$script" install-linux.sh "$@"
 }
 
 check_platform() {
@@ -294,6 +304,10 @@ uninstall() {
 }
 
 main() {
+    if [ "$(uname -s)" = "Linux" ]; then
+        run_linux_installer "$@"
+        return 0
+    fi
     version=""
     action="install"
     purge=false

@@ -38,8 +38,10 @@ which, in order:
    `target/release-assets/0.2.0/Simple-Voice_0.2.0_aarch64.zip`;
 3. commits `🔖 Release v0.2.0`, tags `v0.2.0`, and pushes the branch and tag (the pre-push hook
    runs `just check`);
-4. runs `scripts/release/publish.sh`, which uploads the zip, its `.sha256` and
-   `scripts/install.sh` to the GitHub release `v0.2.0`.
+4. runs `scripts/release/publish.sh`, which uploads the zip, its `.sha256`,
+   `scripts/install.sh` and `scripts/install-linux.sh` to the GitHub release `v0.2.0`.
+
+Then add the Linux build ([Linux](#linux)) to the same release.
 
 If anything fails before step 3, the version files are restored and nothing is committed. If
 the push or publish fails after the commit, fix the cause, push if needed, then
@@ -81,6 +83,41 @@ Updates → Check now) they read the same latest GitHub release, show an update 
 bar item, and install it with the latest `install.sh` when the user clicks Install update (see
 [architecture.md § 8](architecture.md#8-update-notices)). Pre-releases
 (`gh release edit --prerelease`) are never announced.
+
+## Linux
+
+The Linux release is a `.deb` for x86-64 Debian/Ubuntu, built from the pushed tag on a Linux
+machine and added to the release the Mac published. The Linux machine needs no GitHub
+credentials:
+
+```sh
+# on x86-64 Linux, in a clean clone with the Linux setup of development.md
+git fetch --tags && git checkout v0.2.0
+just build-linux 0.2.0     # scripts/release/build-linux.sh
+git checkout main
+# copy target/release-assets/0.2.0/Simple-Voice_0.2.0_amd64.deb and its .sha256 into the same
+# folder on the publishing Mac (scp), then on the Mac:
+just publish-linux 0.2.0   # scripts/release/publish-linux.sh
+```
+
+`build-linux.sh` refuses a dirty tree or a checkout that is not the tag, runs
+`tauri build --bundles deb` (its `beforeBuildCommand` builds the release Linux engine helper from
+`engine-linux/`), and checks the package before it is called done: its name and version, the
+packaged app's `simple-voice --version`, and the packaged engine helper answering `ping` and
+`model_status` (`engine-linux/check.sh`). whisper.cpp is compiled for any x86-64 CPU with AVX2
+and FMA (`.cargo/config.toml`), never for the build machine's own CPU. `publish-linux.sh` verifies
+the checksum and uploads both files with `gh release upload --clobber`.
+
+Until the `.deb` is uploaded, Linux users who run the install command get a missing-download
+error, so add it right after the macOS publish.
+
+`install.sh` hands over to `install-linux.sh` on Linux (downloaded from the same latest release,
+read whole before it runs, same options). That script checks for x86-64, apt and AVX2, downloads
+the `.deb` and its `.sha256`, verifies the checksum and the package name, quits the app, installs
+it with `apt-get install` through sudo (which also installs its dependencies), and reopens the
+app if it was running. `--uninstall` removes the package, the autostart entry, the webview data
+and the Groq key in the keyring; `--purge` also deletes `$XDG_DATA_HOME/simplevoice` and a moved
+database.
 
 ## Signing and notarization
 

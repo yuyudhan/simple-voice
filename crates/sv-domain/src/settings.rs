@@ -138,12 +138,30 @@ pub enum DictionarySort {
 /// The Fn (Globe) key on its own. Carbon hot keys cannot register a lone modifier, so the app
 /// watches this key through the engine helper instead of the global-shortcut plugin.
 pub const FN_KEY_ACCELERATOR: &str = "Fn";
-pub const DEFAULT_HOLD_SHORTCUT: &str = FN_KEY_ACCELERATOR;
+/// Linux keyboards report no Fn key to applications, so there hold and toggle share Ctrl+/: a
+/// tap toggles, a long press is push-to-talk.
+pub const DEFAULT_HOLD_SHORTCUT: &str = if cfg!(target_os = "linux") {
+    DEFAULT_TOGGLE_SHORTCUT
+} else {
+    FN_KEY_ACCELERATOR
+};
 pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 /// Toggle-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
-/// Runs on the Mac, so a new install needs no account; onboarding prompts for its download.
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::PARAKEET_TDT_V3;
+/// Runs on the device, so a new install needs no account; onboarding prompts for its download.
+/// Parakeet runs on Core ML, so Linux starts with Whisper Turbo on whisper.cpp.
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = if cfg!(target_os = "linux") {
+    crate::models::WHISPER_TURBO
+} else {
+    crate::models::PARAKEET_TDT_V3
+};
+/// Apple Intelligence and the local language model run on macOS only; Linux formats
+/// deterministically until the user chooses Groq.
+pub const DEFAULT_POST_PROCESSING: PostProcessing = if cfg!(target_os = "linux") {
+    PostProcessing::Off
+} else {
+    PostProcessing::Apple
+};
 /// Password managers: their fields never feed dictation context.
 pub const DEFAULT_CONTEXT_EXCLUDED_APPS: &[&str] = &[
     "com.1password.1password",
@@ -264,7 +282,7 @@ impl Default for Settings {
             launch_at_login: false,
             show_bar_always: false,
             pasted_text_seconds: 2,
-            post_processing: PostProcessing::Apple,
+            post_processing: DEFAULT_POST_PROCESSING,
             local_llm_model: crate::models::LOCAL_LLM.to_owned(),
             groq_formatting_model: crate::models::DEFAULT_GROQ_CHAT_MODEL.to_owned(),
             meeting_assistant: LlmBackend::Local,
@@ -567,7 +585,13 @@ mod tests {
             settings.transcription_provider,
             TranscriptionProvider::Local
         );
-        assert_eq!(settings.post_processing, PostProcessing::Apple);
+        // Apple Intelligence exists on macOS only; Linux formats deterministically by default.
+        let formatting = if cfg!(target_os = "linux") {
+            PostProcessing::Off
+        } else {
+            PostProcessing::Apple
+        };
+        assert_eq!(settings.post_processing, formatting);
         assert_eq!(settings.meeting_assistant, LlmBackend::Local);
         let json = serde_json::to_string(&settings).unwrap_or_default();
         for removed in ["customBaseUrl", "customModel", "ApiKey", "apiKey"] {

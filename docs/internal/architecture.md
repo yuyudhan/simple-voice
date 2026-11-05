@@ -30,7 +30,7 @@ flowchart LR
     A -->|chunks, streaming model| L[helper stream: live partials]
     A --> T{model / Smart Select route}
     L -->|final result| F
-    T --> E[Swift engine helper: Parakeet / Whisper / Apple Speech]
+    T --> E[engine helper: Parakeet / Whisper / Apple Speech; on Linux Whisper on whisper.cpp]
     E -.->|failed or unclear: one retry on another local model| E
     E --> F[deterministic format]
     F --> N[snippets → protected markers]
@@ -96,7 +96,8 @@ keeps only the offered corrections via `sv_text::accept_learning`, and adds them
 
 ## 1. Storage
 
-- Data directory: `~/.simplevoice/` (created on launch, mode 0700). Debug builds (`just dev`)
+- Data directory: `~/.simplevoice/` on macOS, `$XDG_DATA_HOME/simplevoice/` (by default
+  `~/.local/share/simplevoice/`) on Linux (created on launch, mode 0700). Debug builds (`just dev`)
   use `~/.simplevoice-dev/` with the same layout, so a development migration never touches the
   installed release's database; everything below lives under whichever directory the build uses.
     - `update.log` — output of the last in-app update install (file mode 0600), replaced by each.

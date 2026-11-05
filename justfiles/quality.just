@@ -61,7 +61,8 @@ lint: deps-present engine-present
     sv_ok "lint ($(sv_duration "$start"))"
 
 # Run the Rust test suite (nextest when installed), the UI tests, compile the engine helper and
-# run its EngineCore checks.
+# run its checks: on macOS the Swift helper's EngineCore checks, on Linux the Rust helper
+# answering over its real protocol.
 [group('quality')]
 test: deps-present engine-present
     #!/usr/bin/env bash
@@ -76,10 +77,17 @@ test: deps-present engine-present
     fi
     sv_step 2 4 "ui tests (bun test)"
     bun test src
-    sv_step 3 4 "swift build (engine)"
-    swift build --package-path engine
-    sv_step 4 4 "engine checks (booster spelling gate, prompt reuse)"
-    swift run --package-path engine engine-core-checks
+    if [ "$(uname -s)" = "Linux" ]; then
+        sv_step 3 4 "cargo build (Linux engine)"
+        SQLX_OFFLINE=true cargo build -p simple-voice-engine-linux --bin simple-voice-engine
+        sv_step 4 4 "engine checks (protocol: ping, model status)"
+        engine-linux/check.sh target/debug/simple-voice-engine
+    else
+        sv_step 3 4 "swift build (engine)"
+        swift build --package-path engine
+        sv_step 4 4 "engine checks (booster spelling gate, prompt reuse)"
+        swift run --package-path engine engine-core-checks
+    fi
     sv_ok "test ($(sv_duration "$start"))"
 
 # Run every hygiene guard via scripts/guard/run-all.sh, or one by name (e.g. just guard no-todo).

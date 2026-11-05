@@ -1,8 +1,10 @@
 // FilePath: src/features/onboarding/PermissionStep.tsx
 // Microphone and Accessibility steps. Status is polled because macOS does not tell the app when
-// the user flips the switch in System Settings.
+// the user flips the switch in System Settings. Linux has no such switches: the microphone is
+// always allowed, and "accessibility" is a tool that can press Ctrl+V in the session.
 import type { ReactNode } from "react";
 import { CircleCheck, Keyboard, Mic } from "lucide-react";
+import { isLinux } from "../../lib/platform";
 import { Button, Spinner } from "../../ui";
 import { StatusBadge } from "../settings/permissions/PermissionsGroup";
 import { usePermissions } from "../settings/permissions/usePermissions";
@@ -40,6 +42,16 @@ const COPY: Record<"microphone" | "accessibility", Copy> = {
     },
 };
 
+const LINUX_PASTE: Copy = {
+    icon: <Keyboard size={20} />,
+    label: "Pasting",
+    title: "Paste into any app",
+    body: "Simple Voice presses Ctrl+V for you, so your words land in whatever text field you are typing in. Under X11 it uses xdotool; under Wayland it needs ydotool.",
+    grant: "Check again",
+    deniedHelp:
+        "Under Wayland, install ydotool and give your user write access to /dev/uinput (docs/linux.md), then check again. This page updates by itself.",
+};
+
 interface Props {
     kind: "microphone" | "accessibility";
     onBack: () => void;
@@ -48,7 +60,7 @@ interface Props {
 
 export function PermissionStep({ kind, onBack, onNext }: Props) {
     const { permissions, error, busy, request, openSettings } = usePermissions(POLL_MS);
-    const copy = COPY[kind];
+    const copy = isLinux && kind === "accessibility" ? LINUX_PASTE : COPY[kind];
     const status = permissions?.[kind];
     const granted = status === "granted";
 
@@ -71,7 +83,7 @@ export function PermissionStep({ kind, onBack, onNext }: Props) {
                 >
                     {copy.grant}
                 </Button>
-                {kind === "accessibility" && (
+                {kind === "accessibility" && !isLinux && (
                     <Button
                         variant="secondary"
                         onClick={() => {
@@ -138,8 +150,9 @@ export function PermissionStep({ kind, onBack, onNext }: Props) {
                     kind === "accessibility" && !granted
                         ? {
                               label: "Skip for now",
-                              warning:
-                                  "Without Accessibility, dictated text is only copied to the clipboard and you paste it yourself.",
+                              warning: isLinux
+                                  ? "Without a paste tool, dictated text is only copied to the clipboard and you paste it yourself."
+                                  : "Without Accessibility, dictated text is only copied to the clipboard and you paste it yourself.",
                               onSkip: onNext,
                           }
                         : undefined

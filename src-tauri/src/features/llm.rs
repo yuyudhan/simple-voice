@@ -415,9 +415,10 @@ mod tests {
         // On-device ids never reach Groq.
         assert_eq!(groq_chat_model(&settings.local_llm_model), None);
         assert_eq!(groq_chat_model(APPLE_INTELLIGENCE), None);
+        let default_formatter = (!cfg!(target_os = "linux")).then_some(APPLE_INTELLIGENCE);
         assert_eq!(
             post_processing_model(&Settings::default()).as_deref(),
-            Some(APPLE_INTELLIGENCE)
+            default_formatter
         );
     }
 

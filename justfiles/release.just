@@ -1,5 +1,6 @@
 # FilePath: justfiles/release.just
-# Releasing, entirely from this Mac: build, tag, push and GitHub release.
+# Releasing: the Mac builds, tags, pushes and publishes; a Linux machine then builds the tag's
+# .deb, which the Mac adds to the same GitHub release (docs/internal/releasing.md).
 
 # Bump every version field, build, commit, tag vVERSION, push, and publish the GitHub release.
 [group('release')]
@@ -10,6 +11,16 @@ release VERSION:
 [group('release')]
 publish VERSION:
     scripts/release/publish-tag.sh {{VERSION}}
+
+# On x86-64 Linux: build and check the .deb of the pushed, checked-out tag vVERSION.
+[group('release')]
+build-linux VERSION:
+    scripts/release/build-linux.sh {{VERSION}}
+
+# On the publishing Mac: add the Linux .deb copied into target/release-assets/VERSION/.
+[group('release')]
+publish-linux VERSION:
+    scripts/release/publish-linux.sh {{VERSION}}
 
 # Manage the release signing certificate: create BACKUP.p12 | restore BACKUP.p12 | show.
 [group('release')]

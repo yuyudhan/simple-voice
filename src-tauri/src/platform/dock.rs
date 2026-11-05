@@ -1,9 +1,10 @@
 // FilePath: src-tauri/src/platform/dock.rs
-//! Dock visibility.
+//! Dock visibility. Linux has no Dock: the window shows in the desktop's task list while it is
+//! open and the tray icon stays, so the setting does nothing there and Settings hides it.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tauri::{ActivationPolicy, AppHandle, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::platform::windows::MAIN;
 
@@ -28,7 +29,9 @@ pub(crate) fn follow_window(app: &AppHandle, window_open: bool) {
     set_icon(app, show && window_open);
 }
 
+#[cfg(target_os = "macos")]
 fn set_icon(app: &AppHandle, show: bool) {
+    use tauri::ActivationPolicy;
     let policy = if show {
         ActivationPolicy::Regular
     } else {
@@ -38,3 +41,6 @@ fn set_icon(app: &AppHandle, show: bool) {
         tracing::warn!(%error, show, "could not change Dock visibility");
     }
 }
+
+#[cfg(not(target_os = "macos"))]
+fn set_icon(_app: &AppHandle, _show: bool) {}

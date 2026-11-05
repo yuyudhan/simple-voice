@@ -25,7 +25,7 @@
 
 ## Install
 
-Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later.
+Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later, or Debian/Ubuntu Linux on x86-64 (see [Simple Voice on Linux](docs/linux.md)).
 
 ```sh
 curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
@@ -104,8 +104,10 @@ git clone https://github.com/yuyudhan/simple-voice.git
 cd simple-voice
 just setup     # install dependencies and git hooks
 just dev       # run the app
-just build     # build the release .app
+just build     # build the release .app (a .deb on Linux)
 ```
+
+On Debian/Ubuntu the same commands work without Xcode; the [development guide](docs/internal/development.md#linux-debianubuntu-x86-64) lists the packages to install.
 
 The [development guide](docs/internal/development.md) covers the prerequisites, quality gates and the Swift engine helper.
 

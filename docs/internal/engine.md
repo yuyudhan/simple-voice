@@ -7,7 +7,8 @@ or Objective-C / C APIs lives here, so the Rust crates can forbid `unsafe`: Para
 (FluidAudio on Core ML), Whisper transcription (WhisperKit on Core ML), Apple Speech (`SpeechAnalyzer`), Apple Intelligence post-processing
 (Foundation Models), model downloads, permission checks, the frontmost app, synthetic Cmd+V,
 muting the output device, the floating overlay pill and launch at login (`SMAppService.mainApp`,
-which resolves to the Simple Voice.app the helper sits in).
+which resolves to the Simple Voice.app the helper sits in). On Linux the app runs a Rust helper
+of the same name built from `engine-linux/` instead ([Linux](#linux)).
 
 ## Protocol
 
@@ -182,3 +183,37 @@ prompts to the app (the responsible process), not to the helper binary:
 
 When the helper is run directly from a terminal, TCC attributes it to the terminal app instead,
 so results differ from what the app sees.
+
+## Linux
+
+`engine-linux/` builds `simple-voice-engine` for Linux: a Rust binary speaking the same protocol,
+so `sv-engine` and the app do not know which helper they talk to. Its dependencies are
+Linux-only; on macOS the crate compiles to a stub that exits with an error, so the workspace gates
+never build whisper.cpp there.
+
+- Transcription: Whisper large-v3-turbo on whisper.cpp (`whisper-rs`), the q5_0 file
+  `ggml-large-v3-turbo-q5_0.bin` (574 MB, MIT) from `ggerganov/whisper.cpp` pinned to one
+  revision and its SHA-256 (`models.rs`), downloaded into `--models-dir` in the Swift helper's
+  layout (`<id>.partial/`, then `<id>/` with `.simple-voice-complete`). Greedy decoding with
+  temperature fallback; the encoder's context is sized to the clip instead of the full 30 s window
+  (about 5x faster on a dictation); `languages` restricts detection to the user's languages and
+  `prompt` carries the dictionary terms. Decoder states are reused between requests, because
+  whisper.cpp's language detection encodes with the previous decode's context size.
+- Every other catalog model, and `generate`, `polish`, `translate`, live streams, diarization,
+  system audio and the correction watch, fail with a reason the app shows ("Runs on macOS
+  only ..."); `model_status` reports those models `unsupported`.
+- `paste`: Ctrl+V through `xdotool` under X11; under Wayland `ydotool` (needs write access to
+  `/dev/uinput`) or `wtype` (not on GNOME). Without one, `permissions` reports Accessibility
+  denied and `paste` fails with the `accessibility permission missing` marker, so the app shows
+  its copied-not-pasted notice. `frontmost_app` uses `xdotool` under X11 only; `selected_text`
+  reads the primary selection (`xclip` / `wl-paste`). The microphone is always granted (Linux has
+  no per-app grant); Speech and System Audio are `restricted`.
+- `pause_media` / `resume_media`: MPRIS players through `playerctl`, only those playing;
+  `set_output_muted`: the default sink through `pactl` (PulseAudio or PipeWire).
+- `login_item` / `set_login_item`: `$XDG_CONFIG_HOME/autostart/dev.yuyudhan.simplevoice.desktop`,
+  which starts the app with `--autostart`.
+- `watch_fn_key` answers inactive (no Fn key on Linux); overlay notifications are ignored.
+
+External tools run without a shell, with a timeout. `engine-linux/check.sh` (run by `just test`
+and `build-linux.sh`) checks `ping`, `model_status` and exit on stdin close against a built
+binary.

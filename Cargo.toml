@@ -9,9 +9,13 @@
 #     ├── sv-audio    (microphone capture, WAV files, level meter, cue sounds)
 #     ├── sv-engine   (client for the Swift engine helper sidecar)
 #     └── sv-domain   (shared serde types and the error type; depends on nothing internal)
+#
+#   engine-linux (simple-voice-engine on Linux: the sidecar the Swift helper is on macOS)
+#     ├── sv-audio
+#     └── sv-domain
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/*"]
+members = ["src-tauri", "crates/*", "engine-linux"]
 
 [workspace.package]
 version = "0.1.2"
@@ -52,6 +56,7 @@ tokio = { version = "1", features = [
     "fs",
     "process",
     "io-util",
+    "io-std",
 ] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "multipart"] }
 bytes = "1"
@@ -68,6 +73,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tempfile = "3"
 parking_lot = "0.12"
 semver = "1"
+# whisper.cpp for the Linux engine helper; built from source for x86-64 with AVX2 (.cargo/config.toml).
+whisper-rs = "0.16"
+sha2 = "0.10"
 
 # Every member opts in with `[lints] workspace = true`. `#![forbid(unsafe_code)]` at the top of
 # each lib.rs/main.rs documents the same intent in the file a reader opens first; this table makes

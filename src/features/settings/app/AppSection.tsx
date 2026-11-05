@@ -3,6 +3,7 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import type { Theme } from "../../../lib/api";
 import { useSettings } from "../../../app/SettingsContext";
+import { isLinux } from "../../../lib/platform";
 import { Segmented, SettingRow, SettingsGroup, Toggle, type SegmentedOption } from "../../../ui";
 import { UpdatesGroup } from "../../updates/UpdatesGroup";
 
@@ -18,7 +19,14 @@ export function AppSection() {
     return (
         <>
             <SettingsGroup title="Appearance">
-                <SettingRow title="Theme" description="System follows your Mac's appearance.">
+                <SettingRow
+                    title="Theme"
+                    description={
+                        isLinux
+                            ? "System follows your desktop's appearance."
+                            : "System follows your Mac's appearance."
+                    }
+                >
                     <Segmented
                         label="Theme"
                         value={settings.theme}
@@ -43,18 +51,21 @@ export function AppSection() {
                         }}
                     />
                 </SettingRow>
-                <SettingRow
-                    title="Show app in Dock"
-                    description="Shows the Dock icon while the window is open. When off, Simple Voice lives only in the menu bar."
-                >
-                    <Toggle
-                        label="Show app in Dock"
-                        checked={settings.showInDock}
-                        onChange={(showInDock) => {
-                            void update({ showInDock });
-                        }}
-                    />
-                </SettingRow>
+                {/* Linux has no Dock; the open window shows in the desktop's task list. */}
+                {!isLinux && (
+                    <SettingRow
+                        title="Show app in Dock"
+                        description="Shows the Dock icon while the window is open. When off, Simple Voice lives only in the menu bar."
+                    >
+                        <Toggle
+                            label="Show app in Dock"
+                            checked={settings.showInDock}
+                            onChange={(showInDock) => {
+                                void update({ showInDock });
+                            }}
+                        />
+                    </SettingRow>
+                )}
             </SettingsGroup>
 
             <UpdatesGroup />

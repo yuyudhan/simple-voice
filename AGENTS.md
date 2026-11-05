@@ -2,9 +2,10 @@
 
 # Simple Voice - Contributor Guide
 
-Tauri 2 dictation app for macOS on Apple Silicon, installed with a curl install script from GitHub releases. Rust workspace
-(`src-tauri/`, `crates/*`), React/TypeScript UI (`src/`), Swift engine helper (`engine/`) for
-everything that needs Apple frameworks.
+Tauri 2 dictation app for macOS on Apple Silicon, and Debian/Ubuntu Linux on x86-64, installed with a curl install script from GitHub releases. Rust workspace
+(`src-tauri/`, `crates/*`, `engine-linux/`), React/TypeScript UI (`src/`), Swift engine helper (`engine/`) for
+everything that needs Apple frameworks; on Linux the Rust helper in `engine-linux/` speaks the same protocol
+(`docs/linux.md`, `docs/internal/engine.md#linux`). Gate platform code with `cfg(target_os)`.
 
 ## Read first
 

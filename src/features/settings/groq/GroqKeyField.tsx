@@ -1,11 +1,12 @@
 // FilePath: src/features/settings/groq/GroqKeyField.tsx
 // Groq API key entry and the privacy note every Groq choice shows. A key is verified with Groq
-// before it is saved to the macOS Keychain, so a typo surfaces here instead of as a failed
+// before it is saved to the macOS Keychain (the Secret Service keyring on Linux), so a typo surfaces here instead of as a failed
 // dictation later. One key serves Groq transcription, formatting and meetings.
 import { useState, type ReactNode, type SyntheticEvent } from "react";
 import { CircleCheck, CloudUpload, ExternalLink, Eye, EyeOff } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { errorMessage } from "../../../lib/api";
+import { isLinux } from "../../../lib/platform";
 import { Button, IconButton, TextField } from "../../../ui";
 import type { GroqKeyState } from "./useGroqKey";
 import "../common.css";
@@ -71,8 +72,9 @@ export function GroqKeyField({ groq }: { groq: GroqKeyState }) {
                 <div>
                     <p className="sv-keycard__title">Groq API key</p>
                     <p className="sv-keycard__desc">
-                        Your own key from Groq. It is checked with Groq, then kept in the macOS
-                        Keychain, never in Simple Voice's database.
+                        Your own key from Groq. It is checked with Groq, then kept in{" "}
+                        {isLinux ? "your desktop's keyring" : "the macOS Keychain"}, never in Simple
+                        Voice's database.
                     </p>
                 </div>
                 <button

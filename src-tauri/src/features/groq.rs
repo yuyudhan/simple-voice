@@ -1,7 +1,7 @@
 // FilePath: src-tauri/src/features/groq.rs
-//! The optional Groq provider's key and requests. The user's own API key is kept in the login
-//! Keychain (a generic password owned by this app, never in the database, logs or settings),
-//! read once per launch and cached in memory. Settings saves a key only after Groq accepts it.
+//! The optional Groq provider's key and requests. The user's own API key is kept in the system
+//! secret store (`platform::keystore`: the login Keychain on macOS, the Secret Service keyring on
+//! Linux; never in the database, logs or settings), read once per launch and cached in memory. Settings saves a key only after Groq accepts it.
 
 use std::fmt;
 use std::time::Duration;
@@ -12,6 +12,7 @@ use sv_text::PolishPrompt;
 use tauri::State;
 
 use crate::features::llm::Reply;
+use crate::platform::keystore;
 use crate::state::AppState;
 
 /// One Keychain item per app identity, so the development build never reads the release's key.
@@ -21,8 +22,6 @@ const KEYCHAIN_SERVICE: &str = if cfg!(debug_assertions) {
     "dev.yuyudhan.simplevoice.groq"
 };
 const KEYCHAIN_ACCOUNT: &str = "groq-api-key";
-/// `errSecItemNotFound`: no key saved.
-const ITEM_NOT_FOUND: i32 = -25_300;
 
 pub(crate) const NO_KEY: &str = "Add your Groq API key in Settings to use Groq.";
 
@@ -118,42 +117,31 @@ fn normalize_key(key: &str) -> Option<String> {
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
-    tokio::task::spawn_blocking(work)
-        .await
-        .map_err(|error| AppError::other(format!("Keychain access stopped: {error}")))?
+    tokio::task::spawn_blocking(work).await.map_err(|error| {
+        AppError::other(format!("{} access stopped: {error}", keystore::STORE_NAME))
+    })?
 }
 
 fn read_keychain() -> AppResult<Option<String>> {
-    match security_framework::passwords::get_generic_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
-        Ok(bytes) => Ok(String::from_utf8(bytes)
-            .ok()
-            .and_then(|key| normalize_key(&key))),
-        Err(error) if error.code() == ITEM_NOT_FOUND => Ok(None),
-        Err(error) => Err(keychain_error("read", &error)),
-    }
+    let saved = keystore::read(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|error| keychain_error("read", &error))?;
+    Ok(saved.and_then(|key| normalize_key(&key)))
 }
 
 fn write_keychain(key: &str) -> AppResult<()> {
-    security_framework::passwords::set_generic_password(
-        KEYCHAIN_SERVICE,
-        KEYCHAIN_ACCOUNT,
-        key.as_bytes(),
-    )
-    .map_err(|error| keychain_error("save", &error))
+    keystore::write(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT, key)
+        .map_err(|error| keychain_error("save", &error))
 }
 
 fn delete_keychain() -> AppResult<()> {
-    match security_framework::passwords::delete_generic_password(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-    {
-        Ok(()) => Ok(()),
-        Err(error) if error.code() == ITEM_NOT_FOUND => Ok(()),
-        Err(error) => Err(keychain_error("remove", &error)),
-    }
+    keystore::delete(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|error| keychain_error("remove", &error))
 }
 
-fn keychain_error(action: &str, error: &security_framework::base::Error) -> AppError {
+fn keychain_error(action: &str, error: &str) -> AppError {
     AppError::other(format!(
-        "Could not {action} the Groq API key in the Keychain: {error}"
+        "Could not {action} the Groq API key in the {}: {error}",
+        keystore::STORE_NAME
     ))
 }
 

@@ -169,6 +169,7 @@ fn register_all(app: &AppHandle, shortcuts: &[Shortcut]) -> Result<(), usize> {
             tracing::warn!(%error, shortcut = ?shortcut, "shortcut registration failed");
             return Err(index);
         }
+        tracing::info!(shortcut = %shortcut, "shortcut registered");
     }
     Ok(())
 }

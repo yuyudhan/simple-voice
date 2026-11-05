@@ -13,6 +13,7 @@ contract between the pieces is [architecture.md](architecture.md); releases are 
 | `src-tauri/`          | The Tauri app: windows, tray, shortcuts, commands and the dictation pipeline.                                                           |
 | `crates/`             | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
 | `engine/`             | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
+| `engine-linux/`       | The engine helper on Linux, in Rust: Whisper on whisper.cpp, pasting, media and autostart, over the same protocol as `engine/`.          |
 | `src/`                | The React and TypeScript interface.                                                                                                     |
 | `docs/`               | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
 
@@ -37,6 +38,21 @@ just setup     # bun install, core.hooksPath -> .githooks, toolchain report (jus
 just dev       # debug engine helper + `bun run tauri dev`
 just build     # release .app under target/aarch64-apple-darwin/release/bundle/macos/
 ```
+
+### Linux (Debian/Ubuntu, x86-64)
+
+The same commands work on Linux; there the engine helper is `engine-linux/` (no Swift or Xcode)
+and `just build` makes a `.deb`. Install the system libraries and tools first:
+
+```sh
+sudo apt install build-essential curl wget file pkg-config cmake clang libclang-dev \
+    libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+    libasound2-dev libpulse-dev patchelf shellcheck xdotool xclip wl-clipboard playerctl
+cargo install taplo-cli typos-cli cargo-nextest --locked
+```
+
+`swift-format` does not exist there, so `just fmt` and `just fmt-check` skip `engine/`; run them
+on a Mac for Swift changes. [docs/linux.md](../linux.md) describes what the app does on Linux.
 
 sqlx-cli must be built with SQLite support, or `sqlx database create` fails with "no driver
 found for URL scheme sqlite":
@@ -125,6 +141,12 @@ the Command Line Tools alone ship no XCTest and cannot load swift-testing.
 
 Building needs the macOS 26 SDK (Xcode 26+ or its Command Line Tools) for SpeechAnalyzer and
 FoundationModels; the binary links FoundationModels weakly and still runs on macOS 14.
+
+On Linux the same recipes build `engine-linux/` (a workspace member whose dependencies are
+Linux-only, so on macOS it compiles to a stub) and copy it to
+`src-tauri/binaries/simple-voice-engine-x86_64-unknown-linux-gnu`. `just test` there builds it and
+runs `engine-linux/check.sh`, which talks to the binary over its real protocol. See
+[engine.md § Linux](engine.md#linux).
 
 ## Transcription eval
 

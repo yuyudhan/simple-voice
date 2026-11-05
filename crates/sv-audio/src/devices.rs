@@ -21,15 +21,33 @@ pub fn list_microphones() -> AppResult<Vec<Microphone>> {
     let default_name = host
         .default_input_device()
         .and_then(|device| device_name(&device));
-    let devices = host.input_devices().map_err(|error| audio_error(&error))?;
-    Ok(devices
-        .filter_map(|device| device_name(&device))
-        .map(|name| Microphone {
+    Ok(candidates(&host)?
+        .into_iter()
+        .map(|(_, name)| Microphone {
             id: name.clone(),
             is_default: default_name.as_deref() == Some(name.as_str()),
             is_built_in: is_built_in_name(&name),
             name,
         })
+        .collect())
+}
+
+/// The input devices to choose from, with their names. ALSA (the Linux host) lists every PCM
+/// plugin by description: the null device that records silence, rate converters, each sound card
+/// several times. Its `default` PCM is the default source of PulseAudio or PipeWire, which the
+/// user picks in the desktop's sound settings, so Linux offers that one only.
+fn candidates(host: &cpal::Host) -> AppResult<Vec<(cpal::Device, String)>> {
+    if cfg!(target_os = "linux") {
+        return Ok(host
+            .default_input_device()
+            .and_then(|device| device_name(&device).map(|name| (device, name)))
+            .into_iter()
+            .collect());
+    }
+    Ok(host
+        .input_devices()
+        .map_err(|error| audio_error(&error))?
+        .filter_map(|device| device_name(&device).map(|name| (device, name)))
         .collect())
 }
 
@@ -55,11 +73,7 @@ pub(crate) fn select_input_device(
     host: &cpal::Host,
     requested: Option<&str>,
 ) -> AppResult<(cpal::Device, String)> {
-    let mut devices: Vec<(cpal::Device, String)> = host
-        .input_devices()
-        .map_err(|error| audio_error(&error))?
-        .filter_map(|device| device_name(&device).map(|name| (device, name)))
-        .collect();
+    let mut devices = candidates(host)?;
 
     let mut chosen = None;
     if let Some(wanted) = requested {

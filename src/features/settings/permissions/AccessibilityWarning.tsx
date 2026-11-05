@@ -3,9 +3,12 @@
 // only way macOS feeds the event tap that watches the Fn key. Without it dictated text is only
 // copied and an Fn shortcut does nothing, so this warning cannot be dismissed: it stays up until
 // access is granted. The shell pins it above every page; next to the shortcut settings it only
-// appears while Fn is one of the shortcuts, because that is what it explains there.
+// appears while Fn is one of the shortcuts, because that is what it explains there. On Linux the
+// same status means no tool can press Ctrl+V in this session (Wayland without ydotool), and there
+// is no settings pane to open.
 import { TriangleAlert } from "lucide-react";
 import { useSettings } from "../../../app/SettingsContext";
+import { isLinux } from "../../../lib/platform";
 import { FN_KEY } from "../shortcuts/accelerator";
 import { PermissionAction } from "./PermissionsGroup";
 import { usePermissions } from "./usePermissions";
@@ -25,7 +28,13 @@ export function AccessibilityWarning({ placement }: { placement: "shell" | "inli
     return (
         <div className={`sv-access-warning sv-access-warning--${placement}`} role="alert">
             <TriangleAlert size={16} className="sv-access-warning__icon" aria-hidden="true" />
-            {fnModes.length === 0 ? (
+            {isLinux ? (
+                <p className="sv-access-warning__text">
+                    <strong>Text is only copied, not pasted.</strong> Under Wayland Simple Voice
+                    needs ydotool with write access to /dev/uinput to press Ctrl+V; see
+                    docs/linux.md. Press Ctrl+V yourself meanwhile.
+                </p>
+            ) : fnModes.length === 0 ? (
                 <p className="sv-access-warning__text">
                     <strong>Text is only copied, not pasted.</strong> Simple Voice needs
                     Accessibility access to press ⌘V in the app you are using.
@@ -37,13 +46,15 @@ export function AccessibilityWarning({ placement }: { placement: "shell" | "inli
                     {fnModes.join(" and ")}.
                 </p>
             )}
-            <PermissionAction
-                kind="accessibility"
-                status={status}
-                busy={busy === "accessibility"}
-                onRequest={request}
-                onOpenSettings={openSettings}
-            />
+            {!isLinux && (
+                <PermissionAction
+                    kind="accessibility"
+                    status={status}
+                    busy={busy === "accessibility"}
+                    onRequest={request}
+                    onOpenSettings={openSettings}
+                />
+            )}
         </div>
     );
 }

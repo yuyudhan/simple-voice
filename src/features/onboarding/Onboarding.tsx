@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import type { Settings } from "../../lib/api";
 import { useSettings } from "../../app/SettingsContext";
+import { isLinux } from "../../lib/platform";
 import { BrandMark, Button, ShortcutKeys } from "../../ui";
 import { ModelStep } from "./ModelStep";
 import { PermissionStep } from "./PermissionStep";
@@ -67,8 +68,9 @@ function Done({ settings, onBack, onFinish }: DoneProps) {
             </div>
             <h1 className="sv-onb__title">You&rsquo;re all set</h1>
             <p className="sv-onb__lead">
-                Simple Voice keeps running in the menu bar. Dictate into any app with your
-                shortcuts; your history, insights and personal dictionary live in the main window.
+                Simple Voice keeps running in the {isLinux ? "tray" : "menu bar"}. Dictate into any
+                app with your shortcuts; your history, insights and personal dictionary live in the
+                main window.
             </p>
             <div className="sv-onb__summary">
                 <div>

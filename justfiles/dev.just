@@ -10,26 +10,37 @@
 dev: deps-present (engine "debug") sqlx-db
     DATABASE_URL={{sqlx_db_url}} bun run tauri dev --config src-tauri/tauri.dev.conf.json
 
-# Build the release app bundle for Apple Silicon; Tauri's beforeBuildCommand builds the
-# release engine helper first. Without a Developer ID the bundle is ad-hoc signed ("-"), which
-# seals it and applies Entitlements.plist and the hardened runtime; an unsigned bundle would lack
-# the microphone entitlement. Export APPLE_SIGNING_IDENTITY to use a real certificate instead.
+# Build the release app: on macOS the Apple Silicon bundle, on Linux the .deb
+# (src-tauri/tauri.linux.conf.json). Tauri's beforeBuildCommand builds the release engine helper
+# first. Without a Developer ID the macOS bundle is ad-hoc signed ("-"), which seals it and
+# applies Entitlements.plist and the hardened runtime; an unsigned bundle would lack the
+# microphone entitlement. Export APPLE_SIGNING_IDENTITY to use a real certificate instead.
 [group('develop')]
 build: deps-present
-    APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" bun run tauri build --target aarch64-apple-darwin
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "$(uname -s)" = "Linux" ]; then
+        bun run tauri build --bundles deb
+    else
+        APPLE_SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}" bun run tauri build --target aarch64-apple-darwin
+    fi
 
 # Build the Swift engine helper into src-tauri/binaries/. MODE: debug (default) | release
 [group('develop')]
 engine MODE='debug':
     bash engine/build.sh {{MODE}}
 
-# Build the debug engine helper only when it (or the llama.framework it links, which the app
-# bundle embeds) is missing, so cargo-based gates can compile.
+# Build the debug engine helper only when it (or, on macOS, the llama.framework it links, which
+# the app bundle embeds) is missing, so cargo-based gates can compile.
 [private]
 engine-present:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ ! -x "{{engine_bin}}" ] || [ ! -d "src-tauri/binaries/llama.framework" ]; then
+    framework_missing=false
+    if [ "$(uname -s)" = "Darwin" ] && [ ! -d "src-tauri/binaries/llama.framework" ]; then
+        framework_missing=true
+    fi
+    if [ ! -x "{{engine_bin}}" ] || $framework_missing; then
         echo "engine helper or llama.framework missing in src-tauri/binaries - building (debug)"
         bash engine/build.sh debug
     fi

@@ -19,13 +19,24 @@ use crate::features::dictation::{self, DictationHandle};
 use crate::platform::{dock, engine_process, login_item, overlay, shortcuts, tray, windows};
 use crate::state::AppState;
 
+/// Passed to a second launch to toggle dictation in the running app.
+const TOGGLE_ARG: &str = "--toggle";
+
 /// Builds and runs the app; returns when the user quits.
 pub fn run() -> tauri::Result<()> {
     init_tracing();
     let app = tauri::Builder::default()
         // Must be registered first so a second launch focuses this one before anything else runs.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            windows::show_main(app)
+        // `simple-voice --toggle` starts or stops dictation in the running app instead: GNOME on
+        // Wayland gives global shortcuts to no app, so users bind that command there.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if args.iter().skip(1).any(|arg| arg == TOGGLE_ARG) {
+                app.state::<AppState>()
+                    .dictation
+                    .send(dictation::Control::Toggle);
+            } else {
+                windows::show_main(app);
+            }
         }))
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_shell::init())
@@ -104,6 +115,7 @@ pub fn run() -> tauri::Result<()> {
         .build(tauri::generate_context!())?;
 
     app.run(|app, event| match event {
+        #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => windows::show_main(app),
         RunEvent::Exit => engine_process::shutdown(app),
         _ => {}
@@ -164,6 +176,7 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         }));
 
     windows::create_main(app, !launched_at_login || startup_error.is_some())?;
+    #[cfg(target_os = "macos")]
     windows::install_app_menu(app)?;
     tray::create(app)?;
 

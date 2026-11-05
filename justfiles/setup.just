@@ -34,15 +34,29 @@ doctor:
     echo "Required"
     require rustup "https://rustup.rs"
     require cargo "https://rustup.rs"
-    require bun "brew install oven-sh/bun/bun"
-    require just "brew install just"
-    require swift "Xcode 26+ or its Command Line Tools (xcode-select --install)"
-    sdk=$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)
-    if [ "${sdk%%.*}" -ge 26 ] 2>/dev/null; then
-        printf 'OK       %-14s %s\n' "macOS SDK" "$sdk"
+    require bun "https://bun.sh (macOS: brew install oven-sh/bun/bun)"
+    require just "https://just.systems (macOS: brew install just)"
+    if [ "$(uname -s)" = "Linux" ]; then
+        # Tauri's WebKitGTK and tray, and whisper.cpp (docs/internal/development.md#linux).
+        require cmake "sudo apt install cmake"
+        require clang "sudo apt install clang libclang-dev"
+        for lib in webkit2gtk-4.1 ayatana-appindicator3-0.1 librsvg-2.0 alsa; do
+            if pkg-config --exists "$lib" 2>/dev/null; then
+                printf 'OK       %-14s %s\n' "$lib" "$(pkg-config --modversion "$lib")"
+            else
+                printf 'MISSING  %-14s install: %s\n' "$lib" "see docs/internal/development.md#linux"
+                missing=$((missing + 1))
+            fi
+        done
     else
-        printf 'MISSING  %-14s install: %s\n' "macOS SDK" "26+ via Xcode 26 or its Command Line Tools"
-        missing=$((missing + 1))
+        require swift "Xcode 26+ or its Command Line Tools (xcode-select --install)"
+        sdk=$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || true)
+        if [ "${sdk%%.*}" -ge 26 ] 2>/dev/null; then
+            printf 'OK       %-14s %s\n' "macOS SDK" "$sdk"
+        else
+            printf 'MISSING  %-14s install: %s\n' "macOS SDK" "26+ via Xcode 26 or its Command Line Tools"
+            missing=$((missing + 1))
+        fi
     fi
     require sqlx "cargo install sqlx-cli --no-default-features --features sqlite,rustls --locked"
     require taplo "brew install taplo"

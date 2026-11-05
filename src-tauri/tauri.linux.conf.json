@@ -1,0 +1,22 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "bundle": {
+        "targets": ["deb"],
+        "shortDescription": "System-wide dictation for Linux",
+        "longDescription": "Speak anywhere on your Linux desktop and the text lands in the focused app. Transcription runs on this computer with Whisper (whisper.cpp).",
+        "linux": {
+            "deb": {
+                "section": "utils",
+                "depends": [
+                    "libayatana-appindicator3-1",
+                    "xdotool",
+                    "xclip",
+                    "wl-clipboard",
+                    "playerctl",
+                    "pulseaudio-utils",
+                    "libsecret-tools"
+                ]
+            }
+        }
+    }
+}

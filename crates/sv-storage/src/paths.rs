@@ -1,5 +1,7 @@
 // FilePath: crates/sv-storage/src/paths.rs
-//! Filesystem layout under `~/.simplevoice/` (`~/.simplevoice-dev/` for debug builds).
+//! Filesystem layout under `~/.simplevoice/` (`~/.simplevoice-dev/` for debug builds) on macOS,
+//! and under the XDG data directory on Linux: `$XDG_DATA_HOME/simplevoice/` (by default
+//! `~/.local/share/simplevoice/`; `simplevoice-dev/` for debug builds).
 //!
 //! The public functions resolve the real data directory. The `*_in` variants take the data
 //! directory explicitly so tests (and `Db::open_at`) never touch the user's home.
@@ -14,10 +16,17 @@ use sv_domain::{AppError, AppResult};
 pub(crate) const DATABASE_FILE: &str = "simple-voice.db";
 // Debug builds (`just dev`) get their own directory so a migration that has not shipped yet never
 // upgrades the installed release's database past what that release can open.
+#[cfg(not(target_os = "linux"))]
 const DATA_DIR_NAME: &str = if cfg!(debug_assertions) {
     ".simplevoice-dev"
 } else {
     ".simplevoice"
+};
+#[cfg(target_os = "linux")]
+const DATA_DIR_NAME: &str = if cfg!(debug_assertions) {
+    "simplevoice-dev"
+} else {
+    "simplevoice"
 };
 pub(crate) const LOCATION_FILE: &str = "location";
 const MODELS_DIR: &str = "models";
@@ -25,11 +34,14 @@ const AUDIO_DIR: &str = "audio";
 const MEETINGS_DIR: &str = "meetings";
 const BACKUPS_DIR: &str = "backups";
 
-/// `~/.simplevoice` (`~/.simplevoice-dev` in debug builds), created with mode 0700.
+/// The data directory (see the module docs), created with mode 0700.
 pub fn data_dir() -> AppResult<PathBuf> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| AppError::Io("Could not find your home directory".to_owned()))?;
-    let dir = home.join(DATA_DIR_NAME);
+    #[cfg(not(target_os = "linux"))]
+    let base = dirs::home_dir();
+    #[cfg(target_os = "linux")]
+    let base = dirs::data_dir();
+    let base = base.ok_or_else(|| AppError::Io("Could not find your home directory".to_owned()))?;
+    let dir = base.join(DATA_DIR_NAME);
     ensure_private_dir(&dir)?;
     Ok(dir)
 }
