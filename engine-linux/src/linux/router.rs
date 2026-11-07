@@ -12,9 +12,10 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use sv_domain::PermissionKind;
 
+use super::models::Runtime;
 use super::output::{Output, Progress};
-use super::whisper::{Resident, TranscribeParams};
-use super::{autostart, desktop, models, mute, VERSION};
+use super::transcript::TranscribeParams;
+use super::{autostart, desktop, models, mute, parakeet, whisper, VERSION};
 
 const NO_LANGUAGE_MODELS: &str = "On-device language models run on macOS only; on Linux choose \
     Groq for formatting and edit mode";
@@ -27,7 +28,8 @@ const NO_EDIT_WATCH: &str = "Learning from corrections needs macOS Accessibility
 pub(crate) struct Engine {
     pub(crate) output: Arc<Output>,
     store: models::Store,
-    whisper: Resident,
+    parakeet: parakeet::Resident,
+    whisper: whisper::Resident,
 }
 
 impl Engine {
@@ -35,9 +37,17 @@ impl Engine {
         Self {
             output: Arc::default(),
             store: models::Store::new(models_dir),
-            whisper: Resident::default(),
+            parakeet: parakeet::Resident::default(),
+            whisper: whisper::Resident::default(),
         }
     }
+}
+
+/// The runtime that runs `id`, or the reason it does not run on Linux.
+fn runtime(id: &str) -> Result<Runtime, String> {
+    models::find(id)
+        .map(|model| model.runtime)
+        .ok_or_else(|| format!("{id}: {}", models::MAC_ONLY))
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,18 +92,29 @@ pub(crate) async fn route(
         }
         "delete_model" => {
             let ModelParams { model } = parse(params)?;
-            engine.whisper.unload().await;
+            match runtime(&model) {
+                Ok(Runtime::Parakeet) => engine.parakeet.unload().await,
+                Ok(Runtime::Whisper) => engine.whisper.unload().await,
+                Err(_) => {}
+            }
             engine.store.delete(&model)?;
             Ok(json!({}))
         }
         "preload" => {
             let ModelParams { model } = parse(params)?;
-            engine.whisper.preload(&engine.store, &model).await?;
+            match runtime(&model)? {
+                Runtime::Parakeet => engine.parakeet.preload(&engine.store, &model).await?,
+                Runtime::Whisper => engine.whisper.preload(&engine.store, &model).await?,
+            }
             Ok(json!({}))
         }
         "transcribe" => {
             let request: TranscribeParams = parse(params)?;
-            to_value(&engine.whisper.transcribe(&engine.store, request).await?)
+            let transcript = match runtime(&request.model)? {
+                Runtime::Parakeet => engine.parakeet.transcribe(&engine.store, request).await?,
+                Runtime::Whisper => engine.whisper.transcribe(&engine.store, request).await?,
+            };
+            to_value(&transcript)
         }
         "permissions" | "request_permission" => to_value(&desktop::permissions()),
         "open_settings" => {
@@ -167,7 +188,28 @@ mod tests {
         let parakeet = call("model_status", json!({ "model": "parakeet-tdt-v3" }))
             .await
             .unwrap();
-        assert_eq!(parakeet["status"], "unsupported");
+        assert_eq!(parakeet["status"], "not_downloaded");
+        assert_eq!(parakeet["sizeBytes"], 670_576_784);
+        let apple = call("model_status", json!({ "model": "apple-speech" }))
+            .await
+            .unwrap();
+        assert_eq!(apple["status"], "unsupported");
+    }
+
+    #[tokio::test]
+    async fn routes_transcription_by_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let wav = dir.path().join("a.wav");
+        std::fs::write(&wav, sv_audio::encode_wav(&[0; 1600])).unwrap();
+        let request = |model: &str| json!({ "model": model, "wavPath": wav });
+        for model in ["parakeet-tdt-v3", "whisper-large-v3-turbo"] {
+            let error = call("transcribe", request(model)).await.unwrap_err();
+            assert!(error.contains("not downloaded"), "{model}: {error}");
+        }
+        let error = call("transcribe", request("apple-speech"))
+            .await
+            .unwrap_err();
+        assert!(error.contains("macOS only"), "{error}");
     }
 
     #[tokio::test]

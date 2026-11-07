@@ -2,7 +2,7 @@
 //! The Linux helper. Every request runs in its own task, so a long transcription or download
 //! never delays `permissions` or `paste`, and `cancel` can stop it; replies are matched by `id`.
 //! A line without an `id` is a notification and gets no reply. stdout carries protocol lines
-//! only (whisper.cpp logs to stderr); the helper exits when stdin closes.
+//! only (whisper.cpp and ONNX Runtime log to stderr); the helper exits when stdin closes.
 
 mod autostart;
 mod desktop;
@@ -10,8 +10,10 @@ mod log;
 mod models;
 mod mute;
 mod output;
+mod parakeet;
 mod router;
 mod tools;
+mod transcript;
 mod whisper;
 
 use std::collections::HashMap;

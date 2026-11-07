@@ -5,7 +5,7 @@
 # belongs and the workspace gates never compile whisper.cpp there.
 [package]
 name = "simple-voice-engine-linux"
-description = "Simple Voice's engine helper for Linux: Whisper transcription (whisper.cpp) and desktop integration."
+description = "Simple Voice's engine helper for Linux: Parakeet TDT (sherpa-onnx) and Whisper (whisper.cpp) transcription, and desktop integration."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -26,6 +26,7 @@ serde_json.workspace = true
 tokio.workspace = true
 reqwest.workspace = true
 whisper-rs.workspace = true
+sherpa-onnx.workspace = true
 sha2.workspace = true
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]

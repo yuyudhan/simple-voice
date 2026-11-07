@@ -75,6 +75,8 @@ parking_lot = "0.12"
 semver = "1"
 # whisper.cpp for the Linux engine helper; built from source for x86-64 with AVX2 (.cargo/config.toml).
 whisper-rs = "0.16"
+# sherpa-onnx for Parakeet TDT in the Linux engine helper; links prebuilt static libraries.
+sherpa-onnx = "2.0.1"
 sha2 = "0.10"
 
 # Every member opts in with `[lints] workspace = true`. `#![forbid(unsafe_code)]` at the top of

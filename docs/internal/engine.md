@@ -189,12 +189,24 @@ so results differ from what the app sees.
 `engine-linux/` builds `simple-voice-engine` for Linux: a Rust binary speaking the same protocol,
 so `sv-engine` and the app do not know which helper they talk to. Its dependencies are
 Linux-only; on macOS the crate compiles to a stub that exits with an error, so the workspace gates
-never build whisper.cpp there.
+never build whisper.cpp or sherpa-onnx there. The `unsafe` FFI lives inside the `whisper-rs` and
+`sherpa-onnx` crates; the helper's own code stays `forbid(unsafe_code)`.
 
-- Transcription: Whisper large-v3-turbo on whisper.cpp (`whisper-rs`), the q5_0 file
-  `ggml-large-v3-turbo-q5_0.bin` (574 MB, MIT) from `ggerganov/whisper.cpp` pinned to one
-  revision and its SHA-256 (`models.rs`), downloaded into `--models-dir` in the Swift helper's
-  layout (`<id>.partial/`, then `<id>/` with `.simple-voice-complete`). Greedy decoding with
+- Transcription routes by model id (`router.rs`, `models::Runtime`); both runtimes share one
+  request/reply shape (`transcript.rs`). Models download into `--models-dir` in the Swift
+  helper's layout (`<id>.partial/`, then `<id>/` with `.simple-voice-complete` once every file
+  matches its pinned SHA-256); a model is a list of files pinned to one Hugging Face revision
+  (`models.rs`), downloaded one after another under one progress bar.
+- Parakeet TDT v3 (the default) and v2: NVIDIA's 0.6B models in sherpa-onnx's int8 ONNX export
+  (`csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v{3,2}-int8`: encoder, decoder, joiner,
+  tokens; 671 MB / 661 MB, CC-BY-4.0), run by the `sherpa-onnx` crate's offline transducer
+  recognizer (`parakeet.rs`) on up to eight CPU threads; it links sherpa-onnx and ONNX Runtime
+  statically from the crate's prebuilt archive. About RTF 0.1 on a laptop CPU, 20x faster than
+  Whisper Turbo. Parakeet detects its language and takes no prompt, so `language`, `languages`,
+  `prompt` and `vocabulary` are ignored (the dictionary booster is macOS-only), and `quality` is
+  empty. `timestamps` yields sentence segments from the token times.
+- Whisper large-v3-turbo on whisper.cpp (`whisper-rs`), the q5_0 file
+  `ggml-large-v3-turbo-q5_0.bin` (574 MB, MIT) from `ggerganov/whisper.cpp`. Greedy decoding with
   temperature fallback; the encoder's context is sized to the clip instead of the full 30 s window
   (about 5x faster on a dictation); `languages` restricts detection to the user's languages and
   `prompt` carries the dictionary terms. Decoder states are reused between requests, because

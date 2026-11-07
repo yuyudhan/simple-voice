@@ -590,15 +590,9 @@ mod tests {
         );
         // Nothing saved yet: a new install stores nothing and takes the default.
         assert_eq!(upgraded(&[]).await, None);
-        // Parakeet runs on Core ML, so Linux defaults to Whisper Turbo.
-        let default_voice = if cfg!(target_os = "linux") {
-            sv_domain::models::WHISPER_TURBO
-        } else {
-            PARAKEET_TDT_V3
-        };
         assert_eq!(
             sv_domain::Settings::default().transcription_model,
-            default_voice
+            PARAKEET_TDT_V3
         );
     }
 

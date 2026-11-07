@@ -3,7 +3,7 @@
     "bundle": {
         "targets": ["deb"],
         "shortDescription": "System-wide dictation for Linux",
-        "longDescription": "Speak anywhere on your Linux desktop and the text lands in the focused app. Transcription runs on this computer with Whisper (whisper.cpp).",
+        "longDescription": "Speak anywhere on your Linux desktop and the text lands in the focused app. Transcription runs on this computer with Parakeet TDT (sherpa-onnx) or Whisper (whisper.cpp).",
         "linux": {
             "deb": {
                 "section": "utils",

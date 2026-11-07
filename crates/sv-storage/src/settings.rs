@@ -807,13 +807,7 @@ mod tests {
         assert_eq!(stored.transcription_provider, TranscriptionProvider::Groq);
         assert_eq!(stored.groq_whisper_model, "whisper-large-v3");
         // The on-device voice model stays chosen: it is Groq's fallback and transcribes meetings.
-        // Parakeet runs on Core ML, so Linux defaults to Whisper Turbo.
-        let default_voice = if cfg!(target_os = "linux") {
-            sv_domain::models::WHISPER_TURBO
-        } else {
-            PARAKEET_TDT_V3
-        };
-        assert_eq!(stored.transcription_model, default_voice);
+        assert_eq!(stored.transcription_model, PARAKEET_TDT_V3);
         assert_eq!(stored.post_processing, PostProcessing::Groq);
         assert_eq!(stored.groq_formatting_model, "llama-3.3-70b-versatile");
         assert_eq!(stored.meeting_assistant, LlmBackend::Groq);

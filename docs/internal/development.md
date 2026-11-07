@@ -13,7 +13,7 @@ contract between the pieces is [architecture.md](architecture.md); releases are 
 | `src-tauri/`          | The Tauri app: windows, tray, shortcuts, commands and the dictation pipeline.                                                           |
 | `crates/`             | Rust libraries split by responsibility: storage, text formatting, cloud clients, audio, the engine client, shared types.                |
 | `engine/`             | A Swift helper for everything that needs Apple frameworks: on-device models, Apple Speech, Apple Intelligence, permissions and pasting. |
-| `engine-linux/`       | The engine helper on Linux, in Rust: Whisper on whisper.cpp, pasting, media and autostart, over the same protocol as `engine/`.          |
+| `engine-linux/`       | The engine helper on Linux, in Rust: Parakeet TDT on sherpa-onnx and Whisper on whisper.cpp, pasting, media and autostart, over the same protocol as `engine/`. |
 | `src/`                | The React and TypeScript interface.                                                                                                     |
 | `docs/`               | User documentation; `docs/internal/` holds these contributor documents.                                                                 |
 

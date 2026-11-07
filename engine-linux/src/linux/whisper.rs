@@ -12,13 +12,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
 use sv_domain::models::WHISPER_TURBO;
 use whisper_rs::{
     FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
 };
 
 use super::models::{self, Store, MAC_ONLY};
+use super::transcript::{read_samples, Segment, TranscribeParams, Transcript};
 use super::{lock, log};
 
 /// whisper.cpp stops gaining past about eight threads on a desktop CPU.
@@ -33,46 +33,6 @@ const WINDOW_FRAMES: usize = 1500;
 /// Frames of encoder context past the end of the speech: Whisper writes the end of a clip
 /// unreliably when its context stops right where the audio does.
 const CONTEXT_MARGIN_FRAMES: usize = 100;
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct TranscribeParams {
-    model: String,
-    wav_path: String,
-    language: Option<String>,
-    #[serde(default)]
-    languages: Vec<String>,
-    #[serde(default)]
-    prompt: String,
-    #[serde(default)]
-    timestamps: bool,
-}
-
-#[derive(Debug, Default, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Transcript {
-    text: String,
-    language: Option<String>,
-    quality: Quality,
-    segments: Vec<Segment>,
-    dictionary_fixes: u32,
-}
-
-#[derive(Debug, Default, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct Quality {
-    avg_logprob: Option<f32>,
-    compression_ratio: Option<f32>,
-    no_speech_prob: Option<f32>,
-}
-
-#[derive(Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-struct Segment {
-    start_ms: i64,
-    end_ms: i64,
-    text: String,
-}
 
 /// The loaded model and its idle decoder states.
 struct Loaded {
@@ -121,7 +81,7 @@ impl Resident {
         if let Some(resident) = loaded.as_ref() {
             return Ok(Arc::clone(resident));
         }
-        let path = store.ready_file(model).ok_or_else(|| {
+        let path = store.ready_path(model, 0).ok_or_else(|| {
             format!("{id} is not downloaded; download it in Settings → Transcription")
         })?;
         log::info(&format!("loading {id} from {}", path.display()));
@@ -161,10 +121,7 @@ impl Resident {
         if params.model != WHISPER_TURBO {
             return Err(format!("{}: {MAC_ONLY}", params.model));
         }
-        let bytes = tokio::fs::read(&params.wav_path)
-            .await
-            .map_err(|error| format!("cannot read {}: {error}", params.wav_path))?;
-        let samples = sv_audio::decode_wav(&bytes).map_err(|error| error.to_string())?;
+        let samples = read_samples(&params).await?;
         let resident = self.load(store, &params.model).await?;
         tokio::task::spawn_blocking(move || {
             let mut state = resident.take_state()?;
@@ -404,17 +361,5 @@ mod tests {
         assert!(is_annotation("[BLANK_AUDIO]"));
         assert!(is_annotation("(music)"));
         assert!(!is_annotation("Priya sent the report."));
-    }
-
-    #[test]
-    fn reads_the_request_shape_the_app_sends() {
-        let params: TranscribeParams = serde_json::from_value(serde_json::json!({
-            "id": 3, "cmd": "transcribe", "model": "whisper-large-v3-turbo",
-            "wavPath": "/tmp/a.wav", "languages": ["en"], "prompt": "Priya, Arjun"
-        }))
-        .unwrap();
-        assert_eq!(params.wav_path, "/tmp/a.wav");
-        assert_eq!(params.prompt, "Priya, Arjun");
-        assert!(!params.timestamps);
     }
 }

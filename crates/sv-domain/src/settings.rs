@@ -149,12 +149,8 @@ pub const DEFAULT_TOGGLE_SHORTCUT: &str = "Control+Slash";
 /// Toggle-to-edit: rewrites the selected text by voice. An empty accelerator turns edit mode off.
 pub const DEFAULT_EDIT_SHORTCUT: &str = "Alt+Slash";
 /// Runs on the device, so a new install needs no account; onboarding prompts for its download.
-/// Parakeet runs on Core ML, so Linux starts with Whisper Turbo on whisper.cpp.
-pub const DEFAULT_TRANSCRIPTION_MODEL: &str = if cfg!(target_os = "linux") {
-    crate::models::WHISPER_TURBO
-} else {
-    crate::models::PARAKEET_TDT_V3
-};
+/// macOS runs it on Core ML, Linux on sherpa-onnx (engine-linux).
+pub const DEFAULT_TRANSCRIPTION_MODEL: &str = crate::models::PARAKEET_TDT_V3;
 /// Apple Intelligence and the local language model run on macOS only; Linux formats
 /// deterministically until the user chooses Groq.
 pub const DEFAULT_POST_PROCESSING: PostProcessing = if cfg!(target_os = "linux") {
