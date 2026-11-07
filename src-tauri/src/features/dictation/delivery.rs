@@ -75,16 +75,45 @@ pub(crate) fn with_separator(text: &str) -> String {
 }
 
 pub(crate) fn copy_to_clipboard(text: &str) -> AppResult<()> {
-    let mut clipboard = arboard::Clipboard::new().map_err(AppError::other)?;
-    clipboard.set_text(text).map_err(AppError::other)
+    with_clipboard(|clipboard| clipboard.set_text(text))
 }
 
 /// Sets the clipboard and returns the text it held before, if any.
 fn replace_clipboard(text: &str) -> AppResult<Option<String>> {
+    with_clipboard(|clipboard| {
+        let previous = clipboard.get_text().ok();
+        clipboard.set_text(text)?;
+        Ok(previous)
+    })
+}
+
+/// On X11 and Wayland the app serves its clipboard text itself, and only while an
+/// `arboard::Clipboard` lives; without a clipboard manager (i3, Sway, a bare X session) a
+/// dropped one takes the text with it before Ctrl+V can read it. So Linux keeps one for the
+/// app's lifetime; macOS hands the text to the pasteboard and needs none.
+#[cfg(target_os = "linux")]
+fn with_clipboard<R>(
+    action: impl FnOnce(&mut arboard::Clipboard) -> Result<R, arboard::Error>,
+) -> AppResult<R> {
+    static CLIPBOARD: std::sync::Mutex<Option<arboard::Clipboard>> = std::sync::Mutex::new(None);
+    let mut held = CLIPBOARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if held.is_none() {
+        *held = Some(arboard::Clipboard::new().map_err(AppError::other)?);
+    }
+    match held.as_mut() {
+        Some(clipboard) => action(clipboard).map_err(AppError::other),
+        None => Err(AppError::other("the clipboard is unavailable")),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn with_clipboard<R>(
+    action: impl FnOnce(&mut arboard::Clipboard) -> Result<R, arboard::Error>,
+) -> AppResult<R> {
     let mut clipboard = arboard::Clipboard::new().map_err(AppError::other)?;
-    let previous = clipboard.get_text().ok();
-    clipboard.set_text(text).map_err(AppError::other)?;
-    Ok(previous)
+    action(&mut clipboard).map_err(AppError::other)
 }
 
 /// Puts the user's clipboard back, unless something else (the user, another dictation) has
@@ -92,7 +121,7 @@ fn replace_clipboard(text: &str) -> AppResult<Option<String>> {
 fn schedule_restore(ours: String, previous: String) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(RESTORE_DELAY).await;
-        let restored = arboard::Clipboard::new().and_then(|mut clipboard| {
+        let restored = with_clipboard(|clipboard| {
             if clipboard.get_text().ok().as_deref() == Some(ours.as_str()) {
                 clipboard.set_text(previous)?;
             }
