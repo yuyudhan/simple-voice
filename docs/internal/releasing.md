@@ -95,8 +95,8 @@ credentials:
 git fetch --tags && git checkout v0.2.0
 just build-linux 0.2.0     # scripts/release/build-linux.sh
 git checkout main
-# copy target/release-assets/0.2.0/Simple-Voice_0.2.0_amd64.deb and its .sha256 into the same
-# folder on the publishing Mac (scp), then on the Mac:
+# copy target/release-assets/0.2.0/Simple-Voice_0.2.0_amd64.{tar.gz,deb} and their .sha256
+# files into the same folder on the publishing Mac (scp), then on the Mac:
 just publish-linux 0.2.0   # scripts/release/publish-linux.sh
 ```
 
@@ -104,20 +104,29 @@ just publish-linux 0.2.0   # scripts/release/publish-linux.sh
 `tauri build --bundles deb` (its `beforeBuildCommand` builds the release Linux engine helper from
 `engine-linux/`), and checks the package before it is called done: its name and version, the
 packaged app's `simple-voice --version`, and the packaged engine helper answering `ping` and
-`model_status` (`engine-linux/check.sh`). whisper.cpp is compiled for any x86-64 CPU with AVX2
-and FMA (`.cargo/config.toml`), never for the build machine's own CPU. `publish-linux.sh` verifies
-the checksum and uploads both files with `gh release upload --clobber`.
+`model_status` (`engine-linux/check.sh`). It then packs the same files into
+`Simple-Voice_VERSION_amd64.tar.gz` (`simple-voice/bin/`, `simple-voice/share/`), the asset the
+installer uses; the `.deb` stays an optional asset for apt users. whisper.cpp is compiled for any
+x86-64 CPU with AVX2 and FMA (`.cargo/config.toml`), never for the build machine's own CPU; it
+uses the pre-C++11 libstdc++ ABI to match sherpa-onnx's prebuilt libraries (same file). The
+binaries need the build machine's glibc or newer, so build releases on Ubuntu 22.04 (glibc 2.35)
+or older. `publish-linux.sh` verifies the checksums and uploads the four files with
+`gh release upload --clobber`.
 
-Until the `.deb` is uploaded, Linux users who run the install command get a missing-download
+Until the tarball is uploaded, Linux users who run the install command get a missing-download
 error, so add it right after the macOS publish.
 
 `install.sh` hands over to `install-linux.sh` on Linux (downloaded from the same latest release,
-read whole before it runs, same options). That script checks for x86-64, apt and AVX2, downloads
-the `.deb` and its `.sha256`, verifies the checksum and the package name, quits the app, installs
-it with `apt-get install` through sudo (which also installs its dependencies), and reopens the
-app if it was running. `--uninstall` removes the package, the autostart entry, the webview data
-and the Groq key in the keyring; `--purge` also deletes `$XDG_DATA_HOME/simplevoice` and a moved
-database.
+read whole before it runs, same options). That script never runs sudo. It checks for x86-64 and
+AVX2 and, through `dpkg-query`, for the system libraries (WebKitGTK 4.1, GTK 3, the Ayatana tray
+indicator) and desktop tools the app uses, printing one `sudo apt install ...` line when any is
+missing (libraries stop the install; tools only warn). It downloads the tarball and its
+`.sha256`, verifies the checksum, checks with `ldd` that every linked library resolves, quits
+the app, replaces `~/.local/opt/simple-voice/`, links `~/.local/bin/simple-voice`, writes
+`~/.local/share/applications/simple-voice.desktop` and the icons, and reopens the app if it was
+running. `--uninstall` removes those, the autostart entry, the webview data and the Groq key in
+the keyring; `--purge` also deletes `$XDG_DATA_HOME/simplevoice` and a moved database. A `.deb`
+left by an older installer is reported with its `sudo apt remove` command.
 
 ## Signing and notarization
 

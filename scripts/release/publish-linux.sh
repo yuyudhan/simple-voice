@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/publish-linux.sh
-# Adds the Linux .deb built by scripts/release/build-linux.sh, and its checksum, to the GitHub
-# release vVERSION that scripts/release/publish.sh created. Runs on the publishing Mac, which
-# holds the GitHub credentials; the Linux build machine needs none.
+# Adds the Linux release built by scripts/release/build-linux.sh (the per-user tarball that
+# install-linux.sh installs, the optional .deb, and their checksums) to the GitHub release
+# vVERSION that scripts/release/publish.sh created. Runs on the publishing Mac, which holds the
+# GitHub credentials; the Linux build machine needs none. It runs on Linux too, given `gh`.
 #
 # Usage: scripts/release/publish-linux.sh VERSION
-#   Reads Simple-Voice_VERSION_amd64.deb and its .sha256 from
-#   $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir: <repo>/target).
+#   Reads Simple-Voice_VERSION_amd64.tar.gz, Simple-Voice_VERSION_amd64.deb and their .sha256
+#   from $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir: <repo>/target).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -20,20 +21,24 @@ tag="v${version}"
 export GH_REPO="${GH_REPO:-yuyudhan/simple-voice}"
 
 assets="${CARGO_TARGET_DIR:-${root}/target}/release-assets/${version}"
-asset="Simple-Voice_${version}_amd64.deb"
-for file in "$asset" "${asset}.sha256"; do
-    [ -f "${assets}/${file}" ] || {
-        echo "publish-linux: expected ${assets}/${file}; copy it from the Linux build" >&2
+files=()
+for asset in "Simple-Voice_${version}_amd64.tar.gz" "Simple-Voice_${version}_amd64.deb"; do
+    for file in "$asset" "${asset}.sha256"; do
+        [ -f "${assets}/${file}" ] || {
+            echo "publish-linux: expected ${assets}/${file}; copy it from the Linux build" >&2
+            exit 1
+        }
+        files+=("${assets}/${file}")
+    done
+    (cd "$assets" && sha256sum -c "${asset}.sha256" >/dev/null 2>&1 ||
+        shasum -a 256 -c "${asset}.sha256" >/dev/null) || {
+        echo "publish-linux: ${asset} does not match its .sha256" >&2
         exit 1
     }
 done
-(cd "$assets" && shasum -a 256 -c "${asset}.sha256" >/dev/null) || {
-    echo "publish-linux: ${asset} does not match its .sha256" >&2
-    exit 1
-}
 gh release view "$tag" >/dev/null 2>&1 || {
     echo "publish-linux: release ${tag} does not exist; publish the macOS build first" >&2
     exit 1
 }
-gh release upload "$tag" "${assets}/${asset}" "${assets}/${asset}.sha256" --clobber
-echo "publish-linux: uploaded ${asset} to ${GH_REPO} ${tag}"
+gh release upload "$tag" "${files[@]}" --clobber
+echo "publish-linux: uploaded the Linux tarball and .deb to ${GH_REPO} ${tag}"

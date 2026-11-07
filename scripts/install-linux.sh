@@ -1,33 +1,52 @@
 #!/usr/bin/env bash
 # FilePath: scripts/install-linux.sh
-# Installs, updates or uninstalls Simple Voice on Debian/Ubuntu Linux (x86-64). Published with
-# every GitHub release beside install.sh, which hands over to it on Linux, so the README's one
-# curl command works on both systems. It installs the release's .deb through apt (with sudo),
-# which also brings the libraries and desktop tools the app uses (WebKitGTK, the tray
-# indicator, xdotool, xclip, wl-clipboard, pactl, secret-tool).
+# Installs, updates or uninstalls Simple Voice on Debian/Ubuntu Linux (x86-64) for the current
+# user, without sudo. Published with every GitHub release beside install.sh, which hands over to
+# it on Linux, so the README's one curl command works on both systems.
 #
-# It checks the .deb against the release's .sha256 and its package name before installing,
-# quits the app first and reopens it afterwards when it was running. Piping is safe: all work
+# It downloads the release's Simple-Voice_VERSION_amd64.tar.gz, checks it against the release's
+# .sha256, and unpacks it into ~/.local/opt/simple-voice (the app and its engine helper side by
+# side), links ~/.local/bin/simple-voice to it and adds the menu entry and icons under
+# ~/.local/share. The system libraries the app links (WebKitGTK, GTK, the tray indicator) and
+# the desktop tools it calls (xdotool, xclip, wl-clipboard, pactl, secret-tool) come from apt;
+# this script never runs sudo: it checks for them and prints the one apt command to run when
+# something is missing.
+#
+# It quits the app first and reopens it afterwards when it was running. Piping is safe: all work
 # happens in main, called on the last line.
 #
-# Uninstalling quits the app and removes the package, the autostart entry, the webview's data
-# and the Groq key in the keyring. The data in $XDG_DATA_HOME/simplevoice stays unless --purge
-# is given.
+# Uninstalling quits the app and removes those files, the autostart entry, the webview's data and
+# the Groq key in the keyring. The data in $XDG_DATA_HOME/simplevoice stays unless --purge is
+# given.
 #
 # Options:
 #   --version X.Y.Z    Install that release instead of the latest.
 #   --uninstall        Remove the app; keep the data.
 #   --purge            With --uninstall, also delete the data and a moved database.
+#
+# SIMPLE_VOICE_RELEASES replaces https://github.com/yuyudhan/simple-voice/releases/download, for
+# testing a locally built release (file:///path, holding vVERSION/ with the assets); pass
+# --version with it.
 set -euo pipefail
 
 repo="yuyudhan/simple-voice"
 bundle_id="dev.yuyudhan.simplevoice"
 package="simple-voice"
-binary="/usr/bin/simple-voice"
-pattern="^${binary}( |$)"
-data_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/simplevoice"
+data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
+prefix="${HOME}/.local/opt/simple-voice"
+binary="${prefix}/simple-voice"
+link="${HOME}/.local/bin/simple-voice"
+desktop_file="${data_home}/applications/simple-voice.desktop"
+icons="${data_home}/icons/hicolor"
+# An install by an older release of this script: the .deb in /usr/bin.
+system_binary="/usr/bin/simple-voice"
+pattern="^(${binary}|${system_binary})( |$)"
+data_dir="${data_home}/simplevoice"
 autostart="${XDG_CONFIG_HOME:-${HOME}/.config}/autostart/${bundle_id}.desktop"
 database_file="simple-voice.db"
+# The shared libraries the app links and the tools it runs, as Debian/Ubuntu package names.
+required_packages=(libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1)
+tool_packages=(xdotool xclip wl-clipboard pulseaudio-utils libsecret-tools)
 
 say() {
     printf 'simple-voice: %s\n' "$*"
@@ -40,7 +59,7 @@ fail() {
 
 usage() {
     cat <<'EOF'
-Install, update or uninstall Simple Voice on Linux.
+Install, update or uninstall Simple Voice on Linux, for your user only (no sudo).
 
 usage: bash -s -- [options]   (piped), or bash install-linux.sh [options]
 
@@ -54,23 +73,38 @@ EOF
 check_platform() {
     [ "$(uname -s)" = "Linux" ] || fail "this installer is for Linux; use install.sh on macOS"
     [ "$(uname -m)" = "x86_64" ] || fail "Simple Voice for Linux needs an x86-64 computer"
-    if ! command -v apt-get >/dev/null 2>&1 || ! command -v dpkg-query >/dev/null 2>&1; then
-        fail "Simple Voice for Linux installs with apt (Debian, Ubuntu and their derivatives)"
-    fi
-    # whisper.cpp is built for AVX2 and FMA.
+    # whisper.cpp and ONNX Runtime are built for AVX2 and FMA.
     grep -q -w avx2 /proc/cpuinfo 2>/dev/null ||
         fail "Simple Voice for Linux needs a CPU with AVX2 (Intel Haswell, AMD Zen or later)"
 }
 
-# apt needs root. sudo asks on the terminal even when this script is piped; from the app's
-# Install button there is no terminal, so the user is told to run the command themselves.
-as_root() {
-    if [ "$(id -u)" -eq 0 ]; then
-        "$@"
-    elif sudo -n true 2>/dev/null || [ -t 2 ]; then
-        sudo "$@"
-    else
-        fail "installing needs your password: run the install command from README.md in a terminal"
+is_installed_package() {
+    dpkg-query -W -f='${Status}\n' "$1" 2>/dev/null | grep -q '^install ok installed$'
+}
+
+# The packages of "$@" that are not installed, space-separated. Without dpkg (not Debian or
+# Ubuntu) nothing can be told, and the app's own library check below still runs.
+missing_packages() {
+    command -v dpkg-query >/dev/null 2>&1 || return 0
+    local name missing=()
+    for name in "$@"; do
+        is_installed_package "$name" || missing+=("$name")
+    done
+    echo "${missing[*]}"
+}
+
+check_dependencies() {
+    local libraries tools
+    libraries=$(missing_packages "${required_packages[@]}")
+    tools=$(missing_packages "${tool_packages[@]}")
+    if [ -n "$libraries" ]; then
+        say "Simple Voice needs these system libraries first. Install them, then run this again:"
+        printf '\n    sudo apt install %s\n\n' "$libraries $tools" >&2
+        exit 1
+    fi
+    if [ -n "$tools" ]; then
+        say "optional tools are missing (pasting, selected text, muting, the Groq key store):"
+        printf '\n    sudo apt install %s\n\n' "$tools"
     fi
 }
 
@@ -83,8 +117,8 @@ latest_version() {
 }
 
 installed_version() {
-    dpkg-query -W -f='${Status} ${Version}\n' "$package" 2>/dev/null |
-        sed -n 's/^install ok installed //p'
+    [ -x "$binary" ] || return 0
+    "$binary" --version 2>/dev/null | sed -n 's/^simple-voice //p'
 }
 
 is_running() {
@@ -116,6 +150,20 @@ reopen() {
     setsid -f "$binary" </dev/null >/dev/null 2>&1 || true
 }
 
+# The menu entry and icons from the unpacked release, pointed at this install.
+install_desktop_entry() {
+    local tree=$1 icon
+    mkdir -p "$(dirname "$desktop_file")"
+    sed -e "s|^Exec=.*|Exec=\"${binary}\"|" -e "s|^Icon=.*|Icon=simple-voice|" \
+        "${tree}/share/applications/simple-voice.desktop" >"$desktop_file"
+    while IFS= read -r icon; do
+        mkdir -p "${icons}/$(dirname "$icon")"
+        cp "${tree}/share/icons/hicolor/${icon}" "${icons}/${icon}"
+    done < <(cd "${tree}/share/icons/hicolor" && find . -type f -name 'simple-voice.*' | sed 's|^\./||')
+    update-desktop-database -q "$(dirname "$desktop_file")" 2>/dev/null || true
+    gtk-update-icon-cache -q -t "$icons" 2>/dev/null || true
+}
+
 install_release() {
     version=$1
     case "$version" in
@@ -128,8 +176,8 @@ install_release() {
 
     tmp="${work}/download"
     mkdir "$tmp"
-    asset="Simple-Voice_${version}_amd64.deb"
-    base="https://github.com/${repo}/releases/download/v${version}"
+    asset="Simple-Voice_${version}_amd64.tar.gz"
+    base="${SIMPLE_VOICE_RELEASES:-https://github.com/${repo}/releases/download}/v${version}"
     say "downloading Simple Voice ${version}"
     if [ -t 2 ]; then
         progress=--progress-bar
@@ -142,21 +190,40 @@ install_release() {
         fail "download failed: ${base}/${asset}.sha256"
     (cd "$tmp" && sha256sum -c "${asset}.sha256" >/dev/null) ||
         fail "checksum mismatch for ${asset}; nothing was installed"
-    [ "$(dpkg-deb -f "${tmp}/${asset}" Package 2>/dev/null)" = "$package" ] ||
-        fail "${asset} is not the Simple Voice package; nothing was installed"
-    # apt reads local packages as its unprivileged _apt user.
-    chmod 755 "$work" "$tmp"
-    chmod 644 "${tmp}/${asset}"
+    tar -xzf "${tmp}/${asset}" -C "$tmp" || fail "${asset} is damaged; nothing was installed"
+    tree="${tmp}/${package}"
+    if ! [ -x "${tree}/bin/simple-voice" ] || ! [ -x "${tree}/bin/simple-voice-engine" ]; then
+        fail "${asset} is not the Simple Voice release; nothing was installed"
+    fi
+    unresolved=$(LC_ALL=C ldd "${tree}/bin/simple-voice" "${tree}/bin/simple-voice-engine" 2>&1 |
+        sed -n 's/^[[:space:]]*\([^ ]*\) => not found.*/\1/p' | sort -u | tr '\n' ' ')
+    [ -z "$unresolved" ] ||
+        fail "this system lacks libraries Simple Voice needs (${unresolved% }); install: sudo apt install ${required_packages[*]}"
 
     if is_running; then
         quit_app
     fi
-    # A new machine may need a fresh package index for the dependencies.
-    if ! as_root apt-get install -y -q "${tmp}/${asset}"; then
-        as_root apt-get update -q
-        as_root apt-get install -y -q "${tmp}/${asset}" || fail "apt could not install ${asset}"
+    mkdir -p "$(dirname "$prefix")" "$(dirname "$link")"
+    rm -rf "${prefix}.new"
+    mkdir "${prefix}.new"
+    cp "${tree}/bin/simple-voice" "${tree}/bin/simple-voice-engine" "${prefix}.new/"
+    rm -rf "${prefix}.old"
+    if [ -e "$prefix" ]; then
+        mv "$prefix" "${prefix}.old"
     fi
-    say "installed $("$binary" --version)"
+    mv "${prefix}.new" "$prefix"
+    rm -rf "${prefix}.old"
+    ln -sfn "$binary" "$link"
+    install_desktop_entry "$tree"
+    say "installed $("$binary" --version) in ${prefix}"
+    if is_installed_package "$package"; then
+        say "the system package from an older installer is still there; remove it with:"
+        printf '\n    sudo apt remove %s\n\n' "$package"
+    fi
+    case ":${PATH}:" in
+        *":${HOME}/.local/bin:"*) ;;
+        *) say "add ~/.local/bin to your PATH to run simple-voice from a terminal" ;;
+    esac
 }
 
 # A database moved in Settings > Privacy & data sits in a folder the user chose, which may hold
@@ -184,16 +251,24 @@ uninstall() {
     if is_running; then
         quit_app
     fi
-    if [ -n "$(installed_version)" ]; then
-        as_root apt-get remove -y -q "$package"
-        say "removed the ${package} package"
+    if [ -e "$prefix" ]; then
+        rm -rf "$prefix"
+        say "removed ${prefix}"
     fi
+    if [ -L "$link" ]; then
+        rm -f "$link"
+    fi
+    rm -f "$desktop_file"
+    find "$icons" -name 'simple-voice.*' -type f -delete 2>/dev/null || true
     # Development builds use ".dev" names and are left alone.
     rm -f "$autostart"
-    rm -rf "${XDG_DATA_HOME:-${HOME}/.local/share}/${bundle_id}" \
-        "${XDG_CACHE_HOME:-${HOME}/.cache}/${bundle_id}"
+    rm -rf "${data_home:?}/${bundle_id}" "${XDG_CACHE_HOME:-${HOME}/.cache}/${bundle_id}"
     secret-tool clear service "${bundle_id}.groq" account groq-api-key >/dev/null 2>&1 || true
-    say "removed the login entry, the web view's data and the saved Groq key"
+    say "removed the menu entry, the login entry, the web view's data and the saved Groq key"
+    if is_installed_package "$package"; then
+        say "the system package from an older installer is still there; remove it with:"
+        printf '\n    sudo apt remove %s\n\n' "$package"
+    fi
     if $purge; then
         remove_moved_database
         rm -rf "$data_dir"
@@ -235,6 +310,7 @@ main() {
     if $purge; then
         fail "--purge only goes with --uninstall"
     fi
+    check_dependencies
 
     was_running=false
     if is_running; then
@@ -259,8 +335,9 @@ main() {
 
 Dictate with Ctrl+/ (tap to start and stop, hold to talk). GNOME on Wayland gives apps no
 global shortcuts: add one in Settings > Keyboard > Custom Shortcuts with the command
-"simple-voice --toggle". Pasting under Wayland needs ydotool with access to /dev/uinput;
-without it the text is copied and you press Ctrl+V. Details: docs/linux.md in the repository.
+"simple-voice --toggle" (window managers can bind "simple-voice --start" and "--stop" for
+hold-to-talk). Pasting under Wayland needs ydotool with access to /dev/uinput; without it the
+text is copied and you press Ctrl+V. Details: docs/linux.md in the repository.
 EOF
 }
 
