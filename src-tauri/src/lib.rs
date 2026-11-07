@@ -21,25 +21,37 @@ use crate::platform::{
 };
 use crate::state::AppState;
 
-/// Passed to a second launch to toggle dictation in the running app.
+/// Passed to a second launch to control dictation in the running app: `--toggle` starts or
+/// stops it, `--start` and `--stop` let a window-manager binding hold-to-talk (press runs
+/// `--start`, release `--stop`).
 const TOGGLE_ARG: &str = "--toggle";
+const START_ARG: &str = "--start";
+const STOP_ARG: &str = "--stop";
+
+/// The dictation control a second launch's arguments ask for; the first one named wins.
+fn control_argument(args: &[String]) -> Option<dictation::Control> {
+    args.iter().skip(1).find_map(|arg| match arg.as_str() {
+        TOGGLE_ARG => Some(dictation::Control::Toggle),
+        START_ARG => Some(dictation::Control::Start),
+        STOP_ARG => Some(dictation::Control::Stop),
+        _ => None,
+    })
+}
 
 /// Builds and runs the app; returns when the user quits.
 pub fn run() -> tauri::Result<()> {
     init_tracing();
     let app = tauri::Builder::default()
         // Must be registered first so a second launch focuses this one before anything else runs.
-        // `simple-voice --toggle` starts or stops dictation in the running app instead: GNOME on
-        // Wayland gives global shortcuts to no app, so users bind that command there.
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if args.iter().skip(1).any(|arg| arg == TOGGLE_ARG) {
-                app.state::<AppState>()
-                    .dictation
-                    .send(dictation::Control::Toggle);
-            } else {
-                windows::show_main(app);
-            }
-        }))
+        // `simple-voice --toggle` (or `--start` / `--stop`) drives dictation in the running app
+        // instead: GNOME on Wayland gives global shortcuts to no app, and i3 or Sway users may
+        // prefer a window-manager binding, so users bind those commands there.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, args, _cwd| match control_argument(&args) {
+                Some(control) => app.state::<AppState>().dictation.send(control),
+                None => windows::show_main(app),
+            },
+        ))
         .plugin(shortcuts::plugin())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -222,4 +234,38 @@ fn report_startup_error(app: AppHandle, error: AppError) {
         state.message = Some(format!("Simple Voice could not open its database. {error}"));
         events::emit(&app, events::DICTATION_STATE, state);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_second_launch_names_its_dictation_control() {
+        use dictation::Control;
+        let cases = [
+            (&["simple-voice", "--toggle"][..], Some(Control::Toggle)),
+            (&["simple-voice", "--start"][..], Some(Control::Start)),
+            (&["simple-voice", "--stop"][..], Some(Control::Stop)),
+            (
+                &["simple-voice", "--autostart", "--stop"][..],
+                Some(Control::Stop),
+            ),
+            (
+                &["simple-voice", "--stop", "--start"][..],
+                Some(Control::Stop),
+            ),
+            (&["simple-voice"][..], None),
+            (&["simple-voice", "--startx"][..], None),
+            // The program name is never an argument, whatever it is called.
+            (&["--start"][..], None),
+        ];
+        for (values, expected) in cases {
+            assert_eq!(control_argument(&args(values)), expected, "{values:?}");
+        }
+    }
 }
