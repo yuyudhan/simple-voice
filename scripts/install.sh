@@ -96,7 +96,7 @@ latest_version() {
     version=${tag#v}
     # A release can be published from Linux before its Mac build exists. Then install the newest
     # release that has the Mac zip; the API lists releases newest first.
-    if ! curl -fsSLI -o /dev/null \
+    if ! curl -fsLI -o /dev/null \
         "https://github.com/${repo}/releases/download/${tag}/Simple-Voice_${version}_aarch64.zip"; then
         version=$(curl -fsSL "https://api.github.com/repos/${repo}/releases?per_page=30" |
             sed -n 's|.*/releases/download/v\([0-9.]*\)/Simple-Voice_[0-9.]*_aarch64\.zip".*|\1|p' |
