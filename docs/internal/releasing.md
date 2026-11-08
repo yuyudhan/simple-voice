@@ -128,6 +128,18 @@ running. `--uninstall` removes those, the autostart entry, the webview data and 
 the keyring; `--purge` also deletes `$XDG_DATA_HOME/simplevoice` and a moved database. A `.deb`
 left by an older installer is reported with its `sudo apt remove` command.
 
+### Linux-first releases
+
+Without a Mac at hand, a release can be published from Linux alone: set the version in the
+three files `release.sh` edits, commit `🔖 Release vX.Y.Z`, tag and push it, run
+`just build-linux X.Y.Z`, then `gh release create vX.Y.Z --verify-tag` with the tarball, the
+`.deb`, their `.sha256` files, `scripts/install.sh` and `scripts/install-linux.sh`. On macOS,
+`install.sh` finds no `Simple-Voice_X.Y.Z_aarch64.zip` on that latest release and installs the
+newest release that has one instead (GitHub's releases API, newest first), so new Mac installs
+keep working. Installed Mac apps still announce the version; Install update then reports the
+older Mac release as already installed. Add the Mac zip later with `just publish X.Y.Z` on the
+Mac, which uploads it to the existing release.
+
 ## Signing and notarization
 
 macOS keeps Microphone, Accessibility and Speech Recognition grants against the app's

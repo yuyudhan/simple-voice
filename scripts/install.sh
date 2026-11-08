@@ -93,7 +93,17 @@ latest_version() {
     url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest") ||
         fail "could not reach GitHub to find the latest release"
     tag=${url##*/}
-    echo "${tag#v}"
+    version=${tag#v}
+    # A release can be published from Linux before its Mac build exists. Then install the newest
+    # release that has the Mac zip; the API lists releases newest first.
+    if ! curl -fsSLI -o /dev/null \
+        "https://github.com/${repo}/releases/download/${tag}/Simple-Voice_${version}_aarch64.zip"; then
+        version=$(curl -fsSL "https://api.github.com/repos/${repo}/releases?per_page=30" |
+            sed -n 's|.*/releases/download/v\([0-9.]*\)/Simple-Voice_[0-9.]*_aarch64\.zip".*|\1|p' |
+            sed -n 1p) || version=""
+        [ -n "$version" ] || fail "no GitHub release has the macOS build yet"
+    fi
+    echo "$version"
 }
 
 installed_version() {
