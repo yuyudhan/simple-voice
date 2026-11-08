@@ -32,6 +32,9 @@
 set -euo pipefail
 
 repo="yuyudhan/simple-voice"
+# Every request: retry transient failures, give up on a connection that never opens, and abort
+# a transfer that stalls (under 1 KB/s for 30 s) instead of hanging.
+net=(--connect-timeout 15 --retry 3 --retry-delay 2 --speed-limit 1024 --speed-time 30)
 bundle_id="dev.yuyudhan.simplevoice"
 apps_dir="${HOME}/Applications"
 app="${apps_dir}/Simple Voice.app"
@@ -74,7 +77,7 @@ check_macos() {
 # runs, like this one, and gets the same options.
 run_linux_installer() {
     local script
-    script=$(curl -fsSL "https://github.com/${repo}/releases/latest/download/install-linux.sh") ||
+    script=$(curl "${net[@]}" -fsSL "https://github.com/${repo}/releases/latest/download/install-linux.sh") ||
         fail "could not download the Linux installer from GitHub"
     bash -c "$script" install-linux.sh "$@"
 }
@@ -90,15 +93,15 @@ check_platform() {
 
 latest_version() {
     # github.com/<repo>/releases/latest redirects to the newest tag; no API token or JSON needed.
-    url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest") ||
+    url=$(curl "${net[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest") ||
         fail "could not reach GitHub to find the latest release"
     tag=${url##*/}
     version=${tag#v}
     # A release can be published from Linux before its Mac build exists. Then install the newest
     # release that has the Mac zip; the API lists releases newest first.
-    if ! curl -fsLI -o /dev/null \
+    if ! curl "${net[@]}" -fsLI -o /dev/null \
         "https://github.com/${repo}/releases/download/${tag}/Simple-Voice_${version}_aarch64.zip"; then
-        version=$(curl -fsSL "https://api.github.com/repos/${repo}/releases?per_page=30" |
+        version=$(curl "${net[@]}" -fsSL "https://api.github.com/repos/${repo}/releases?per_page=30" |
             sed -n 's|.*/releases/download/v\([0-9.]*\)/Simple-Voice_[0-9.]*_aarch64\.zip".*|\1|p' |
             sed -n 1p) || version=""
         [ -n "$version" ] || fail "no GitHub release has the macOS build yet"
@@ -215,9 +218,9 @@ install_release() {
     else
         progress=--silent
     fi
-    curl -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
+    curl "${net[@]}" -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
         fail "download failed: ${base}/${asset}"
-    curl -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
+    curl "${net[@]}" -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
         fail "download failed: ${base}/${asset}.sha256"
     (cd "$tmp" && shasum -a 256 -c "${asset}.sha256" >/dev/null) ||
         fail "checksum mismatch for ${asset}; nothing was installed"

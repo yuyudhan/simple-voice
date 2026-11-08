@@ -30,6 +30,9 @@
 set -euo pipefail
 
 repo="yuyudhan/simple-voice"
+# Every request: retry transient failures, give up on a connection that never opens, and abort
+# a transfer that stalls (under 1 KB/s for 30 s) instead of hanging.
+net=(--connect-timeout 15 --retry 3 --retry-delay 2 --speed-limit 1024 --speed-time 30)
 bundle_id="dev.yuyudhan.simplevoice"
 package="simple-voice"
 data_home="${XDG_DATA_HOME:-${HOME}/.local/share}"
@@ -111,7 +114,7 @@ check_dependencies() {
 
 latest_version() {
     # github.com/<repo>/releases/latest redirects to the newest tag; no API token or JSON needed.
-    url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest") ||
+    url=$(curl "${net[@]}" -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/${repo}/releases/latest") ||
         fail "could not reach GitHub to find the latest release"
     tag=${url##*/}
     echo "${tag#v}"
@@ -185,9 +188,9 @@ install_release() {
     else
         progress=--silent
     fi
-    curl -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
+    curl "${net[@]}" -fL --show-error "$progress" -o "${tmp}/${asset}" "${base}/${asset}" ||
         fail "download failed: ${base}/${asset}"
-    curl -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
+    curl "${net[@]}" -fsSL -o "${tmp}/${asset}.sha256" "${base}/${asset}.sha256" ||
         fail "download failed: ${base}/${asset}.sha256"
     (cd "$tmp" && sha256sum -c "${asset}.sha256" >/dev/null) ||
         fail "checksum mismatch for ${asset}; nothing was installed"
