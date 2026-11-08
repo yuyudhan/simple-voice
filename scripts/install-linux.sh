@@ -40,7 +40,8 @@ desktop_file="${data_home}/applications/simple-voice.desktop"
 icons="${data_home}/icons/hicolor"
 # An install by an older release of this script: the .deb in /usr/bin.
 system_binary="/usr/bin/simple-voice"
-pattern="^(${binary}|${system_binary})( |$)"
+# The app as launched by the menu entry, the link, the .deb, or by name from PATH.
+pattern="^(${binary}|${link}|${system_binary}|simple-voice)( |$)"
 data_dir="${data_home}/simplevoice"
 autostart="${XDG_CONFIG_HOME:-${HOME}/.config}/autostart/${bundle_id}.desktop"
 database_file="simple-voice.db"
