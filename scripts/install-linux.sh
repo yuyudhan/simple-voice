@@ -8,7 +8,7 @@
 # .sha256, and unpacks it into ~/.local/opt/simple-voice (the app and its engine helper side by
 # side), links ~/.local/bin/simple-voice to it and adds the menu entry and icons under
 # ~/.local/share. The system libraries the app links (WebKitGTK, GTK, the tray indicator) and
-# the desktop tools it calls (xdotool, xclip, wl-clipboard, pactl, secret-tool) come from apt;
+# the desktop tools it calls (xdotool, xprop, xclip, wl-clipboard, pactl, secret-tool) come from apt;
 # this script never runs sudo: it checks for them and prints the one apt command to run when
 # something is missing.
 #
@@ -50,7 +50,7 @@ autostart="${XDG_CONFIG_HOME:-${HOME}/.config}/autostart/${bundle_id}.desktop"
 database_file="simple-voice.db"
 # The shared libraries the app links and the tools it runs, as Debian/Ubuntu package names.
 required_packages=(libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1)
-tool_packages=(xdotool xclip wl-clipboard pulseaudio-utils libsecret-tools)
+tool_packages=(xdotool x11-utils xclip wl-clipboard pulseaudio-utils libsecret-tools)
 
 say() {
     printf 'simple-voice: %s\n' "$*"

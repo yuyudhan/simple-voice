@@ -139,6 +139,7 @@ mod tests {
         FrontmostApp {
             name: Some(name.to_owned()),
             bundle_id: Some(bundle_id.to_owned()),
+            window: None,
         }
     }
 

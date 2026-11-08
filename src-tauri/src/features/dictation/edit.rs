@@ -168,7 +168,8 @@ pub(super) async fn run_edit(app: AppHandle, input: SessionInput, selection: Sel
     row.format_ms = Some(elapsed_ms(started));
 
     let delivered = if still_in(&state, frontmost.as_ref()).await {
-        delivery::deliver_in_order(&app, id, &edited, settings.restore_clipboard).await
+        let window = frontmost.as_ref().and_then(|front| front.window.as_deref());
+        delivery::deliver_in_order(&app, id, &edited, window, settings.restore_clipboard).await
     } else {
         match delivery::copy_to_clipboard(&edited) {
             Ok(()) => Delivery::NotPasted(APP_CHANGED.to_owned()),

@@ -123,6 +123,10 @@ pub struct GenerateRequest<'a> {
 pub struct FrontmostApp {
     pub name: Option<String>,
     pub bundle_id: Option<String>,
+    /// The focused window (Linux under X11 or Sway), for `paste` to focus again. The macOS
+    /// helper leaves it out: Cmd+V there lands in the app that was frontmost.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,9 +337,11 @@ impl EngineClient {
         self.request("frontmost_app", Value::Null, QUICK).await
     }
 
-    /// Posts Cmd+V to the focused app.
-    pub async fn paste(&self) -> AppResult<()> {
-        self.command("paste", Value::Null, QUICK)
+    /// Posts Cmd+V to the focused app; on Linux first focuses `window` (from `frontmost_app` at
+    /// the start of the dictation) again, and fails without pasting when it cannot.
+    pub async fn paste(&self, window: Option<&str>) -> AppResult<()> {
+        let params = params([("window", optional_text(window))]);
+        self.command("paste", params, QUICK)
             .await
             .map_err(|error| needs_accessibility(error, "paste"))
     }
@@ -677,7 +683,20 @@ mod tests {
     async fn paste_without_accessibility_is_a_permission_error() {
         let (client, _transport) =
             scripted(r#"{"id":$ID,"ok":false,"error":"accessibility permission missing"}"#);
-        assert!(matches!(client.paste().await, Err(AppError::Permission(_))));
+        assert!(matches!(
+            client.paste(None).await,
+            Err(AppError::Permission(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn paste_names_the_window_to_focus_again() {
+        let (client, transport) = scripted(r#"{"id":$ID,"ok":true,"result":{}}"#);
+        client.paste(Some("62914564")).await.unwrap();
+        client.paste(None).await.unwrap();
+        let seen = transport.seen.lock().clone();
+        assert_eq!(seen[0]["window"], "62914564");
+        assert!(seen[1].get("window").is_none());
     }
 
     #[tokio::test]

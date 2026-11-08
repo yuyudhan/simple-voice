@@ -1,6 +1,6 @@
 // FilePath: src-tauri/src/features/dictation/delivery.rs
-//! Puts text into the frontmost app: clipboard, then Cmd+V through the engine helper, in
-//! session order.
+//! Puts text into the app the dictation started in: clipboard, then one Cmd+V (Linux: the
+//! window focused again first) through the engine helper, in session order.
 
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -24,11 +24,14 @@ pub(crate) enum Delivery {
     NotPasted(String),
 }
 
-/// Pastes `text` as given unless a newer session's text already went out.
+/// Pastes `text` as given unless a newer session's text already went out. `window` is the
+/// window focused when the recording started (`FrontmostApp::window`, Linux only): the helper
+/// focuses it again, so the text lands there even if focus moved meanwhile, or not at all.
 pub(crate) async fn deliver_in_order(
     app: &AppHandle,
     session: u64,
     text: &str,
+    window: Option<&str>,
     restore_clipboard: bool,
 ) -> Delivery {
     let state = app.state::<AppState>();
@@ -45,7 +48,7 @@ pub(crate) async fn deliver_in_order(
         Ok(previous) => previous,
         Err(error) => return Delivery::NotPasted(format!("Could not use the clipboard: {error}")),
     };
-    match state.engine.paste().await {
+    match state.engine.paste(window).await {
         Ok(()) => {
             if restore_clipboard {
                 if let Some(previous) = previous {

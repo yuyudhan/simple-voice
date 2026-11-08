@@ -116,8 +116,9 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
             &settings.languages,
         )
     });
-    let (app_name, bundle_id) =
-        frontmost.map_or((None, None), |front| (front.name, front.bundle_id));
+    let (app_name, bundle_id, window) = frontmost.map_or((None, None, None), |front| {
+        (front.name, front.bundle_id, front.window)
+    });
     let mut row = NewHistory {
         created_at: started_at_ms,
         status: HistoryStatus::Failed,
@@ -202,7 +203,14 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     };
 
     let pasted = delivery::with_separator(&final_text);
-    let delivered = delivery::deliver_in_order(&app, id, &pasted, settings.restore_clipboard).await;
+    let delivered = delivery::deliver_in_order(
+        &app,
+        id,
+        &pasted,
+        window.as_deref(),
+        settings.restore_clipboard,
+    )
+    .await;
     row.latency_ms = elapsed_ms(stopped_at);
     row.raw_text = heard.text;
     row.model = heard.model;

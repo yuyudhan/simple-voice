@@ -49,7 +49,9 @@ Linux keyboards report no Fn key to apps, so dictation starts on **Ctrl+/**: tap
 stop, or hold to talk. Edit mode stays on Alt+/.
 
 **X11** (Ubuntu's "Ubuntu on Xorg" login, most other desktops): global shortcuts work everywhere,
-and the dictated text is pasted with `xdotool` (Ctrl+V into the focused window).
+and the dictated text is pasted with `xdotool` into the window that had focus when you started
+dictating, even if you clicked elsewhere meanwhile: Ctrl+V, or Ctrl+Shift+V in a terminal. If that
+window is gone, the text stays on the clipboard and the app says so.
 
 **Wayland** (Ubuntu's default GNOME session): Wayland gives global shortcuts to no app, so Ctrl+/
 only works while an X11 (XWayland) window has focus. Bind a desktop shortcut to the toggle

@@ -214,10 +214,17 @@ never build whisper.cpp or sherpa-onnx there. The `unsafe` FFI lives inside the 
 - Every other catalog model, and `generate`, `polish`, `translate`, live streams, diarization,
   system audio and the correction watch, fail with a reason the app shows ("Runs on macOS
   only ..."); `model_status` reports those models `unsupported`.
-- `paste`: Ctrl+V through `xdotool` under X11; under Wayland `ydotool` (needs write access to
+- `paste` (params: optional `window`): when `window` is given (the `window` that
+  `frontmost_app` returned at the start of the dictation), first focuses that window again
+  (`xdotool windowactivate --sync` under X11, `swaymsg [con_id=N] focus` under Sway) and fails
+  without pressing anything when it is gone or will not take focus, so the text stays on the
+  clipboard. Then presses the paste keys once: Ctrl+V, or Ctrl+Shift+V when the window is a
+  terminal (Ghostty, kitty, Alacritty, ...), where Ctrl+V reaches the program inside instead of
+  pasting. Keys go through `xdotool` under X11; under Wayland `ydotool` (needs write access to
   `/dev/uinput`) or `wtype` (not on GNOME). Without one, `permissions` reports Accessibility
   denied and `paste` fails with the `accessibility permission missing` marker, so the app shows
-  its copied-not-pasted notice. `frontmost_app` uses `xdotool` under X11 only; `selected_text`
+  its copied-not-pasted notice. `frontmost_app` answers the focused window's id and class
+  (`xdotool` and `xprop` under X11, `swaymsg` under Sway; empty elsewhere); `selected_text`
   reads the primary selection (`xclip` / `wl-paste`). The microphone is always granted (Linux has
   no per-app grant); Speech and System Audio are `restricted`.
 - `mute_output` / `unmute_output`: the default sink through `pactl` (PulseAudio or PipeWire),

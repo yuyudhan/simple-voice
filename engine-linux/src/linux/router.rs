@@ -65,6 +65,14 @@ struct EnabledParams {
     enabled: bool,
 }
 
+/// `window` is `frontmost_app`'s window from the start of the dictation; absent, the paste goes
+/// to whichever window has focus.
+#[derive(Debug, Default, Deserialize)]
+struct PasteParams {
+    #[serde(default)]
+    window: Option<String>,
+}
+
 /// `device` is the sink `mute_output` returned; `volume` is set when it muted by volume.
 #[derive(Debug, Deserialize)]
 struct UnmuteParams {
@@ -124,7 +132,8 @@ pub(crate) async fn route(
         }
         "frontmost_app" => to_value(&desktop::frontmost_app().await),
         "paste" => {
-            desktop::paste().await?;
+            let PasteParams { window } = parse::<Option<PasteParams>>(params)?.unwrap_or_default();
+            desktop::paste(window.as_deref()).await?;
             Ok(json!({}))
         }
         "selected_text" => Ok(desktop::selected_text().await),

@@ -10,6 +10,7 @@
                 "depends": [
                     "libayatana-appindicator3-1",
                     "xdotool",
+                    "x11-utils",
                     "xclip",
                     "wl-clipboard",
                     "pulseaudio-utils",
