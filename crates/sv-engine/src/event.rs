@@ -47,7 +47,7 @@ pub enum EngineEvent {
         reason: String,
     },
     /// An input device was plugged in or removed, or the default input changed (Core Audio's
-    /// device-change notification on macOS).
+    /// device-change notification on macOS, `pactl subscribe` on Linux).
     InputDevicesChanged,
 }
 

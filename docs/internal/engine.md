@@ -232,6 +232,12 @@ never build whisper.cpp or sherpa-onnx there. The `unsafe` FFI lives inside the 
 - `login_item` / `set_login_item`: `$XDG_CONFIG_HOME/autostart/dev.yuyudhan.simplevoice.desktop`,
   which starts the app with `--autostart`.
 - `watch_fn_key` answers inactive (no Fn key on Linux); overlay notifications are ignored.
+- `input_devices_changed`: `pactl subscribe` (`input_watch.rs`) reports sources, cards and the
+  server's default source. After a burst has been quiet for 300 ms, the helper checks the
+  microphone as the app does (`sv_audio::check_input`; a speaker monitor is not a microphone)
+  and sends the event only when the answer changed, so volume changes and recordings opening the
+  source stay quiet. When the subscription ends (the server stopped or restarted) it checks once
+  more and subscribes again after 10 s. Without `pactl` the app's 3 s poll is all there is.
 
 External tools run without a shell, with a timeout. `engine-linux/check.sh` (run by `just test`
 and `build-linux.sh`) checks `ping`, `model_status` and exit on stdin close against a built

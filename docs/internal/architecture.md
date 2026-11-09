@@ -890,8 +890,11 @@ Events (unsolicited, no id):
   of the start; the stream is dead. `problem` (`{"problem": "no_audio", "device": s}`,
   `{"problem": "no_device"}` or `{"problem": "permission_denied"}`) is present only when the
   failure says something about the microphone.
-- `{"event": "input_devices_changed"}` (macOS) when Core Audio's device list or default input
-  changes, coalesced; the app checks for a microphone at once instead of at its next poll.
+- `{"event": "input_devices_changed"}` when the microphones change, coalesced: on macOS when
+  Core Audio's device list or default input changes; on Linux when `pactl subscribe` reports a
+  source, card or default-source change that changes what `sv_audio::check_input` finds (a
+  microphone plugged in or pulled out, only the speaker monitor left, the sound server gone).
+  The app checks for a microphone at once instead of at its next poll.
 - `{"event": "system_audio_failed", "reason": s}` when system-audio capture stops by itself;
   its WAV keeps what was written.
 

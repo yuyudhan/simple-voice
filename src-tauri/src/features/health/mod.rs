@@ -134,7 +134,8 @@ async fn monitor(app: AppHandle) {
     }
 }
 
-/// The engine saw a microphone come or go (Core Audio's notification on macOS): check now.
+/// The engine saw a microphone come or go (Core Audio on macOS, `pactl subscribe` on Linux):
+/// check now.
 pub(crate) fn devices_changed(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

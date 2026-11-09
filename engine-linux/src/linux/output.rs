@@ -23,6 +23,11 @@ impl Output {
         self.line(&json!({ "id": id, "ok": false, "error": message }));
     }
 
+    /// An unsolicited event, which carries no request id.
+    pub(crate) fn event(&self, name: &str) {
+        self.line(&json!({ "event": name }));
+    }
+
     fn line(&self, value: &Value) {
         let mut text = value.to_string();
         text.push('\n');

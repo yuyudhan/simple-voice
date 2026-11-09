@@ -6,6 +6,7 @@
 
 mod autostart;
 mod desktop;
+mod input_watch;
 mod log;
 mod models;
 mod mute;
@@ -87,6 +88,7 @@ fn models_dir_argument(mut arguments: impl Iterator<Item = String>) -> Option<Pa
 
 async fn serve(engine: Arc<Engine>) {
     let running: Running = Arc::default();
+    input_watch::spawn(Arc::clone(&engine.output));
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     loop {
         match lines.next_line().await {

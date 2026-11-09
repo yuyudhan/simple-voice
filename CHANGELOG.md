@@ -33,3 +33,8 @@ Release notes for each version are also on the
 - On Linux, a failing or missing audio device no longer floods the log with tens of thousands of
   ALSA errors a minute. The failing stream (microphone capture or the sound cues' output) is
   closed, the error is logged once, and the app reports the problem.
+- `simple-voice --start` with no usable microphone prints why (the banner's words, such as "No
+  microphone connected") and exits with status 1, instead of doing nothing.
+- On Linux, plugging in or pulling out a microphone (or changing the default input) shows or
+  clears the "No microphone connected" banner at once instead of at the next check a few seconds
+  later.
