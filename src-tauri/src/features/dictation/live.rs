@@ -72,14 +72,17 @@ impl LiveState {
             .is_none_or(|current| current.session_id != session_id || current.failed)
     }
 
-    fn end(&self, session_id: u64) {
+    /// Forgets `session_id`'s stream and returns it if one was attached. Runs under the same
+    /// lock as `attach`, so a stream is either returned here or refused there, never lost.
+    fn take(&self, session_id: u64) -> Option<u64> {
         let mut current = lock(&self.current);
         if current
             .as_ref()
             .is_some_and(|current| current.session_id == session_id)
         {
-            *current = None;
+            return current.take().and_then(|current| current.stream_id);
         }
+        None
     }
 }
 
@@ -198,16 +201,16 @@ async fn feed(
 impl LiveSession {
     /// Ends the stream: the recording stopped (the pasted text comes from transcribing the whole
     /// recording, which is more accurate than the stream's sliding windows) or was cancelled.
+    ///
+    /// A feeder still waiting for `stream_start` is left running rather than aborted: aborting it
+    /// dropped the helper's answer, so a stream started for a recording that had already failed
+    /// (no microphone) was never cancelled and the helper waited for its audio forever. Ending
+    /// the state first makes the feeder's `attach` fail, and the feeder cancels the stream itself.
     pub(crate) async fn end(self, app: &AppHandle) {
         self.overflowed.store(true, Ordering::Relaxed);
-        self.feeder.abort();
         let state = app.state::<AppState>();
-        let stream_id = lock(&state.dictation.live.current)
-            .as_ref()
-            .filter(|current| current.session_id == self.session_id)
-            .and_then(|current| current.stream_id);
-        state.dictation.live.end(self.session_id);
-        if let Some(stream_id) = stream_id {
+        if let Some(stream_id) = state.dictation.live.take(self.session_id) {
+            self.feeder.abort();
             cancel_stream(&state, stream_id).await;
         }
     }
@@ -304,9 +307,25 @@ mod tests {
         assert!(!live.failed(1));
         assert!(live.attach(1, 77));
         assert!(!live.attach(2, 78));
-        live.end(2);
+        assert_eq!(live.take(2), None);
         assert!(!live.failed(1));
-        live.end(1);
+        assert_eq!(live.take(1), Some(77));
         assert!(live.failed(1));
+    }
+
+    /// Scenario 8: the recording failed (no microphone) while the helper was still starting the
+    /// stream. The answer that arrives after the end must be refused, so the feeder cancels the
+    /// stream instead of leaving the helper waiting for audio that never comes.
+    #[test]
+    fn scenario_8_a_stream_started_after_the_recording_ended_is_refused_for_cancelling() {
+        let live = LiveState::default();
+        live.begin(5);
+        // Ended before `stream_start` answered: nothing attached yet, nothing to cancel here.
+        assert_eq!(live.take(5), None);
+        // The late answer is refused, which is the feeder's cue to cancel the stream.
+        assert!(!live.attach(5, 91));
+        assert!(live.failed(5));
+        // A taken session is gone for good: no second cancel from a repeated end.
+        assert_eq!(live.take(5), None);
     }
 }

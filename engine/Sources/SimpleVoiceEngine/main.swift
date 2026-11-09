@@ -475,10 +475,9 @@ AppLogger.minimumLevel = .info
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
 
-let engine = Engine(
-    modelsDirectory: modelsDirectory,
-    output: Output(handle: FileHandle(fileDescriptor: protocolDescriptor, closeOnDealloc: false))
-)
+let protocolOutput = Output(handle: FileHandle(fileDescriptor: protocolDescriptor, closeOnDealloc: false))
+let engine = Engine(modelsDirectory: modelsDirectory, output: protocolOutput)
+InputDevices.watchChanges(output: protocolOutput)
 Log.info("started (version \(engineVersion), models in \(modelsDirectory.path))")
 
 Task.detached { [engine] in

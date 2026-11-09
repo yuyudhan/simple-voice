@@ -60,10 +60,13 @@ private struct StreamPartialLine: Encodable, Sendable {
     let stable: String
 }
 
+/// `problem` is present only when the failure says something about the microphone (no audio
+/// arrived); every other failure keeps the plain `streamId` and `reason` shape.
 private struct StreamFailedLine: Encodable, Sendable {
     let event = "stream_failed"
     let streamId: UInt64
     let reason: String
+    let problem: CaptureProblem?
 }
 
 /// The running live sessions. `feed` is called synchronously from the stdin reader so audio is
@@ -72,6 +75,10 @@ final class LiveStreams: @unchecked Sendable {
     /// More unprocessed audio than this means the recogniser cannot keep up; the stream fails
     /// rather than growing without bound, and the app transcribes the recording afterwards.
     static let maxQueuedSamples = 30 * Int(AudioLoader.sampleRate)
+    /// A stream that has received no audio this long after it started is reported as failed with
+    /// `no_audio`: without it, a Mac with no working microphone would wait silently forever
+    /// (FluidAudio only logs that it is waiting for audio).
+    static let noAudioTimeout: Duration = .seconds(3)
 
     private let output: Output
     private let lock = NSLock()
@@ -106,7 +113,8 @@ final class LiveStreams: @unchecked Sendable {
         if overlay {
             await MainActor.run { OverlayController.shared.setLive("", stream: id) }
         }
-        Log.info("live stream \(id) started")
+        let seconds = Self.noAudioTimeout.components.seconds
+        Log.info("live stream \(id) started, waiting for audio (no_audio unless it arrives within \(seconds) s)")
         return id
     }
 
@@ -151,9 +159,12 @@ private final class LiveSession: @unchecked Sendable {
     private let continuation: AsyncStream<[Float]>.Continuation
     private let lock = NSLock()
     private var queued = 0
+    private var received = false
     private var failure: String?
     private var last = LiveHypothesis()
     private var pump: Task<Void, Never>?
+    /// Fails the stream with `no_audio` unless audio arrives within `LiveStreams.noAudioTimeout`.
+    private var watchdog: Task<Void, Never>?
     /// Recognisers decode on their own tasks, so one poller (the only publisher, which keeps
     /// partials in order) reads the hypothesis on a short timer.
     private var poller: Task<Void, Never>?
@@ -185,6 +196,14 @@ private final class LiveSession: @unchecked Sendable {
                 await self.refresh()
             }
         }
+        watchdog = Task { [weak self] in
+            do {
+                try await Task.sleep(for: LiveStreams.noAudioTimeout)
+            } catch {
+                return
+            }
+            await self?.failWithoutAudio()
+        }
     }
 
     /// Publishes the hypothesis when it changed since the last publication.
@@ -201,13 +220,18 @@ private final class LiveSession: @unchecked Sendable {
     }
 
     func enqueue(_ samples: [Float]) {
-        let overflow = lock.withLock { () -> Bool in
-            guard failure == nil else { return false }
+        let (overflow, first) = lock.withLock { () -> (Bool, Bool) in
+            guard failure == nil else { return (false, false) }
             if queued + samples.count > LiveStreams.maxQueuedSamples {
-                return true
+                return (true, false)
             }
             queued += samples.count
-            return false
+            let first = !received
+            received = true
+            return (false, first)
+        }
+        if first {
+            watchdog?.cancel()
         }
         if overflow {
             Task { await fail("live transcription fell more than 30 s behind the recording") }
@@ -218,6 +242,7 @@ private final class LiveSession: @unchecked Sendable {
 
     func finish() async throws -> TranscriptResult {
         continuation.finish()
+        watchdog?.cancel()
         await pump?.value
         poller?.cancel()
         defer { clearOverlay() }
@@ -232,6 +257,7 @@ private final class LiveSession: @unchecked Sendable {
 
     func cancel() async {
         continuation.finish()
+        watchdog?.cancel()
         pump?.cancel()
         poller?.cancel()
         await recognizer.cancel()
@@ -239,7 +265,14 @@ private final class LiveSession: @unchecked Sendable {
         Log.info("live stream \(id) cancelled")
     }
 
-    private func fail(_ reason: String) async {
+    /// Runs when the no-audio deadline passes; audio that raced the timer wins.
+    private func failWithoutAudio() async {
+        guard !lock.withLock({ received }) else { return }
+        let seconds = LiveStreams.noAudioTimeout.components.seconds
+        await fail("no audio reached the live stream within \(seconds) s", problem: InputDevices.noAudioProblem())
+    }
+
+    private func fail(_ reason: String, problem: CaptureProblem? = nil) async {
         let first = lock.withLock { () -> Bool in
             guard failure == nil else { return false }
             failure = reason
@@ -247,8 +280,9 @@ private final class LiveSession: @unchecked Sendable {
         }
         guard first else { return }
         continuation.finish()
+        watchdog?.cancel()
         Log.error("live stream \(id): \(reason)")
-        await output.event(StreamFailedLine(streamId: id, reason: reason))
+        await output.event(StreamFailedLine(streamId: id, reason: reason, problem: problem))
     }
 
     private func publish(_ hypothesis: LiveHypothesis) async {

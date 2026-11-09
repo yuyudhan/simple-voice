@@ -32,17 +32,32 @@ pub enum EngineEvent {
         text: String,
         stable: String,
     },
-    /// The stream is dead (recogniser error, or more than 30 s of audio queued); transcribe the
-    /// recording instead.
+    /// The stream is dead (recogniser error, more than 30 s of audio queued, or no audio within
+    /// 3 s of its start); transcribe the recording instead.
     StreamFailed {
         #[serde(rename = "streamId")]
         stream_id: u64,
         reason: String,
+        /// Set when the input is to blame (no audio, no device, no permission).
+        #[serde(default)]
+        problem: Option<StreamProblem>,
     },
     /// The system-audio capture stopped by itself; its WAV keeps what was written.
     SystemAudioFailed {
         reason: String,
     },
+    /// An input device was plugged in or removed, or the default input changed (Core Audio's
+    /// device-change notification on macOS).
+    InputDevicesChanged,
+}
+
+/// Why a live stream got no usable audio, in the helper's protocol words: `problem` is
+/// `no_audio`, `no_device` or `permission_denied`, the same names as the app's capture problems.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct StreamProblem {
+    pub problem: String,
+    #[serde(default)]
+    pub device: Option<String>,
 }
 
 /// Receives every event the helper emits; called on the thread that forwards stdout.

@@ -184,11 +184,17 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 text,
                 stable,
             } => dictation::on_stream_partial(&events_app, stream_id, &text, &stable),
-            EngineEvent::StreamFailed { stream_id, reason } => {
+            EngineEvent::StreamFailed {
+                stream_id, reason, ..
+            } => {
                 dictation::on_stream_failed(&events_app, stream_id, &reason);
             }
             EngineEvent::SystemAudioFailed { reason } => {
                 features::meetings::on_system_audio_failed(&events_app, reason);
+            }
+            // Consumed by the microphone check once it listens for device changes.
+            EngineEvent::InputDevicesChanged => {
+                tracing::debug!("input devices changed");
             }
         }));
 
