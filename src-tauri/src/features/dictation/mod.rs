@@ -4,6 +4,7 @@
 //! edit mode (the selected text rewritten by a spoken instruction), ordered delivery into the
 //! frontmost app, and learning from the corrections made to pasted text.
 
+mod capture_hooks;
 mod context;
 mod coordinator;
 mod delivery;

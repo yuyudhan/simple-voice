@@ -9,6 +9,7 @@ mod capture;
 mod cue_output;
 mod cues;
 mod devices;
+mod meter;
 mod resample;
 mod watch;
 mod wav;

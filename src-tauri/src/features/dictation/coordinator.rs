@@ -4,16 +4,16 @@
 //! pipeline task so a new dictation can start while the previous one is still transcribing.
 
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use sv_audio::{CaptureHooks, Cue, ProblemSink, Recorder, Recording};
+use sv_audio::{CaptureHooks, Cue, Recorder, Recording};
 use sv_domain::{AppError, DictationPhase, DictationState, Issue, Platform, Settings, StyleSource};
 use sv_engine::FrontmostApp;
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc;
 
+use super::capture_hooks::{level_emitter, problem_reporter};
 use super::context::{self, ContextTask};
 use super::edit::{capture_selection, edit_state, SelectionTask};
 use super::learning;
@@ -23,8 +23,8 @@ use super::{publish, publish_message, publish_phase, Control};
 use crate::features::{health, llm, permissions};
 use crate::platform::output_mute::{self, Muting};
 use crate::platform::shortcuts::{self, Binding};
-use crate::platform::{overlay, windows};
-use crate::state::{lock, now_ms, AppState};
+use crate::platform::windows;
+use crate::state::{now_ms, AppState};
 
 /// Longest the start may wait on the engine for the frontmost app and permissions.
 const START_PROBE_TIMEOUT: Duration = Duration::from_millis(150);
@@ -34,8 +34,6 @@ const HOLD_THRESHOLD: Duration = Duration::from_millis(350);
 const MIN_RECORDING_MS: i64 = 300;
 /// Peak amplitude below which a recording is treated as silence (about -40 dBFS).
 const SILENCE_PEAK: i32 = 330;
-/// ~30 Hz level updates.
-const LEVEL_INTERVAL: Duration = Duration::from_millis(33);
 
 struct Active {
     id: u64,
@@ -481,31 +479,4 @@ fn is_silent(samples: &[i16]) -> bool {
     samples
         .iter()
         .all(|sample| i32::from(*sample).abs() < SILENCE_PEAK)
-}
-
-/// Forwards the recorder's level to the pill at most ~30 times a second.
-fn level_emitter(app: AppHandle) -> Box<dyn Fn(f32) + Send + 'static> {
-    let last = Mutex::new(None::<Instant>);
-    Box::new(move |level: f32| {
-        {
-            let mut last = lock(&last);
-            if last.is_some_and(|at| at.elapsed() < LEVEL_INTERVAL) {
-                return;
-            }
-            *last = Some(Instant::now());
-        }
-        overlay::level(&app, level.clamp(0.0, 1.0));
-    })
-}
-
-/// Records what the microphone does wrong during session `id` in the app's health, and stops the
-/// dictation when the problem ended the capture, so the user is never left recording nothing.
-fn problem_reporter(app: AppHandle, id: u64) -> ProblemSink {
-    Box::new(move |problem| {
-        let state = app.state::<AppState>();
-        health::capture_problem(&state, problem);
-        if problem.ends_recording() {
-            state.dictation.send(Control::CaptureEnded(id));
-        }
-    })
 }

@@ -31,9 +31,8 @@ import type {
     GroqKeyStatus,
     DictationPartial,
     NavigateTarget,
-    Health,
-    IssueAction,
 } from "./types";
+import type { Health, IssueAction } from "./health";
 import type {
     Meeting,
     Speaker,
@@ -50,6 +49,7 @@ import type {
 
 export * from "./types";
 export * from "./meetings";
+export * from "./health";
 
 export const api = {
     getSettings: () => invoke<Settings>("get_settings"),

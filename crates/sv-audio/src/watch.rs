@@ -178,11 +178,6 @@ impl ErrorLog {
             );
         }
     }
-
-    #[cfg(test)]
-    fn logged(&self) -> Option<&str> {
-        self.last.as_deref()
-    }
 }
 
 #[cfg(test)]
@@ -261,7 +256,8 @@ mod tests {
         assert_eq!(watch.errors.repeats, 10_000);
         assert!(watch
             .errors
-            .logged()
+            .last
+            .as_deref()
             .is_some_and(|text| text.contains("Disconnected")));
     }
 
