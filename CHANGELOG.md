@@ -5,7 +5,7 @@
 Release notes for each version are also on the
 [GitHub releases page](https://github.com/yuyudhan/simple-voice/releases).
 
-## Unreleased
+## v0.4.0 - 2026-11-09
 
 ### Added
 
