@@ -43,6 +43,8 @@ pub(crate) enum Control {
     ShortcutChord(Binding),
     /// The maximum recording length of this session elapsed.
     Watchdog(u64),
+    /// This session's capture ended by itself (the microphone went away or sent nothing).
+    CaptureEnded(u64),
 }
 
 /// Shared view of the coordinator, readable from any thread.

@@ -22,6 +22,8 @@ pub(crate) const MEETINGS_CHANGED: &str = "meetings-changed";
 pub(crate) const MODELS_CHANGED: &str = "models-changed";
 /// The engine helper started, came up or went down (`EngineStatus`).
 pub(crate) const ENGINE_STATUS: &str = "engine-status";
+/// What is wrong right now, each issue with its words and fixes (`Health`).
+pub(crate) const HEALTH_CHANGED: &str = "health-changed";
 
 /// Emits to every window. A failed emit only means no webview is listening, so it is logged.
 pub(crate) fn emit<S: Serialize + Clone>(app: &AppHandle, event: &str, payload: S) {

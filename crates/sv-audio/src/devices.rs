@@ -3,7 +3,7 @@
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
-use sv_domain::{AppError, AppResult};
+use sv_domain::{AppResult, CaptureProblem};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +36,7 @@ pub fn list_microphones() -> AppResult<Vec<Microphone>> {
 /// plugin by description: the null device that records silence, rate converters, each sound card
 /// several times. Its `default` PCM is the default source of PulseAudio or PipeWire, which the
 /// user picks in the desktop's sound settings, so Linux offers that one only.
-fn candidates(host: &cpal::Host) -> AppResult<Vec<(cpal::Device, String)>> {
+fn candidates(host: &cpal::Host) -> Result<Vec<(cpal::Device, String)>, CaptureProblem> {
     if cfg!(target_os = "linux") {
         return Ok(host
             .default_input_device()
@@ -46,7 +46,7 @@ fn candidates(host: &cpal::Host) -> AppResult<Vec<(cpal::Device, String)>> {
     }
     Ok(host
         .input_devices()
-        .map_err(|error| audio_error(&error))?
+        .map_err(|error| capture_problem(&error, None))?
         .filter_map(|device| device_name(&device).map(|name| (device, name)))
         .collect())
 }
@@ -72,7 +72,7 @@ pub(crate) fn is_built_in_name(name: &str) -> bool {
 pub(crate) fn select_input_device(
     host: &cpal::Host,
     requested: Option<&str>,
-) -> AppResult<(cpal::Device, String)> {
+) -> Result<(cpal::Device, String), CaptureProblem> {
     let mut devices = candidates(host)?;
 
     let mut chosen = None;
@@ -97,7 +97,7 @@ pub(crate) fn select_input_device(
         _ => host
             .default_input_device()
             .and_then(|device| device_name(&device).map(|name| (device, name)))
-            .ok_or_else(|| AppError::Audio("No microphone is connected.".to_owned())),
+            .ok_or(CaptureProblem::NoDevice),
     }
 }
 
@@ -110,25 +110,27 @@ pub(crate) fn automatic_choice(names: &[&str], default_name: Option<&str>) -> Op
         .or_else(|| (!names.is_empty()).then_some(0))
 }
 
-/// Turns a cpal failure into a message that tells the user what to do about it.
-pub(crate) fn audio_error(error: &cpal::Error) -> AppError {
-    let message = match error.kind() {
-        cpal::ErrorKind::PermissionDenied => "Microphone access is denied. Allow Simple Voice in \
-             System Settings → Privacy & Security → Microphone, then try again."
-            .to_owned(),
-        cpal::ErrorKind::DeviceBusy => {
-            "The microphone is busy in another app. Close that app or pick another microphone."
-                .to_owned()
-        }
-        cpal::ErrorKind::DeviceNotAvailable => {
-            "The microphone was disconnected or is not available.".to_owned()
-        }
-        cpal::ErrorKind::UnsupportedConfig => {
-            format!("The microphone does not support its own default format: {error}")
-        }
-        _ => format!("Microphone error: {error}"),
-    };
-    AppError::Audio(message)
+/// Names a cpal failure on `device` (when one was chosen) as the problem the user can act on.
+pub(crate) fn capture_problem(error: &cpal::Error, device: Option<&str>) -> CaptureProblem {
+    let named = || device.unwrap_or("The microphone").to_owned();
+    match error.kind() {
+        cpal::ErrorKind::PermissionDenied => CaptureProblem::PermissionDenied,
+        cpal::ErrorKind::DeviceBusy => CaptureProblem::Busy { device: named() },
+        cpal::ErrorKind::DeviceNotAvailable => match device {
+            Some(device) => CaptureProblem::Disconnected {
+                device: device.to_owned(),
+            },
+            None => CaptureProblem::NoDevice,
+        },
+        cpal::ErrorKind::UnsupportedConfig => CaptureProblem::Failed {
+            device: device.map(str::to_owned),
+            reason: format!("it does not support its own default format ({error})"),
+        },
+        _ => CaptureProblem::Failed {
+            device: device.map(str::to_owned),
+            reason: error.to_string(),
+        },
+    }
 }
 
 #[cfg(test)]

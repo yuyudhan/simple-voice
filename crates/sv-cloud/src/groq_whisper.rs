@@ -10,7 +10,7 @@ use bytes::Bytes;
 use reqwest::multipart::{Form, Part};
 use serde::de::IgnoredAny;
 use serde::Deserialize;
-use sv_domain::{AppError, AppResult, TranscriptQuality};
+use sv_domain::{AppError, AppResult, ProviderFault, TranscriptQuality};
 
 const TRANSCRIPTION_URL: &str = "https://api.groq.com/openai/v1/audio/transcriptions";
 const MODELS_URL: &str = "https://api.groq.com/openai/v1/models";
@@ -284,15 +284,27 @@ fn language_code(name: &str) -> Option<&'static str> {
 
 fn transport_error(error: &reqwest::Error, limit: Duration) -> AppError {
     if error.is_timeout() {
-        AppError::network(format!("Groq did not answer within {} s", limit.as_secs()))
+        AppError::Provider {
+            fault: ProviderFault::TimedOut,
+            message: format!("Groq did not answer within {} s", limit.as_secs()),
+        }
     } else {
-        AppError::network(format!("Could not reach Groq: {error}"))
+        AppError::Provider {
+            fault: ProviderFault::Offline,
+            message: format!("Could not reach Groq: {error}"),
+        }
     }
 }
 
+/// A non-200 answer; a refused key and a rate limit are typed so the app can name the fix.
 fn http_error(status: u16, body: &[u8]) -> AppError {
     let message = crate::api_error_message(body).unwrap_or_else(|| format!("Groq HTTP {status}"));
-    AppError::Network(message)
+    let fault = match status {
+        401 | 403 => ProviderFault::Unauthorized,
+        429 => ProviderFault::RateLimited,
+        _ => return AppError::Network(message),
+    };
+    AppError::Provider { fault, message }
 }
 
 #[cfg(test)]
@@ -344,6 +356,21 @@ mod tests {
             http_error(503, b"upstream down"),
             AppError::Network("Groq HTTP 503".into())
         );
+    }
+
+    #[test]
+    fn a_refused_key_and_a_rate_limit_are_typed_faults() {
+        let refused = http_error(401, br#"{"error":{"message":"Invalid API Key"}}"#);
+        assert_eq!(refused.provider_fault(), Some(ProviderFault::Unauthorized));
+        assert_eq!(refused.to_string(), "Invalid API Key");
+        assert_eq!(
+            http_error(403, b"").provider_fault(),
+            Some(ProviderFault::Unauthorized)
+        );
+        let limited = http_error(429, br#"{"error":{"message":"Rate limit reached"}}"#);
+        assert_eq!(limited.provider_fault(), Some(ProviderFault::RateLimited));
+        assert_eq!(limited.to_string(), "Rate limit reached");
+        assert_eq!(http_error(500, b"").provider_fault(), None);
     }
 
     /// Shaped like Groq's `verbose_json` response for a two-segment Hinglish clip.

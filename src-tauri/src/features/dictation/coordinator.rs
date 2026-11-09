@@ -7,10 +7,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use sv_audio::{Cue, Recorder, Recording};
-use sv_domain::{
-    AppError, DictationPhase, DictationState, PermissionStatus, Settings, StyleSource,
-};
+use sv_audio::{CaptureHooks, Cue, ProblemSink, Recorder, Recording};
+use sv_domain::{AppError, DictationPhase, DictationState, Issue, Platform, Settings, StyleSource};
 use sv_engine::FrontmostApp;
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
@@ -22,10 +20,10 @@ use super::learning;
 use super::live::{self, LiveSession};
 use super::pipeline::{self, SessionInput};
 use super::{publish, publish_message, publish_phase, Control};
-use crate::features::{llm, permissions};
+use crate::features::{health, llm, permissions};
 use crate::platform::output_mute::{self, Muting};
-use crate::platform::overlay;
 use crate::platform::shortcuts::{self, Binding};
+use crate::platform::{overlay, windows};
 use crate::state::{lock, now_ms, AppState};
 
 /// Longest the start may wait on the engine for the frontmost app and permissions.
@@ -38,10 +36,6 @@ const MIN_RECORDING_MS: i64 = 300;
 const SILENCE_PEAK: i32 = 330;
 /// ~30 Hz level updates.
 const LEVEL_INTERVAL: Duration = Duration::from_millis(33);
-
-pub(crate) const MICROPHONE_DENIED: &str =
-    "Simple Voice needs microphone access. Grant it in System Settings → Privacy & Security → \
-     Microphone.";
 
 struct Active {
     id: u64,
@@ -95,6 +89,12 @@ impl Coordinator {
             Control::Watchdog(id) => {
                 if self.active.as_ref().is_some_and(|active| active.id == id) {
                     tracing::info!(session = id, "maximum recording length reached");
+                    self.stop().await;
+                }
+            }
+            Control::CaptureEnded(id) => {
+                if self.active.as_ref().is_some_and(|active| active.id == id) {
+                    tracing::info!(session = id, "capture ended by itself");
                     self.stop().await;
                 }
             }
@@ -199,12 +199,15 @@ impl Coordinator {
         );
         if let Ok(Ok(permissions)) = permissions {
             permissions::observe(&app, permissions);
-            if matches!(
-                permissions.microphone,
-                PermissionStatus::Denied | PermissionStatus::Restricted
-            ) {
-                return self.fail_start(id, Some(&settings), MICROPHONE_DENIED);
-            }
+            state
+                .health
+                .update(|facts| facts.permissions = Some(permissions));
+        }
+        // A dictation that cannot work is refused now, with the reason and its fix, instead of
+        // recording into nothing: no microphone, microphone access off, no voice model, engine
+        // down.
+        if let Some(issue) = health::blocking_issue(&app).await {
+            return self.refuse(id, &settings, &issue);
         }
         let frontmost = frontmost.ok().and_then(Result::ok);
         // The style is decided for the app in front at the start and kept for this recording.
@@ -234,14 +237,26 @@ impl Coordinator {
             .then(|| Muting::start(output_mute::backend(&app), output_mute::marker_path()));
         let recorder = {
             let microphone = settings.microphone.clone();
-            let on_level = level_emitter(app.clone());
+            let hooks = CaptureHooks {
+                on_level: level_emitter(app.clone()),
+                on_chunk: sink,
+                on_problem: Some(problem_reporter(app.clone(), id)),
+            };
             tauri::async_runtime::spawn_blocking(move || {
-                Recorder::start_with(microphone.as_deref(), on_level, sink, true)
+                Recorder::start(microphone.as_deref(), hooks, true)
             })
             .await
         };
-        let recorder = match recorder.map_err(AppError::audio).and_then(|result| result) {
-            Ok(recorder) => recorder,
+        let recorder = match recorder {
+            Ok(Ok(recorder)) => recorder,
+            Ok(Err(problem)) => {
+                abandon(&app, live, context).await;
+                if let Some(muting) = muting {
+                    muting.end().await;
+                }
+                health::capture_problem(&state, &problem);
+                return self.refuse(id, &settings, &problem.issue(Platform::current()));
+            }
             Err(error) => {
                 abandon(&app, live, context).await;
                 if let Some(muting) = muting {
@@ -251,8 +266,11 @@ impl Coordinator {
                 return self.fail_start(id, Some(&settings), &message);
             }
         };
+        // It opened: whatever kept the last one from opening is over.
+        health::capture_finished(&state, None);
         tracing::info!(
             session = id,
+            device = recorder.device(),
             elapsed_ms = pressed.elapsed().as_millis(),
             "microphone open"
         );
@@ -310,6 +328,15 @@ impl Coordinator {
             self.app.state::<AppState>().play(settings, Cue::Error);
         }
         publish_message(&self.app, id, DictationPhase::Error, message);
+    }
+
+    /// Refuses a dictation for `issue`: the overlay shows it, and on Linux, which has no
+    /// overlay, the window opens on its banner, so the reason is never invisible.
+    fn refuse(&self, id: u64, settings: &Settings, issue: &Issue) {
+        self.fail_start(id, Some(settings), &issue.sentence());
+        if Platform::current() == Platform::Linux {
+            windows::show_main(&self.app);
+        }
     }
 
     /// Ends the recording span shared by stop and cancel: watchdog, Esc, recorder, muting.
@@ -374,18 +401,32 @@ impl Coordinator {
                 return publish_message(&self.app, ended.id, DictationPhase::Error, message);
             }
         };
-        if recording.duration_ms < MIN_RECORDING_MS {
+        health::capture_finished(&state, recording.problem.as_ref());
+        // What the microphone did wrong explains a short or silent recording better than "Too
+        // short"; a recording cut off by an unplugged microphone is still transcribed below.
+        let problem = recording
+            .problem
+            .as_ref()
+            .map(|problem| problem.issue(Platform::current()).sentence());
+        let unusable = if recording.duration_ms < MIN_RECORDING_MS {
+            Some("Too short")
+        } else if is_silent(&recording.samples) {
+            Some("No speech detected")
+        } else {
+            None
+        };
+        if let Some(reason) = unusable {
             abandon(&self.app, ended.live, ended.context).await;
-            return publish_message(&self.app, ended.id, DictationPhase::Cancelled, "Too short");
+            return match problem {
+                Some(message) => {
+                    state.play(&ended.settings, Cue::Error);
+                    publish_message(&self.app, ended.id, DictationPhase::Error, message);
+                }
+                None => publish_message(&self.app, ended.id, DictationPhase::Cancelled, reason),
+            };
         }
-        if is_silent(&recording.samples) {
-            abandon(&self.app, ended.live, ended.context).await;
-            return publish_message(
-                &self.app,
-                ended.id,
-                DictationPhase::Cancelled,
-                "No speech detected",
-            );
+        if let Some(message) = problem {
+            tracing::warn!(session = ended.id, %message, "transcribing what was recorded");
         }
         let input = SessionInput {
             id: ended.id,
@@ -454,5 +495,17 @@ fn level_emitter(app: AppHandle) -> Box<dyn Fn(f32) + Send + 'static> {
             *last = Some(Instant::now());
         }
         overlay::level(&app, level.clamp(0.0, 1.0));
+    })
+}
+
+/// Records what the microphone does wrong during session `id` in the app's health, and stops the
+/// dictation when the problem ended the capture, so the user is never left recording nothing.
+fn problem_reporter(app: AppHandle, id: u64) -> ProblemSink {
+    Box::new(move |problem| {
+        let state = app.state::<AppState>();
+        health::capture_problem(&state, problem);
+        if problem.ends_recording() {
+            state.dictation.send(Control::CaptureEnded(id));
+        }
     })
 }

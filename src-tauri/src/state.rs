@@ -12,6 +12,7 @@ use sv_storage::Db;
 
 use crate::features::dictation::DictationHandle;
 use crate::features::groq::KeyCache;
+use crate::features::health::HealthStore;
 
 #[derive(Debug)]
 pub(crate) struct AppState {
@@ -38,6 +39,8 @@ pub(crate) struct AppState {
     pub(crate) llm_used: Mutex<HashMap<String, std::time::Instant>>,
     /// The Groq API key from the Keychain, read once per launch (see `features::groq`).
     pub(crate) groq_key: KeyCache,
+    /// What is wrong right now (see `features::health`).
+    pub(crate) health: HealthStore,
 }
 
 impl AppState {
@@ -64,6 +67,7 @@ impl AppState {
             engine_version: Mutex::new(None),
             updates: Mutex::new(UpdateStatus::new(app_version)),
             login_item: tokio::sync::Mutex::new(()),
+            health: HealthStore::default(),
             llm_used: Mutex::new(HashMap::new()),
             groq_key: KeyCache::default(),
         }

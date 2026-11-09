@@ -18,10 +18,10 @@ use sv_engine::TranscribeOptions;
 use sv_text::Vocabulary;
 
 use super::elapsed_ms;
-use crate::features::groq;
 use crate::features::history::remove_audio;
 use crate::features::models::smart_select;
 use crate::features::models::{engine_language, is_ready};
+use crate::features::{groq, health};
 use crate::state::{now_ms, AppState};
 
 pub(super) struct Heard {
@@ -161,6 +161,7 @@ async fn groq_transcribe(
     audio: &Audio,
 ) -> Result<Heard, Unheard> {
     let first_result = run_groq(state, settings, vocabulary, audio).await;
+    health::provider_outcome(state, first_result.as_ref().err());
     let reason = match &first_result {
         Ok(result) => smart_select::gate(
             &result.text,
@@ -413,7 +414,9 @@ async fn run(
         vocabulary: &boost,
         timestamps: false,
     };
-    let transcript = state.engine.transcribe(model, path, options).await?;
+    let transcribed = state.engine.transcribe(model, path, options).await;
+    health::model_outcome(state, model, transcribed.as_ref().err());
+    let transcript = transcribed?;
     Ok(Run {
         text: transcript.text,
         language: transcript.language,

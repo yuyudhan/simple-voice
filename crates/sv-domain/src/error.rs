@@ -9,12 +9,21 @@ use std::fmt::Display;
 
 use serde::{Serialize, Serializer};
 
+use crate::ProviderFault;
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(String),
     #[error("{0}")]
     Network(String),
+    /// A cloud provider failed in a way the app tells the user how to fix (see
+    /// [`ProviderFault`]); the message is the provider's own words.
+    #[error("{message}")]
+    Provider {
+        fault: ProviderFault,
+        message: String,
+    },
     #[error("{0}")]
     Engine(String),
     #[error("{0}")]
@@ -58,6 +67,14 @@ impl AppError {
 
     pub fn other(error: impl Display) -> Self {
         Self::Other(error.to_string())
+    }
+
+    /// Why a cloud provider failed, when it is a failure the user can act on.
+    pub fn provider_fault(&self) -> Option<ProviderFault> {
+        match self {
+            Self::Provider { fault, .. } => Some(*fault),
+            _ => None,
+        }
     }
 }
 

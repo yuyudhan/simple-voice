@@ -41,6 +41,9 @@ struct Inner {
     next_id: u64,
     pending: HashMap<u64, Pending>,
     on_event: Option<Arc<EventHandler>>,
+    /// Set when a request timed out, in the words of its error; cleared by the next reply and
+    /// by a new helper. The app reports it as "not responding".
+    stalled: Option<String>,
 }
 
 /// Cheap to clone; all clones share one connection and one pending map.
@@ -67,7 +70,14 @@ impl EngineClient {
 
     /// Attaches the pipes of a freshly spawned helper.
     pub fn connect(&self, transport: Arc<dyn Transport>) {
-        self.lock().transport = Some(transport);
+        let mut inner = self.lock();
+        inner.transport = Some(transport);
+        inner.stalled = None;
+    }
+
+    /// The error of the latest request that timed out, while no reply has arrived since.
+    pub fn stalled(&self) -> Option<String> {
+        self.lock().stalled.clone()
     }
 
     /// Installs the receiver of unsolicited helper events; it survives helper restarts.
@@ -105,6 +115,7 @@ impl EngineClient {
             tracing::debug!(id, "ignoring reply for a request that is no longer waiting");
             return;
         };
+        self.lock().stalled = None;
         let outcome = if ok {
             Ok(message.get("result").cloned().unwrap_or(Value::Null))
         } else {
@@ -124,6 +135,7 @@ impl EngineClient {
         let drained: Vec<Pending> = {
             let mut inner = self.lock();
             inner.transport = None;
+            inner.stalled = None;
             inner.pending.drain().map(|(_, pending)| pending).collect()
         };
         for pending in drained {
@@ -216,10 +228,12 @@ impl EngineClient {
             Ok(Ok(outcome)) => outcome?,
             Ok(Err(_)) => return Err(AppError::Engine(STOPPED.to_owned())),
             Err(_) => {
-                return Err(AppError::Engine(format!(
+                let message = format!(
                     "The speech engine did not answer {cmd} within {}",
                     describe(timeout)
-                )))
+                );
+                self.lock().stalled = Some(message.clone());
+                return Err(AppError::Engine(message));
             }
         };
         serde_json::from_value(value).map_err(|error| {
@@ -565,6 +579,35 @@ mod tests {
         assert_eq!(client.lock().pending.len(), 0);
         // A late reply for the timed-out request is ignored without panicking.
         client.on_stdout_line(r#"{"id":1,"ok":true,"result":{}}"#);
+    }
+
+    #[tokio::test]
+    async fn a_timeout_marks_the_engine_stalled_until_the_next_reply() {
+        let (client, mut rx) = connected();
+        assert_eq!(client.stalled(), None);
+        let result: AppResult<Value> = client
+            .request("transcribe", Value::Null, Duration::from_millis(30))
+            .await;
+        let Err(AppError::Engine(message)) = result else {
+            panic!("expected a timeout, got {result:?}");
+        };
+        assert_eq!(client.stalled(), Some(message));
+        // The late reply of the abandoned request says nothing about the engine now.
+        client.on_stdout_line(r#"{"id":1,"ok":true,"result":{}}"#);
+        assert!(client.stalled().is_some());
+
+        let feeder = client.clone();
+        tokio::spawn(async move {
+            while let Some(line) = rx.recv().await {
+                let id = id_of(&line);
+                feeder.on_stdout_line(&format!(r#"{{"id":{id},"ok":true,"result":{{}}}}"#));
+            }
+        });
+        let answered: AppResult<Value> = client
+            .request("ping", Value::Null, Duration::from_secs(5))
+            .await;
+        assert!(answered.is_ok());
+        assert_eq!(client.stalled(), None);
     }
 
     #[tokio::test]

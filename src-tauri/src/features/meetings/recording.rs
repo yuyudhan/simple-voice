@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use sv_audio::{ChunkSink, Recorder, WavWriter};
+use sv_audio::{CaptureHooks, ChunkSink, Recorder, WavWriter};
 use sv_domain::{AppError, AppResult, Meeting, MeetingStatus, PermissionStatus};
 use tauri::{AppHandle, Manager};
 
@@ -17,7 +17,7 @@ use super::{
     changed, emit_meeting, emit_state, processing, readiness, recorded_duration, remove_audio_dir,
     MeetingsState, MIC_FILE, SYSTEM_FILE, SYSTEM_START_FILE,
 };
-use crate::features::permissions;
+use crate::features::{health, permissions};
 use crate::state::{lock, now_ms, AppState};
 
 const TICK: Duration = Duration::from_secs(1);
@@ -139,17 +139,25 @@ async fn begin(
             }
         }
     });
+    // A microphone that fails mid-meeting shows in the app's health; the meeting keeps what it
+    // recorded and system audio, if any.
+    let health_app = app.clone();
+    let hooks = CaptureHooks {
+        on_level: Box::new(|_level: f32| {}),
+        on_chunk: Some(sink),
+        on_problem: Some(Box::new(move |problem| {
+            health::capture_problem(&health_app.state::<AppState>(), problem);
+        })),
+    };
     let recorder = tauri::async_runtime::spawn_blocking(move || {
-        Recorder::start_with(
-            microphone.as_deref(),
-            Box::new(|_level: f32| {}),
-            Some(sink),
-            false,
-        )
+        Recorder::start(microphone.as_deref(), hooks, false)
     })
     .await
     .map_err(|error| AppError::Audio(format!("Could not start the microphone: {error}")))?
-    .map_err(|error| AppError::Audio(format!("Could not start the microphone: {error}")))?;
+    .map_err(|problem| {
+        health::capture_problem(state, &problem);
+        AppError::from(problem)
+    })?;
     let started_at_ms = now_ms();
 
     if system_audio {

@@ -114,6 +114,8 @@ pub fn run() -> tauri::Result<()> {
             features::models::smart_select_plan,
             engine_process::engine_status,
             engine_process::restart_engine,
+            features::health::get_health,
+            features::health::health_action,
             features::permissions::get_permissions,
             features::permissions::request_permission,
             features::permissions::open_permission_settings,
@@ -192,10 +194,9 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             EngineEvent::SystemAudioFailed { reason } => {
                 features::meetings::on_system_audio_failed(&events_app, reason);
             }
-            // Consumed by the microphone check once it listens for device changes.
-            EngineEvent::InputDevicesChanged => {
-                tracing::debug!("input devices changed");
-            }
+            // Core Audio's device-change notification: look for the microphone now instead
+            // of at the next poll.
+            EngineEvent::InputDevicesChanged => features::health::devices_changed(&events_app),
         }));
 
     windows::create_main(app, !launched_at_login || startup_error.is_some())?;
@@ -216,10 +217,18 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             };
             if let Err(error) = shortcuts::register(app, without_edit) {
                 tracing::warn!(%error, "could not register the dictation shortcuts");
+            } else {
+                // Dictation works; the edit shortcut still does not.
+                features::health::shortcut_taken(
+                    &app.state::<AppState>(),
+                    Some(accelerators.edit.trim()),
+                );
             }
         }
     }
 
+    // Before the engine starts, so its first status reaches the health listeners.
+    features::health::spawn(app);
     dictation::spawn_coordinator(app.clone(), control);
     engine_process::start(app.clone());
     features::permissions::spawn_poller(app.clone());

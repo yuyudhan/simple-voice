@@ -236,6 +236,13 @@ pub(crate) fn register(app: &AppHandle, accelerators: Accelerators<'_>) -> AppRe
                 tracing::warn!(index, "could not restore the previous shortcuts");
             }
         }
+        // Only when nothing works: a change refused in Settings keeps the previous shortcuts,
+        // and Settings shows that error itself.
+        if previous.is_empty() {
+            app.state::<AppState>()
+                .health
+                .update(|facts| facts.shortcut_taken = Some(accelerator.trim().to_owned()));
+        }
         return Err(unavailable(accelerator));
     }
 
@@ -244,6 +251,9 @@ pub(crate) fn register(app: &AppHandle, accelerators: Accelerators<'_>) -> AppRe
     registered.edit = edit_shortcut;
     // Saving a new shortcut ends the capture that suspended them.
     registered.suspended = false;
+    app.state::<AppState>()
+        .health
+        .update(|facts| facts.shortcut_taken = None);
     *lock(&registry.lookup) = Lookup {
         hold: Some(hold_trigger),
         toggle: Some(toggle_trigger),

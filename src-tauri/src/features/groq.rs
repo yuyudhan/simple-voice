@@ -11,6 +11,7 @@ use sv_domain::{AppError, AppResult};
 use sv_text::PolishPrompt;
 use tauri::State;
 
+use crate::features::health;
 use crate::features::llm::Reply;
 use crate::platform::keystore;
 use crate::state::AppState;
@@ -94,6 +95,7 @@ pub(crate) async fn save_groq_api_key(
     let stored = key.clone();
     blocking(move || write_keychain(&stored)).await?;
     *cached = Some(Some(key));
+    health::provider_key(&state, true);
     Ok(GroqKeyStatus { saved: true })
 }
 
@@ -103,6 +105,7 @@ pub(crate) async fn remove_groq_api_key(state: State<'_, AppState>) -> AppResult
     let mut cached = state.groq_key.0.lock().await;
     blocking(delete_keychain).await?;
     *cached = Some(None);
+    health::provider_key(&state, false);
     Ok(GroqKeyStatus { saved: false })
 }
 

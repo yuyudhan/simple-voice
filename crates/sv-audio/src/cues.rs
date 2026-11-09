@@ -4,14 +4,18 @@
 //! Every cue is 44.1 kHz mono, peak-normalized to -1 dBFS, and starts and ends on an envelope
 //! value of exactly zero so it never clicks. Playback goes through a rodio mixer owned by a
 //! dedicated thread (the underlying output stream is not `Send`), fed by a channel so `play`
-//! returns immediately on the dictation hot path.
+//! returns immediately on the dictation hot path. A failing output is dropped and reopened
+//! later (see [`crate::cue_output`]).
 
 use std::f32::consts::PI;
 use std::num::{NonZeroU16, NonZeroU32};
 use std::sync::mpsc;
 use std::thread;
+use std::time::Instant;
 
 use sv_domain::{AppError, AppResult, SoundTheme};
+
+use crate::cue_output::Output;
 
 const RATE: u32 = 44_100;
 const PEAK: f32 = 0.89;
@@ -35,20 +39,30 @@ struct Request {
     volume: f32,
 }
 
+/// What the player thread handles, in order.
+#[derive(Debug)]
+enum Message {
+    Play(Request),
+    /// The output stream reported a failure.
+    OutputFailed,
+}
+
 /// Plays cues on the default output device.
 #[derive(Debug)]
 pub struct CuePlayer {
-    requests: mpsc::Sender<Request>,
+    requests: mpsc::Sender<Message>,
 }
 
 impl CuePlayer {
-    /// Starts the playback thread. The output device is opened there, and reopened on the next
-    /// cue if it was missing, so a Mac that boots with no output still gets cues later.
+    /// Starts the playback thread. The output device is opened there on the first cue, and
+    /// reopened on a later cue after it went missing or failed, so a Mac that boots with no
+    /// output still gets cues later.
     pub fn new() -> AppResult<CuePlayer> {
-        let (requests, inbox) = mpsc::channel::<Request>();
+        let (requests, inbox) = mpsc::channel::<Message>();
+        let output = Output::new(requests.clone(), || Message::OutputFailed);
         thread::Builder::new()
             .name("sv-audio-cues".to_owned())
-            .spawn(move || run_player(&inbox))
+            .spawn(move || run_player(&inbox, output))
             .map_err(|error| AppError::Audio(format!("Could not start the cue player: {error}")))?;
         Ok(CuePlayer { requests })
     }
@@ -63,20 +77,24 @@ impl CuePlayer {
         if volume <= 0.0 {
             return;
         }
-        if self.requests.send(Request { theme, cue, volume }).is_err() {
+        let request = Request { theme, cue, volume };
+        if self.requests.send(Message::Play(request)).is_err() {
             tracing::warn!(?cue, "cue player thread has stopped; cue skipped");
         }
     }
 }
 
-fn run_player(inbox: &mpsc::Receiver<Request>) {
-    let mut sink = open_sink();
+fn run_player(inbox: &mpsc::Receiver<Message>, mut output: Output<Message>) {
     let mut cache: Vec<((SoundTheme, Cue), Vec<f32>)> = Vec::new();
-    while let Ok(request) = inbox.recv() {
-        if sink.is_none() {
-            sink = open_sink();
-        }
-        let Some(output) = sink.as_ref() else {
+    while let Ok(message) = inbox.recv() {
+        let request = match message {
+            Message::OutputFailed => {
+                output.failed(Instant::now());
+                continue;
+            }
+            Message::Play(request) => request,
+        };
+        let Some(mixer) = output.mixer(Instant::now()) else {
             continue;
         };
         let key = (request.theme, request.cue);
@@ -94,23 +112,7 @@ fn run_player(inbox: &mpsc::Receiver<Request>) {
             .iter()
             .map(|sample| sample * request.volume)
             .collect();
-        output
-            .mixer()
-            .add(rodio::buffer::SamplesBuffer::new(MONO, RODIO_RATE, scaled));
-    }
-}
-
-fn open_sink() -> Option<rodio::MixerDeviceSink> {
-    match rodio::DeviceSinkBuilder::open_default_sink() {
-        Ok(mut sink) => {
-            // The sink is only dropped when the app quits, which is not worth a log line.
-            sink.log_on_drop(false);
-            Some(sink)
-        }
-        Err(error) => {
-            tracing::warn!(%error, "no audio output for cues");
-            None
-        }
+        mixer.add(rodio::buffer::SamplesBuffer::new(MONO, RODIO_RATE, scaled));
     }
 }
 

@@ -10,6 +10,7 @@ pub mod dictation;
 pub mod dictionary;
 pub mod engine;
 pub mod error;
+pub mod health;
 pub mod history;
 pub mod insights;
 pub mod languages;
@@ -31,6 +32,10 @@ pub use dictation::{
 pub use dictionary::{DictionaryEntry, DictionarySource, ImportSummary};
 pub use engine::{EngineState, EngineStatus};
 pub use error::{AppError, AppResult};
+pub use health::{
+    evaluate, CaptureProblem, Health, HealthFacts, InputState, Issue, IssueAction, IssueKind,
+    ModelFact, Platform, ProviderFact, ProviderFault, Severity,
+};
 pub use history::{HistoryEntry, HistoryStatus, NewHistory, RetryReason};
 pub use insights::{
     AppUsage, CategoryUsage, DayActivity, HourActivity, Insights, ModelInsights, ModelTiming,
