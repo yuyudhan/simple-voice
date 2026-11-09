@@ -770,6 +770,8 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `smart_select_plan`                                                            | —                                                                     | `SmartSelectPlan` `{ local, notice }`: the local model that runs first for the languages, a notice or `null`                                                                                                                       |
 | `engine_status`                                                                | —                                                                     | `EngineStatus` (see `engine-status`)                                                                                                                                                                                               |
 | `restart_engine`                                                               | —                                                                     | `EngineStatus` (`starting`): stops a running helper, ends the pause between automatic restarts and resets their backoff                                                                                                            |
+| `get_health`                                                                   | —                                                                     | `Health` (see `health-changed`)                                                                                                                                                                                                    |
+| `health_action`                                                                | `action: IssueAction, kind: string`                                   | `Health`: runs the actions the app performs itself (`open_sound_settings`, `recheck`, `open_help` to `docs/troubleshooting.md#<kind>`); the window handles the rest (pages, permissions, `restart_engine`, `download_model`)    |
 | `list_languages`                                                               | —                                                                     | `LanguageInfo[]` `{ tag, name, script, primary, fallback, translatable }`: the language registry for the picker |
 | `list_known_apps`                                                              | —                                                                     | `KnownApp[]` `{ bundleId, appName, category }`: distinct apps in history (newest first) plus the frontmost app, for per-app styles and context exclusions                                                                          |
 | `list_snippets`                                                                | —                                                                     | `Snippet[]` (trigger A to Z)                                                                                                                                                                                                       |
@@ -823,6 +825,7 @@ All commands return `Result<T, AppError>`; the UI receives the error message str
 | `meeting-progress`    | `{ id, job: "transcribe" \| "diarize" \| "summarize" \| "chat" \| "translate", fraction: number \| null, message: string \| null }`                                                                               |
 | `meetings-changed`    | `null` — any meeting row, transcript, summary, chat or translation changed                                                                                                                                        |
 | `engine-status`       | `EngineStatus` `{ state: "starting" \| "running" \| "down", reason: string \| null }` — the engine helper launched, answered its handshake, or exited / could not launch (`reason` says why)                      |
+| `health-changed`      | `Health` `{ issues: Issue[] }` — what stops or degrades dictation changed. `Issue` is `{ kind, …kind fields, severity: "blocking" \| "warning" \| "info", title, message, actions: IssueAction[] }`, most severe first; derived by `sv_domain::health::evaluate` from the app's observed facts (microphone check, last capture, permissions, engine, model, cloud provider, shortcuts). The UI renders it as banners without inspecting the text; the tray shows the first issue; a `blocking` issue refuses a dictation with its sentence |
 | `models-changed`      | `null` — a model was downloaded or deleted, or the engine helper came up; model readiness shown anywhere is stale                                                                                                 |
 
 `UpdateStatus`: `{ currentVersion: string, latest: { version: string, url: string } | null, updateAvailable: boolean, checking: boolean, checkedAt: number | null, error: string | null, installing: boolean, installError: string | null, installedVersion: string | null, updatedFrom: string | null }`. `installedVersion` is the bundle's `CFBundleShortVersionString` when it is newer than the running build; `updatedFrom` is the older version that ran before this launch.
@@ -882,8 +885,13 @@ Events (unsolicited, no id):
   produces nothing.
 - `{"event": "stream_partial", "streamId": N, "text": s, "stable": s}` when a live stream's
   hypothesis changes; `stable` (the committed prefix) is always a prefix of `text`.
-- `{"event": "stream_failed", "streamId": N, "reason": s}` when the recogniser errors or more
-  than 30 s of audio waits unprocessed; the stream is dead.
+- `{"event": "stream_failed", "streamId": N, "reason": s, "problem"?: CaptureProblem}` when the
+  recogniser errors, more than 30 s of audio waits unprocessed, or no audio arrives within 3 s
+  of the start; the stream is dead. `problem` (`{"problem": "no_audio", "device": s}`,
+  `{"problem": "no_device"}` or `{"problem": "permission_denied"}`) is present only when the
+  failure says something about the microphone.
+- `{"event": "input_devices_changed"}` (macOS) when Core Audio's device list or default input
+  changes, coalesced; the app checks for a microphone at once instead of at its next poll.
 - `{"event": "system_audio_failed", "reason": s}` when system-audio capture stops by itself;
   its WAV keeps what was written.
 

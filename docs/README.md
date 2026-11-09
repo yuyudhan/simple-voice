@@ -8,6 +8,7 @@ For people using Simple Voice:
 - [Features](features.md): speech engines, formatting, dictionary, history, insights.
 - [Privacy and your data](privacy.md): what leaves your Mac and where your data is stored.
 - [Simple Voice on Linux](linux.md): install, what works, shortcuts and pasting under X11 and Wayland.
+- [Troubleshooting](troubleshooting.md): what each warning banner means and how to fix it (no microphone, permissions, engine, models, Groq, shortcuts).
 
 For contributors, in [`internal/`](internal/):
 
