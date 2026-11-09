@@ -10,7 +10,10 @@ mod state;
 
 use std::time::Duration;
 
-use sv_domain::{AppError, DictationPhase, DictationState, Settings};
+use sv_domain::{
+    evaluate, AppError, DictationPhase, DictationState, HealthFacts, InputState, Issue, Platform,
+    Settings,
+};
 use sv_engine::EngineEvent;
 use sv_storage::Db;
 use tauri::{AppHandle, Manager, RunEvent};
@@ -36,6 +39,23 @@ fn control_argument(args: &[String]) -> Option<dictation::Control> {
         STOP_ARG => Some(dictation::Control::Stop),
         _ => None,
     })
+}
+
+/// Why `simple-voice --start` cannot record, in the banner's words, or `None` when it can (or
+/// the arguments ask for something else). Checked in the launching process, before the request
+/// is handed to a running app, so a key binding or script learns the reason from the output and
+/// the exit status instead of nothing happening. `check` looks for the microphone.
+pub fn start_refusal(args: &[String], check: impl FnOnce() -> InputState) -> Option<String> {
+    if control_argument(args) != Some(dictation::Control::Start) {
+        return None;
+    }
+    let facts = HealthFacts {
+        input: check(),
+        ..HealthFacts::default()
+    };
+    evaluate(&facts, Platform::current())
+        .blocking()
+        .map(Issue::sentence)
 }
 
 /// Builds and runs the app; returns when the user quits.
@@ -194,8 +214,8 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             EngineEvent::SystemAudioFailed { reason } => {
                 features::meetings::on_system_audio_failed(&events_app, reason);
             }
-            // Core Audio's device-change notification: look for the microphone now instead
-            // of at the next poll.
+            // The engine saw the microphones change (Core Audio on macOS, `pactl subscribe` on
+            // Linux): look for the microphone now instead of at the next poll.
             EngineEvent::InputDevicesChanged => features::health::devices_changed(&events_app),
         }));
 
@@ -281,6 +301,54 @@ mod tests {
         ];
         for (values, expected) in cases {
             assert_eq!(control_argument(&args(values)), expected, "{values:?}");
+        }
+    }
+
+    #[test]
+    fn start_without_a_microphone_is_refused_with_the_banners_words() {
+        use sv_audio::{input_state, InputProbe};
+        let probe = |sound_server: bool, devices: &[&str]| InputProbe {
+            sound_server,
+            devices: devices.iter().map(|name| (*name).to_owned()).collect(),
+            default: devices.first().map(|name| (*name).to_owned()),
+        };
+        let start = args(&["simple-voice", "--start"]);
+        let banner = |input: InputState| {
+            let facts = HealthFacts {
+                input,
+                ..HealthFacts::default()
+            };
+            evaluate(&facts, Platform::current())
+                .issues
+                .first()
+                .map(Issue::sentence)
+        };
+
+        let none = input_state(&probe(true, &[]), None);
+        let refusal = start_refusal(&start, || none.clone());
+        assert!(
+            refusal
+                .as_deref()
+                .is_some_and(|text| text.starts_with("No microphone connected")),
+            "{refusal:?}"
+        );
+        assert_eq!(refusal, banner(none));
+
+        let no_server = input_state(&probe(false, &[]), None);
+        let refusal = start_refusal(&start, || no_server.clone());
+        assert!(refusal.is_some());
+        assert_eq!(refusal, banner(no_server));
+
+        let ready = || input_state(&probe(true, &["MacBook Pro Microphone"]), None);
+        assert_eq!(start_refusal(&start, ready), None);
+        // A check that could not tell claims nothing; the running app decides.
+        assert_eq!(start_refusal(&start, || InputState::Unknown), None);
+        // Only a start is checked: stopping or toggling must still reach the running app.
+        for other in [
+            &["simple-voice", "--stop"][..],
+            &["simple-voice", "--toggle"][..],
+        ] {
+            assert_eq!(start_refusal(&args(other), || InputState::NoDevice), None);
         }
     }
 }

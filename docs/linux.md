@@ -75,6 +75,9 @@ bindsym Menu exec --no-startup-id simple-voice --start
 bindsym --release Menu exec --no-startup-id simple-voice --stop
 ```
 
+Without a usable microphone, `simple-voice --start` prints the reason (the same words as the
+app's banner, such as "No microphone connected") to stderr and exits with status 1.
+
 Under i3 on X11 the app's own Ctrl+/ already works; a binding takes the key from it, so bind
 another key or turn the app's shortcut off.
 
