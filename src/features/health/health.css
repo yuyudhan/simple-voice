@@ -1,0 +1,60 @@
+/* FilePath: src/features/health/health.css */
+/* Health banners share the shell's notice stack (App.css) with the update banner. Blocking issues
+   use the danger palette, degraded ones the warning palette, notes the accent tint. */
+
+.sv-health-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid;
+    border-radius: var(--radius-card);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.sv-health-banner--danger {
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+    background: var(--danger-soft);
+}
+
+.sv-health-banner--warning {
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+    background: var(--warning-soft);
+}
+
+.sv-health-banner--note {
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    background: var(--accent-tint);
+}
+
+.sv-health-banner__icon {
+    flex: none;
+}
+
+.sv-health-banner--danger .sv-health-banner__icon {
+    color: var(--danger);
+}
+
+.sv-health-banner--warning .sv-health-banner__icon {
+    color: var(--warning);
+}
+
+.sv-health-banner--note .sv-health-banner__icon {
+    color: var(--accent);
+}
+
+.sv-health-banner__text {
+    flex: 1;
+    margin: 0;
+}
+
+.sv-health-banner__actions {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 50%;
+}

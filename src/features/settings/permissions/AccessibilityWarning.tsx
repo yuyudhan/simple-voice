@@ -2,19 +2,17 @@
 // Accessibility access is what lets Simple Voice press ⌘V in the app being dictated into, and the
 // only way macOS feeds the event tap that watches the Fn key. Without it dictated text is only
 // copied and an Fn shortcut does nothing, so this warning cannot be dismissed: it stays up until
-// access is granted. The shell pins it above every page; next to the shortcut settings it only
-// appears while Fn is one of the shortcuts, because that is what it explains there. On Linux the
-// same status means no tool can press Ctrl+V in this session (Wayland without ydotool), and there
-// is no settings pane to open.
+// access is granted. App-wide, the health banner reports missing access (and, on Linux, a
+// missing paste tool); this one sits next to the shortcut settings and only appears while Fn,
+// a macOS-only key, is one of the shortcuts, because that is what it explains.
 import { TriangleAlert } from "lucide-react";
 import { useSettings } from "../../../app/SettingsContext";
-import { isLinux } from "../../../lib/platform";
 import { FN_KEY } from "../shortcuts/accelerator";
 import { PermissionAction } from "./PermissionsGroup";
 import { usePermissions } from "./usePermissions";
 import "./AccessibilityWarning.css";
 
-export function AccessibilityWarning({ placement }: { placement: "shell" | "inline" }) {
+export function AccessibilityWarning() {
     const { settings } = useSettings();
     const { permissions, busy, request, openSettings } = usePermissions();
     const fnModes = [
@@ -22,39 +20,22 @@ export function AccessibilityWarning({ placement }: { placement: "shell" | "inli
         settings.toggleShortcut === FN_KEY ? "toggle to speak" : null,
     ].filter((mode) => mode !== null);
     const status = permissions?.accessibility;
-    if (status === undefined || status === "granted") return null;
-    if (placement === "inline" && fnModes.length === 0) return null;
+    if (status === undefined || status === "granted" || fnModes.length === 0) return null;
 
     return (
-        <div className={`sv-access-warning sv-access-warning--${placement}`} role="alert">
+        <div className="sv-access-warning" role="alert">
             <TriangleAlert size={16} className="sv-access-warning__icon" aria-hidden="true" />
-            {isLinux ? (
-                <p className="sv-access-warning__text">
-                    <strong>Text is only copied, not pasted.</strong> Under Wayland Simple Voice
-                    needs ydotool with write access to /dev/uinput to press Ctrl+V; see
-                    docs/linux.md. Press Ctrl+V yourself meanwhile.
-                </p>
-            ) : fnModes.length === 0 ? (
-                <p className="sv-access-warning__text">
-                    <strong>Text is only copied, not pasted.</strong> Simple Voice needs
-                    Accessibility access to press ⌘V in the app you are using.
-                </p>
-            ) : (
-                <p className="sv-access-warning__text">
-                    <strong>Pasting and the fn key do not work yet.</strong> Simple Voice needs
-                    Accessibility access to press ⌘V for you and to use fn for{" "}
-                    {fnModes.join(" and ")}.
-                </p>
-            )}
-            {!isLinux && (
-                <PermissionAction
-                    kind="accessibility"
-                    status={status}
-                    busy={busy === "accessibility"}
-                    onRequest={request}
-                    onOpenSettings={openSettings}
-                />
-            )}
+            <p className="sv-access-warning__text">
+                <strong>Pasting and the fn key do not work yet.</strong> Simple Voice needs
+                Accessibility access to press ⌘V for you and to use fn for {fnModes.join(" and ")}.
+            </p>
+            <PermissionAction
+                kind="accessibility"
+                status={status}
+                busy={busy === "accessibility"}
+                onRequest={request}
+                onOpenSettings={openSettings}
+            />
         </div>
     );
 }

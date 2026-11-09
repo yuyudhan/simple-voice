@@ -74,7 +74,7 @@ export function ShortcutStep({ onBack, onNext }: Props) {
                         <ShortcutRecorder field="toggleShortcut" />
                     </div>
                 </div>
-                <AccessibilityWarning placement="inline" />
+                <AccessibilityWarning />
 
                 <div className="sv-onb__try">
                     <div className="sv-onb__try-head">

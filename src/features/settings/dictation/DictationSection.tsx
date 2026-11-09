@@ -157,7 +157,7 @@ export function DictationSection() {
                 </SettingRow>
                 <EscapeCancelsRow />
             </SettingsGroup>
-            <AccessibilityWarning placement="inline" />
+            <AccessibilityWarning />
 
             <RecordingGroup />
 

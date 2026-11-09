@@ -1,7 +1,7 @@
 /* FilePath: src/features/updates/updates.css */
 /* An update is news, not a problem: accent tint, not the warning palette. */
 
-/* Pinned with the Accessibility warning by the shell's notice stack (App.css). */
+/* Pinned with the health banners by the shell's notice stack (App.css). */
 .sv-update-banner {
     display: flex;
     align-items: center;

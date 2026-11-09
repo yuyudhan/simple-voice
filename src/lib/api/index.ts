@@ -31,6 +31,8 @@ import type {
     GroqKeyStatus,
     DictationPartial,
     NavigateTarget,
+    Health,
+    IssueAction,
 } from "./types";
 import type {
     Meeting,
@@ -114,6 +116,10 @@ export const api = {
     engineStatus: () => invoke<EngineStatus>("engine_status"),
     /** Starts the engine now, stopping a running one first; resolves once it is launching. */
     restartEngine: () => invoke<EngineStatus>("restart_engine"),
+    getHealth: () => invoke<Health>("get_health"),
+    /** Runs an action the app performs itself (a settings pane, the guide, a recheck). */
+    healthAction: (action: IssueAction, kind: string) =>
+        invoke<Health>("health_action", { action, kind }),
     listLanguages: () => invoke<LanguageInfo[]>("list_languages"),
     getPermissions: () => invoke<Permissions>("get_permissions"),
     requestPermission: (kind: PermissionKind) =>
@@ -161,6 +167,11 @@ export const events = {
     /** The engine started, came up or went down. */
     engineStatus: (cb: (status: EngineStatus) => void): Promise<UnlistenFn> =>
         listen<EngineStatus>("engine-status", (e) => {
+            cb(e.payload);
+        }),
+    /** What is wrong right now changed: a microphone, permission, engine, model or provider. */
+    healthChanged: (cb: (health: Health) => void): Promise<UnlistenFn> =>
+        listen<Health>("health-changed", (e) => {
             cb(e.payload);
         }),
     permissionsChanged: (cb: (permissions: Permissions) => void): Promise<UnlistenFn> =>

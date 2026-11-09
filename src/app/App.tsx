@@ -10,7 +10,7 @@ import { DictionaryPage } from "../features/dictionary/DictionaryPage";
 import { StylePage } from "../features/style/StylePage";
 import { SnippetsPage } from "../features/snippets/SnippetsPage";
 import { MeetingsPage } from "../features/meetings/MeetingsPage";
-import { AccessibilityWarning } from "../features/settings/permissions/AccessibilityWarning";
+import { HealthBanner } from "../features/health/HealthBanner";
 import { UpdateBanner } from "../features/updates/UpdateBanner";
 import { useToast } from "../ui";
 import { LiveTranscript } from "./LiveTranscript";
@@ -70,7 +70,7 @@ export function App() {
                 <Sidebar page={page} onNavigate={setPage} />
                 <main className="sv-shell__main">
                     <div className="sv-shell__notices">
-                        <AccessibilityWarning placement="shell" />
+                        <HealthBanner />
                         <UpdateBanner />
                         <LiveTranscript />
                     </div>

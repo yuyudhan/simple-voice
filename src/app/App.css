@@ -32,8 +32,8 @@
     }
 }
 
-/* App-wide notices (Accessibility access, available update), pinned above every page in one
-   stack so they never overlap; clears the fixed window drag strip. */
+/* App-wide notices (health issues, available update), pinned above every page in one stack so
+   they never overlap; clears the fixed window drag strip. */
 .sv-shell__notices {
     position: sticky;
     top: 32px;
