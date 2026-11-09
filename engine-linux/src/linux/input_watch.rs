@@ -83,7 +83,7 @@ struct Watch {
 impl Watch {
     /// Notifies when `now` differs from the last answer. A check that could not tell (`Unknown`)
     /// claims nothing and keeps the last answer.
-    fn report(&mut self, now: InputState, notify: &dyn Fn()) {
+    fn report(&mut self, now: InputState, notify: &(dyn Fn() + Sync)) {
         if now == InputState::Unknown || now == self.last {
             return;
         }
@@ -100,7 +100,7 @@ async fn follow<R: AsyncBufRead + Unpin>(
     settle: Duration,
     watch: &mut Watch,
     check: &Check,
-    notify: &dyn Fn(),
+    notify: &(dyn Fn() + Sync),
 ) {
     let mut lines = reader.lines();
     let mut pending = false;
