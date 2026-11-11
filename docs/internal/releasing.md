@@ -2,11 +2,20 @@
 
 # Simple Voice - Releasing and distribution
 
-Simple Voice is distributed only through an install script attached to every GitHub release:
+Simple Voice is distributed only through an install script attached to every GitHub release,
+served at a short address by the user's site:
 
 ```sh
-curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
+curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh
 ```
+
+`yuyudhan/yuyudhan.github.io`'s `sync-installers` workflow (every 15 minutes, or at once with
+`gh workflow run sync-installers.yml -R yuyudhan/yuyudhan.github.io`) downloads
+`releases/latest/download/install.sh` and `SHA256SUMS`, publishes the script at that address
+only when its SHA-256 matches its `SHA256SUMS` line, its first line is `#!/bin/sh` and `sh -n`
+parses it, and otherwise keeps the last good one. The release address
+`https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh` serves the same
+file.
 
 Releases are built and published from a maintainer's Mac; no GitHub runner is involved.
 
@@ -39,7 +48,9 @@ which, in order:
 3. commits `🔖 Release v0.2.0`, tags `v0.2.0`, and pushes the branch and tag (the pre-push hook
    runs `just check`);
 4. runs `scripts/release/publish.sh`, which uploads the zip, its `.sha256`,
-   `scripts/install.sh` and `scripts/install-linux.sh` to the GitHub release `v0.2.0`.
+   `scripts/install.sh` and `scripts/install-linux.sh` to the GitHub release `v0.2.0`, then
+   `scripts/release/checksums.sh`, which uploads the release's `SHA256SUMS` (the SHA-256
+   digests GitHub reports for every asset).
 
 Then add the Linux build ([Linux](#linux)) to the same release.
 
@@ -56,7 +67,11 @@ by `ditto`, which preserves the bundle's signature.
 ## The install script
 
 `scripts/install.sh` is uploaded with every release, so
-`releases/latest/download/install.sh` always serves the newest one. It downloads the release
+`releases/latest/download/install.sh` (and the short address above) always serves the newest
+one. It is POSIX `sh` (piped to `sh`, `dash`, `bash` or `zsh`; the app's Install button pipes it
+to bash), prints `✓` steps, the installed version and one `Next:` line, and fails with exactly
+one `simple-voice: error: ...` line and exit status 1, which the app shows as the reason. All
+downloads go into one `mktemp -d` folder, removed on every exit. It downloads the release
 zip, checks it against the `.sha256` and the bundle's code signature, and replaces
 `~/Applications/Simple Voice.app` (quitting and reopening the app if it was running, and
 clearing the quarantine flag). When the release is already installed but the running app
@@ -64,17 +79,21 @@ started before it was, the script only restarts the app. Installing into the use
 Applications folder means no administrator password, so standard users can install and update.
 A copy an older script put in `/Applications` is removed when the user may delete it; otherwise
 the script says it remains.
-`--version X.Y.Z` installs a specific release; it goes after `bash -s --` in the piped command.
+`--version X.Y.Z` (or `SIMPLE_VOICE_VERSION`) installs a specific release; it goes after
+`sh -s --` in the piped command. `SIMPLE_VOICE_RELEASES` points the downloads at a mirror or a
+local folder (`file:///path` holding `vX.Y.Z/`), for testing a build.
 `--uninstall` quits and deletes the app, its `~/Library` caches, WebKit data and preferences,
 the legacy launch agent, and resets its TCC grants (`tccutil reset All`) for the app and the
 engine identifiers; the `.dev` identifiers of development builds are left alone.
 `--uninstall --purge` also deletes `~/.simplevoice` and the database files (never the folder)
 where `~/.simplevoice/location` points.
-Piping is safe because the script does all its work in `main`, called on its last line, so bash
-has read the whole file before anything runs.
+Piping is safe because the script does all its work in `main`, called on its last line, so the
+shell has read the whole file before anything runs.
 
-To change the script without cutting a release, upload it to the latest release:
-`gh release upload vX.Y.Z scripts/install.sh --clobber`. Every installed app runs the script
+To change the scripts without cutting a release, upload them to the latest release and rewrite
+its checksums: `gh release upload vX.Y.Z scripts/install.sh scripts/install-linux.sh --clobber`,
+then `just checksums X.Y.Z`. Without the new `SHA256SUMS`, install.sh refuses the new
+install-linux.sh and the site keeps the old install.sh. Every installed app runs the script
 served there when the user clicks Install update, so a script fix reaches existing users this
 way, with no new app version.
 
@@ -110,14 +129,14 @@ installer uses; the `.deb` stays an optional asset for apt users. whisper.cpp is
 x86-64 CPU with AVX2 and FMA (`.cargo/config.toml`), never for the build machine's own CPU; it
 uses the pre-C++11 libstdc++ ABI to match sherpa-onnx's prebuilt libraries (same file). The
 binaries need the build machine's glibc or newer, so build releases on Ubuntu 22.04 (glibc 2.35)
-or older. `publish-linux.sh` verifies the checksums and uploads the four files with
-`gh release upload --clobber`.
+or older. `publish-linux.sh` verifies the checksums, uploads the four files with
+`gh release upload --clobber` and rewrites the release's `SHA256SUMS`.
 
 Until the tarball is uploaded, Linux users who run the install command get a missing-download
 error, so add it right after the macOS publish.
 
-`install.sh` hands over to `install-linux.sh` on Linux (downloaded from the same latest release,
-read whole before it runs, same options). That script never runs sudo. It checks for x86-64 and
+`install.sh` hands over to `install-linux.sh` on Linux (downloaded from the same latest release
+and checked against its `SHA256SUMS`, same options). That script never runs sudo. It checks for x86-64 and
 AVX2 and, through `dpkg-query`, for the system libraries (WebKitGTK 4.1, GTK 3, the Ayatana tray
 indicator) and desktop tools the app uses, printing one `sudo apt install ...` line when any is
 missing (libraries stop the install; tools only warn). It downloads the tarball and its
@@ -133,7 +152,8 @@ left by an older installer is reported with its `sudo apt remove` command.
 Without a Mac at hand, a release can be published from Linux alone: set the version in the
 three files `release.sh` edits, commit `🔖 Release vX.Y.Z`, tag and push it, run
 `just build-linux X.Y.Z`, then `gh release create vX.Y.Z --verify-tag` with the tarball, the
-`.deb`, their `.sha256` files, `scripts/install.sh` and `scripts/install-linux.sh`. On macOS,
+`.deb`, their `.sha256` files, `scripts/install.sh` and `scripts/install-linux.sh`, then
+`just checksums X.Y.Z`. On macOS,
 `install.sh` finds no `Simple-Voice_X.Y.Z_aarch64.zip` on that latest release and installs the
 newest release that has one instead (GitHub's releases API, newest first), so new Mac installs
 keep working. Installed Mac apps still announce the version; Install update then reports the

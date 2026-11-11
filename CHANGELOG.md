@@ -5,6 +5,22 @@
 Release notes for each version are also on the
 [GitHub releases page](https://github.com/yuyudhan/simple-voice/releases).
 
+## Unreleased
+
+### Changed
+
+- A shorter install command: `curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh`.
+  That address serves the latest release's `install.sh` byte for byte, published only after it
+  matches the release's new `SHA256SUMS`. The README leads with it.
+- `install.sh` and `install-linux.sh` are POSIX `sh` now (piped to `sh`, `dash`, `bash` or `zsh`;
+  the older `| bash` still works). They print `✓` steps, the installed version and one `Next:`
+  line; every failure (a missing release, no network, a checksum mismatch) is one
+  `simple-voice: error: ...` line with exit status 1, and the download folder is removed on every
+  exit. `install.sh` checks `install-linux.sh` against `SHA256SUMS` before it hands over on Linux.
+  `SIMPLE_VOICE_VERSION` picks a release like `--version`.
+- Every release carries `SHA256SUMS` (`scripts/release/checksums.sh`, run by both publish steps;
+  `just checksums X.Y.Z` after uploading a changed installer).
+
 ## v0.4.0 - 2026-11-09
 
 ### Added

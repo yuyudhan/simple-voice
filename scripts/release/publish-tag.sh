@@ -41,4 +41,4 @@ git worktree add --detach "${build_dir}/src" "$tag"
 export CARGO_TARGET_DIR="${root}/target"
 (cd "${build_dir}/src" && "${root}/scripts/release/build.sh" "$version")
 scripts/release/publish.sh "$version"
-echo "publish-tag: ${tag} is live: curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash"
+echo "publish-tag: ${tag} is live: curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh (within 15 minutes; at once: gh workflow run sync-installers.yml -R yuyudhan/yuyudhan.github.io)"

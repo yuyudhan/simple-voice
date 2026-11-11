@@ -10,18 +10,19 @@ it unless you choose Groq.
 ## Install
 
 ```sh
-curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
+curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh
 ```
 
-The script hands over to `install-linux.sh` from the same release. It installs for your user
+That address serves the latest release's `install.sh`, which hands over to `install-linux.sh`
+from the same release after checking it against the release's `SHA256SUMS`. It installs for your user
 only and never asks for your password: it checks the release's tarball against its SHA-256
 checksum and unpacks it into `~/.local/opt/simple-voice`, links `~/.local/bin/simple-voice`, and
 adds the menu entry and icon under `~/.local/share`. The app uses some system libraries and
 tools (WebKitGTK, GTK, the tray indicator, `xdotool`, `xclip`, `wl-clipboard`, `pactl`,
 `secret-tool`); when one is missing the script prints the one `sudo apt install ...` command to
 run and stops (libraries) or carries on without it (tools). `simple-voice --version` prints
-what is installed. Run the same command again to update; add `-s -- --uninstall` (or
-`--uninstall --purge` to also delete your data) to remove it. An install from an older release
+what is installed. Run the same command again to update; add `-s -- --uninstall` after `sh` (or
+`-s -- --uninstall --purge` to also delete your data) to remove it. An install from an older release
 used a system package; the script then tells you to remove it with `sudo apt remove simple-voice`.
 
 Updates: the app tells you when a new release is out, and its Install button updates it in

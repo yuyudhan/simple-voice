@@ -34,6 +34,7 @@ help:
     @echo "RELEASE"
     @echo "  just release VERSION      Bump, build, tag, push and publish the GitHub release"
     @echo "  just publish VERSION      Build a pushed tag and publish it (retry a failed publish)"
+    @echo "  just checksums VERSION    Rewrite the release's SHA256SUMS (after uploading a changed installer)"
     @echo ""
     @echo "See README.md and docs/internal/."
     @echo ""

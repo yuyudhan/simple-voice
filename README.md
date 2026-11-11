@@ -10,6 +10,14 @@
     Speak anywhere on your Mac. Clean, well-formatted text lands in whatever you are typing into.
 </p>
 
+```sh
+curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh
+```
+
+<p align="center">
+    Installs or updates Simple Voice for your user, checked against the release's SHA-256 and code signature. Apple Silicon Mac with macOS 14+, or Debian/Ubuntu on x86-64. <a href="#install">Other ways to install</a>
+</p>
+
 <p align="center">
     <a href="https://github.com/yuyudhan/simple-voice/releases/latest"><img src="https://img.shields.io/github/v/release/yuyudhan/simple-voice?label=release" alt="Latest release"></a>
     <a href="https://github.com/yuyudhan/simple-voice/actions/workflows/ci.yml"><img src="https://github.com/yuyudhan/simple-voice/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -28,18 +36,18 @@
 Requires an Apple Silicon Mac with macOS 14 (Sonoma) or later, or Debian/Ubuntu Linux on x86-64 (see [Simple Voice on Linux](docs/linux.md)).
 
 ```sh
-curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash
+curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh
 ```
 
-The script checks the download against the release's SHA-256 checksum and the app's code signature before it replaces `~/Applications/Simple Voice.app`; no administrator password is needed. To install a specific release, use `... | bash -s -- --version X.Y.Z`.
+That address serves the `install.sh` of the latest release byte for byte; the same script is at `https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh` (`curl -fsSL <that URL> | sh` works the same, and so does the older `| bash`). It downloads into a temporary folder it removes when it ends, checks the download against the release's SHA-256 checksum and the app's code signature before it replaces `~/Applications/Simple Voice.app`, and needs no administrator password. To install a specific release, use `... | sh -s -- --version X.Y.Z`.
 
 Then open **Simple Voice** from Spotlight or `~/Applications` and grant the permissions it asks for: Microphone and Accessibility, plus Speech Recognition if you use Apple Speech. See [Getting started](docs/getting-started.md).
 
 | Task                          | How                                                                   |
 | ----------------------------- | --------------------------------------------------------------------- |
 | Upgrade                       | Click **Install update** in the app, or run the install command again |
-| Uninstall                     | `... \| bash -s -- --uninstall`                                       |
-| Uninstall and delete all data | `... \| bash -s -- --uninstall --purge`                               |
+| Uninstall                     | `... \| sh -s -- --uninstall`                                         |
+| Uninstall and delete all data | `... \| sh -s -- --uninstall --purge`                                 |
 
 Uninstalling quits the app, removes it and resets its permissions; your history, dictionary and settings stay in `~/.simplevoice` for a later reinstall. `--purge` deletes them too, including a database you moved in Settings → Privacy & data (the folder itself and any other files in it stay).
 

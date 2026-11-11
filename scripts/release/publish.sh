@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # FilePath: scripts/release/publish.sh
 # Publishes a release built by scripts/release/build.sh: uploads the zip, its checksum,
-# scripts/install.sh (served as releases/latest/download/install.sh) and the Linux installer it
-# hands over to, scripts/install-linux.sh, to the GitHub release of the pushed tag vVERSION,
-# creating the release if needed. The Linux .deb is built on Linux and added afterwards by
-# scripts/release/publish-linux.sh.
+# scripts/install.sh (served as releases/latest/download/install.sh, and from there at
+# https://yuyudhan.github.io/simple-voice/install) and the Linux installer it hands over to,
+# scripts/install-linux.sh, to the GitHub release of the pushed tag vVERSION, creating the
+# release if needed, then the release's SHA256SUMS (scripts/release/checksums.sh). The Linux
+# .deb is built on Linux and added afterwards by scripts/release/publish-linux.sh.
 #
 # Usage: scripts/release/publish.sh VERSION
 #   The zip is read from $CARGO_TARGET_DIR/release-assets/VERSION/ (default target dir:
@@ -39,3 +40,4 @@ else
         --title "Simple Voice ${tag}" --generate-notes --verify-tag
 fi
 echo "publish: uploaded ${asset} (sha256 ${sha256}), install.sh and install-linux.sh to ${GH_REPO} ${tag}"
+"${root}/scripts/release/checksums.sh" "$version"

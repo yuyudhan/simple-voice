@@ -22,6 +22,11 @@ build-linux VERSION:
 publish-linux VERSION:
     scripts/release/publish-linux.sh {{VERSION}}
 
+# Rewrite and upload the SHA256SUMS of release vVERSION (after uploading a changed installer).
+[group('release')]
+checksums VERSION:
+    scripts/release/checksums.sh {{VERSION}}
+
 # Manage the release signing certificate: create BACKUP.p12 | restore BACKUP.p12 | show.
 [group('release')]
 [positional-arguments]

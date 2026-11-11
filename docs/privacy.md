@@ -52,7 +52,7 @@ You can move the database to another folder in Settings → Privacy & data; Simp
 the new location. To remove everything, run the install command with `--uninstall --purge`:
 
 ```sh
-curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash -s -- --uninstall --purge
+curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh -s -- --uninstall --purge
 ```
 
 It deletes the app, `~/.simplevoice` and the database in a folder you moved it to, and resets

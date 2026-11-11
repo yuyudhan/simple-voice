@@ -81,4 +81,4 @@ if ! git push origin HEAD "$tag"; then
     exit 1
 fi
 scripts/release/publish.sh "$version"
-echo "release: ${tag} is live: curl -fsSL https://github.com/yuyudhan/simple-voice/releases/latest/download/install.sh | bash"
+echo "release: ${tag} is live: curl -fsSL https://yuyudhan.github.io/simple-voice/install | sh (within 15 minutes; at once: gh workflow run sync-installers.yml -R yuyudhan/yuyudhan.github.io)"
