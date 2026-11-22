@@ -19,6 +19,7 @@ use super::edit::{capture_selection, edit_state, SelectionTask};
 use super::learning;
 use super::live::{self, LiveSession};
 use super::pipeline::{self, SessionInput};
+use super::speculative;
 use super::{publish, publish_message, publish_phase, Control};
 use crate::features::{health, llm, permissions};
 use crate::platform::output_mute::{self, Muting};
@@ -217,13 +218,15 @@ impl Coordinator {
         );
         settings.style = style;
         // An edit's instruction is neither streamed nor primed with the field it edits.
-        let context = if edit {
+        let mut context = if edit {
             None
         } else {
             context::capture(&app, &settings, frontmost.as_ref())
         };
         let (live, sink) = if settings.live_transcript && !edit {
-            let (live, sink) = live::start(&app, id, &settings);
+            // A recording that formats while it records hands its context read to the worker.
+            let speculation = speculative::start(&app, id, &settings, &mut context);
+            let (live, sink) = live::start(&app, id, &settings, speculation);
             (Some(live), Some(sink))
         } else {
             (None, None)

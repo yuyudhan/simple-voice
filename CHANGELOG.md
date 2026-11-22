@@ -5,6 +5,16 @@
 Release notes for each version are also on the
 [GitHub releases page](https://github.com/yuyudhan/simple-voice/releases).
 
+## Unreleased
+
+### Added
+
+- Formatting while you speak: with the live transcript on and on-device models, the recording so
+  far is transcribed again every few seconds and its finished sentences go through the AI
+  formatting pass while you are still talking, so after you stop only the last part is
+  formatted. The pasted text still comes from the whole recording; a formatted sentence is kept
+  only where its words match it exactly.
+
 ## v0.4.1 - 2026-11-12
 
 ### Changed

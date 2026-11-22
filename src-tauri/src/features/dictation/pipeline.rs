@@ -2,9 +2,10 @@
 //! One finished recording → text in the frontmost app and a history row. Transcription is a run
 //! on the whole recording (a live stream only displayed it) by the on-device model or, when
 //! chosen, Groq Whisper; then deterministic formatting, then personal snippets (protected from
-//! what follows), then the optional post-processing pass (on-device, or Groq when chosen), then
-//! ordered delivery. The same steps (minus pasting) retry a failed entry. A recording made with
-//! the edit shortcut goes to edit mode instead.
+//! what follows), then the optional post-processing pass (on-device, or Groq when chosen; a
+//! recording that formatted while it was recorded reuses what matches and formats the rest),
+//! then ordered delivery. The same steps (minus pasting) retry a failed entry. A recording made
+//! with the edit shortcut goes to edit mode instead.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -91,7 +92,7 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
         selection: _,
         style_source,
         context,
-        live,
+        mut live,
     } = input;
     let state = app.state::<AppState>();
     publish_phase(&app, id, DictationPhase::Transcribing);
@@ -103,19 +104,34 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
             return publish_message(&app, id, DictationPhase::Error, error.to_string());
         }
     };
-    let mut vocabulary = vocabulary(&state, &settings).await;
-    vocabulary.add_context_terms(&context::collect(context).await);
+    // A recording that formatted while it was recorded built its vocabulary at the start, with
+    // the context read, and its formatting model already read the instructions.
+    let mut speculation = live.as_mut().and_then(LiveSession::take_speculation);
+    let built = match speculation.as_mut() {
+        Some(speculation) => speculation.vocabulary().await,
+        None => None,
+    };
+    let vocabulary = match built {
+        Some(built) => built,
+        None => {
+            let mut built = vocabulary(&state, &settings).await;
+            built.add_context_terms(&context::collect(context).await);
+            built
+        }
+    };
     let snippets = snippets::load(&state).await;
-    // The formatting model reads its instructions while the recording is transcribed.
-    llm::prepare(&app, &settings, |target| {
-        sv_text::polish_prompt(
-            "",
-            &vocabulary.terms,
-            settings.style,
-            target,
-            &settings.languages,
-        )
-    });
+    if speculation.is_none() {
+        // The formatting model reads its instructions while the recording is transcribed.
+        llm::prepare(&app, &settings, |target| {
+            sv_text::polish_prompt(
+                "",
+                &vocabulary.terms,
+                settings.style,
+                target,
+                &settings.languages,
+            )
+        });
+    }
     let (app_name, bundle_id, window) = frontmost.map_or((None, None, None), |front| {
         (front.name, front.bundle_id, front.window)
     });
@@ -179,10 +195,24 @@ pub(crate) async fn run_session(app: AppHandle, mut input: SessionInput) {
     };
 
     let formatted = sv_text::format(&heard.text, &vocabulary, settings.style);
-    if will_post_process(&settings, &formatted.text) {
+    let post_process = will_post_process(&settings, &formatted.text);
+    if post_process {
         publish_phase(&app, id, DictationPhase::Formatting);
     }
-    let polish = finish_text(&state, &settings, &vocabulary, &snippets, &formatted.text).await;
+    let started = Instant::now();
+    let speculated = match speculation {
+        Some(speculation) if post_process => {
+            let whole = &formatted.text;
+            speculation
+                .finish(&state, &settings, &vocabulary, &snippets, whole)
+                .await
+        }
+        _ => None,
+    };
+    let polish = match speculated {
+        Some((text, model)) => Polish::Polished(text, model, elapsed_ms(started)),
+        None => finish_text(&state, &settings, &vocabulary, &snippets, &formatted.text).await,
+    };
     let (final_text, mut status, note) = match polish {
         Polish::Polished(text, model, ms) => {
             row.format_model = Some(model);

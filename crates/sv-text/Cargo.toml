@@ -12,5 +12,9 @@ publish = false
 [dependencies]
 sv-domain.workspace = true
 
+[dev-dependencies]
+# The latency bench (examples/latency) speaks the engine helper's JSON-lines protocol.
+serde_json.workspace = true
+
 [lints]
 workspace = true

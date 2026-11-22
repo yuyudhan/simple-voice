@@ -13,31 +13,13 @@ use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 
 use sv_domain::vocabulary_packs::default_vocabulary_packs;
-use sv_domain::{DictionaryEntry, DictionarySource, Style};
+use sv_domain::Style;
 use sv_text::Vocabulary;
 
-fn entries(path: &str) -> io::Result<Vec<DictionaryEntry>> {
-    let text = std::fs::read_to_string(path)?;
-    let mut entries = Vec::new();
-    for (id, line) in (1_i64..).zip(text.lines()) {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (phrase, replacement) = match line.split_once("->") {
-            Some((heard, written)) => (heard.trim(), Some(written.trim().to_owned())),
-            None => (line, None),
-        };
-        entries.push(DictionaryEntry {
-            id,
-            phrase: phrase.to_owned(),
-            replacement,
-            created_at: 0,
-            source: DictionarySource::Manual,
-        });
-    }
-    Ok(entries)
-}
+#[path = "common/entries.rs"]
+mod common_entries;
+
+use common_entries::entries;
 
 fn run(mode: &str, path: &str) -> io::Result<()> {
     let vocabulary = Vocabulary::new(&entries(path)?, &default_vocabulary_packs());

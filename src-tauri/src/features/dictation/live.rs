@@ -3,10 +3,12 @@
 //! `streaming` for Parakeet TDT, Parakeet Flash and Apple Speech; Whisper does not), the
 //! recorder hands every stretch of audio to a bounded queue, a feeder task forwards it to the
 //! helper's stream in ~200 ms batches, and the helper's partial hypotheses reach the UI
-//! (`dictation-partial`) and the pill. The stream is display only: on stop it is cancelled and
-//! the pasted text comes from the normal transcription of the whole recording, so the result is
-//! as accurate as without live transcript and never repeats a segment. A stream that fails,
-//! overflows its queue or dies with a helper restart only stops the live display.
+//! (`dictation-partial`) and the pill. When the recording formats while it records, the same
+//! audio also goes to its formatting worker (`speculative`). The stream never supplies pasted
+//! words: on stop it is cancelled and the pasted text comes from the normal transcription of the
+//! whole recording, so the result is as accurate as without live transcript and never repeats a
+//! segment. A stream that fails, overflows its queue or dies with a helper restart only stops
+//! the live display.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -16,8 +18,9 @@ use sv_audio::ChunkSink;
 use sv_domain::{DictationPartial, Settings};
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Manager};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
+use super::speculative::Speculation;
 use crate::events;
 use crate::features::models::{active_model, engine_language};
 use crate::state::{lock, AppState};
@@ -44,15 +47,19 @@ struct Current {
     stream_id: Option<u64>,
     failed: bool,
     last_partial: Option<Instant>,
+    /// Held for the formatting worker, never read: dropped with the stream, which tells the
+    /// worker the recording stopped.
+    _recording: Option<watch::Sender<()>>,
 }
 
 impl LiveState {
-    fn begin(&self, session_id: u64) {
+    fn begin(&self, session_id: u64, recording: Option<watch::Sender<()>>) {
         *lock(&self.current) = Some(Current {
             session_id,
             stream_id: None,
             failed: false,
             last_partial: None,
+            _recording: recording,
         });
     }
 
@@ -86,12 +93,14 @@ impl LiveState {
     }
 }
 
-/// A recording's live stream: the feeder task and the model it streams with.
+/// A recording's live stream: the feeder task and the model it streams with, and the
+/// formatting worker it feeds, when the recording formats while it records.
 #[derive(Debug)]
 pub(crate) struct LiveSession {
     session_id: u64,
     overflowed: Arc<AtomicBool>,
     feeder: JoinHandle<()>,
+    speculation: Option<Speculation>,
 }
 
 /// The model to stream with, when live transcript is on: the model the dictation would run
@@ -105,17 +114,27 @@ pub(crate) async fn live_model(state: &AppState, settings: &Settings) -> Option<
 
 /// Starts the feeder for `session_id` and returns the chunk sink the recorder writes into. The
 /// feeder picks the model itself (readiness checks never delay the recording start); audio
-/// waits in the queue meanwhile.
+/// waits in the queue meanwhile. `speculation` gets all of the audio.
 pub(crate) fn start(
     app: &AppHandle,
     session_id: u64,
     settings: &Settings,
+    mut speculation: Option<Speculation>,
 ) -> (LiveSession, ChunkSink) {
+    let worker_feed = speculation.as_mut().and_then(Speculation::take_feed);
+    let (recording, audio, backlog) = match worker_feed {
+        Some(feed) => (Some(feed.recording), Some(feed.audio), Some(feed.backlog)),
+        None => (None, None, None),
+    };
     let (sender, receiver) = mpsc::channel::<Vec<i16>>(QUEUE_CHUNKS);
     let overflowed = Arc::new(AtomicBool::new(false));
     let sink: ChunkSink = {
         let overflowed = Arc::clone(&overflowed);
         Box::new(move |chunk: &[i16]| {
+            // The worker drafts the whole recording, whatever becomes of the stream.
+            if let Some(audio) = &audio {
+                lock(audio).extend_from_slice(chunk);
+            }
             if overflowed.load(Ordering::Relaxed) {
                 return;
             }
@@ -126,18 +145,23 @@ pub(crate) fn start(
             }
         })
     };
-    app.state::<AppState>().dictation.live.begin(session_id);
+    app.state::<AppState>()
+        .dictation
+        .live
+        .begin(session_id, recording);
     let feeder = tauri::async_runtime::spawn(feed(
         app.clone(),
         session_id,
         settings.clone(),
         receiver,
         Arc::clone(&overflowed),
+        backlog,
     ));
     let session = LiveSession {
         session_id,
         overflowed,
         feeder,
+        speculation,
     };
     (session, sink)
 }
@@ -148,6 +172,7 @@ async fn feed(
     settings: Settings,
     mut receiver: mpsc::Receiver<Vec<i16>>,
     overflowed: Arc<AtomicBool>,
+    backlog: Option<Arc<AtomicBool>>,
 ) {
     let state = app.state::<AppState>();
     let Some(model) = live_model(&state, &settings).await else {
@@ -177,6 +202,9 @@ async fn feed(
     }
     let mut batch: Vec<i16> = Vec::with_capacity(BATCH_SAMPLES * 2);
     while let Some(chunk) = receiver.recv().await {
+        if let Some(backlog) = &backlog {
+            backlog.store(receiver.len() > QUEUE_CHUNKS / 2, Ordering::Relaxed);
+        }
         if overflowed.load(Ordering::Relaxed) || state.dictation.live.failed(session_id) {
             tracing::info!(session = session_id, "live transcript abandoned");
             cancel_stream(&state, stream_id).await;
@@ -213,6 +241,11 @@ impl LiveSession {
             self.feeder.abort();
             cancel_stream(&state, stream_id).await;
         }
+    }
+
+    /// The recording's formatting worker, for the stop to finish; taken once.
+    pub(crate) fn take_speculation(&mut self) -> Option<Speculation> {
+        self.speculation.take()
     }
 }
 
@@ -303,7 +336,7 @@ mod tests {
     fn live_state_tracks_only_the_current_session() {
         let live = LiveState::default();
         assert!(live.failed(1));
-        live.begin(1);
+        live.begin(1, None);
         assert!(!live.failed(1));
         assert!(live.attach(1, 77));
         assert!(!live.attach(2, 78));
@@ -319,7 +352,7 @@ mod tests {
     #[test]
     fn scenario_8_a_stream_started_after_the_recording_ended_is_refused_for_cancelling() {
         let live = LiveState::default();
-        live.begin(5);
+        live.begin(5, None);
         // Ended before `stream_start` answered: nothing attached yet, nothing to cancel here.
         assert_eq!(live.take(5), None);
         // The late answer is refused, which is the feeder's cue to cancel the stream.
@@ -327,5 +360,15 @@ mod tests {
         assert!(live.failed(5));
         // A taken session is gone for good: no second cancel from a repeated end.
         assert_eq!(live.take(5), None);
+    }
+
+    #[test]
+    fn ending_the_stream_tells_the_formatting_worker_the_recording_stopped() {
+        let live = LiveState::default();
+        let (recording, worker) = watch::channel(());
+        live.begin(3, Some(recording));
+        assert!(worker.has_changed().is_ok());
+        assert_eq!(live.take(3), None);
+        assert!(worker.has_changed().is_err());
     }
 }

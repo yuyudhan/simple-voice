@@ -4,7 +4,7 @@
 //! it, with the on-device choice as its fallback; the personal dictionary that primes them; and
 //! the session WAV files the helper reads.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use sv_domain::languages::model_languages;
@@ -14,7 +14,7 @@ use sv_domain::models::{
 use sv_domain::{
     AppError, AppResult, RetryReason, Settings, TranscriptQuality, TranscriptionProvider,
 };
-use sv_engine::TranscribeOptions;
+use sv_engine::{EngineTranscript, TranscribeOptions};
 use sv_text::Vocabulary;
 
 use super::elapsed_ms;
@@ -388,12 +388,32 @@ async fn run(
     model: &str,
 ) -> AppResult<Run> {
     let started = Instant::now();
-    // Models know only spoken languages: script variants go as their base.
-    let languages = model_languages(&settings.languages);
     let path = audio
         .path
         .as_deref()
         .ok_or_else(|| AppError::other("Audio file missing"))?;
+    let transcribed = engine_transcribe(state, settings, vocabulary, path, model).await;
+    health::model_outcome(state, model, transcribed.as_ref().err());
+    let transcript = transcribed?;
+    Ok(Run {
+        text: transcript.text,
+        language: transcript.language,
+        quality: transcript.quality,
+        ms: elapsed_ms(started),
+        dictionary_fixes: transcript.dictionary_fixes,
+    })
+}
+
+/// `path` on `model` through the helper, with the options every dictation pass gives it.
+pub(super) async fn engine_transcribe(
+    state: &AppState,
+    settings: &Settings,
+    vocabulary: &Vocabulary,
+    path: &Path,
+    model: &str,
+) -> AppResult<EngineTranscript> {
+    // Models know only spoken languages: script variants go as their base.
+    let languages = model_languages(&settings.languages);
     // Whisper detects among the allowed languages and is primed with the dictionary; Parakeet
     // TDT takes the dictionary's names for its audio-backed booster; the others take neither.
     let whisper = model == WHISPER_TURBO || model == WHISPER_HINGLISH;
@@ -414,16 +434,7 @@ async fn run(
         vocabulary: &boost,
         timestamps: false,
     };
-    let transcribed = state.engine.transcribe(model, path, options).await;
-    health::model_outcome(state, model, transcribed.as_ref().err());
-    let transcript = transcribed?;
-    Ok(Run {
-        text: transcript.text,
-        language: transcript.language,
-        quality: transcript.quality,
-        ms: elapsed_ms(started),
-        dictionary_fixes: transcript.dictionary_fixes,
-    })
+    state.engine.transcribe(model, path, options).await
 }
 
 async fn write_session_wav(wav: &[u8], id: u64) -> AppResult<PathBuf> {

@@ -310,16 +310,21 @@ pub(crate) fn prepare(
     let prompt = build(target(&model));
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
-        let prepared = state
-            .engine
-            .prepare_generate(&model, &prompt.system, &prompt.shots)
-            .await;
-        match prepared {
-            Ok(()) => mark_used(&state, &model),
-            Err(error) => tracing::info!(%error, model, "formatting prompt not prepared"),
-        }
+        prepare_model(&app.state::<AppState>(), &model, &prompt).await;
     });
+}
+
+/// [`prepare`] for an on-device `model` the caller picked, done when it returns, so a request
+/// sent afterwards finds the prepared session.
+pub(crate) async fn prepare_model(state: &AppState, model: &str, prompt: &PolishPrompt) {
+    let prepared = state
+        .engine
+        .prepare_generate(model, &prompt.system, &prompt.shots)
+        .await;
+    match prepared {
+        Ok(()) => mark_used(state, model),
+        Err(error) => tracing::info!(%error, model, "formatting prompt not prepared"),
+    }
 }
 
 /// Sends `prompt` to `model` within `limit` (stretched by [`budget`] for on-device load and

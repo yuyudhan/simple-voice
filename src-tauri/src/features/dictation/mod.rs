@@ -1,17 +1,20 @@
 // FilePath: src-tauri/src/features/dictation/mod.rs
-//! Dictation: the recording coordinator, live transcription while recording, the transcription
-//! → formatting → snippets → post-processing pipeline, optional context from the focused field,
-//! edit mode (the selected text rewritten by a spoken instruction), ordered delivery into the
-//! frontmost app, and learning from the corrections made to pasted text.
+//! Dictation: the recording coordinator, live transcription while recording, formatting while
+//! recording, the transcription → formatting → snippets → post-processing pipeline, optional
+//! context from the focused field, edit mode (the selected text rewritten by a spoken
+//! instruction), ordered delivery into the frontmost app, and learning from the corrections made
+//! to pasted text.
 
 mod capture_hooks;
 mod context;
 mod coordinator;
 mod delivery;
+mod draft_file;
 mod edit;
 mod learning;
 mod live;
 mod pipeline;
+mod speculative;
 mod transcription;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -23,6 +26,7 @@ use tokio::sync::mpsc;
 
 pub(crate) use self::coordinator::spawn_coordinator;
 pub(crate) use self::delivery::copy_to_clipboard;
+pub(crate) use self::draft_file::sweep as sweep_drafts;
 pub(crate) use self::live::{on_failed as on_stream_failed, on_partial as on_stream_partial};
 pub(crate) use self::pipeline::{retry, test_post_processing, PostProcessingTest};
 use crate::events;

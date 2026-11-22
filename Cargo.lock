@@ -4875,6 +4875,7 @@ dependencies = [
 name = "sv-text"
 version = "0.4.1"
 dependencies = [
+ "serde_json",
  "sv-domain",
 ]
 

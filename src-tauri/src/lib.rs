@@ -196,6 +196,10 @@ fn setup(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // Before the coordinator runs, so no new recording's marker is mistaken for a crashed one.
     let marker = output_mute::marker_path();
     app.manage(output_mute::PendingRecovery::load(marker.as_deref()));
+    // Before any recording: drafts a quit or a crash left while formatting while speaking.
+    if let Ok(dir) = sv_storage::paths::audio_dir() {
+        dictation::sweep_drafts(&dir);
+    }
     let events_app = app.clone();
     app.state::<AppState>()
         .engine
