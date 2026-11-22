@@ -15,6 +15,12 @@ Release notes for each version are also on the
   formatted. The pasted text still comes from the whole recording; a formatted sentence is kept
   only where its words match it exactly.
 
+### Fixed
+
+- A long dictation is no longer pasted with most of its words missing: when the AI formatting
+  pass returns under 60 % of the words of a dictation of 60 words or more, the unformatted text
+  is pasted instead and History says why.
+
 ## v0.4.1 - 2026-11-12
 
 ### Changed

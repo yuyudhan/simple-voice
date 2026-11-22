@@ -519,7 +519,7 @@ pub fn polish_prompt(text: &str, terms: &[String], style: Style, target: PolishT
 pub fn polish_timeout(text: &str) -> Duration;                    // 2.5 s + 30 ms/word
 pub enum PolishOutcome { Polished(String), Skipped(String) }       // reason
 pub fn should_skip_polish(text: &str) -> Option<PolishOutcome>;    // Some(Skipped("too short")) < 3 words
-pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // strips echoed <transcript> tags; empty / truncated / grew
+pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome; // strips echoed <transcript> tags; empty / truncated / grew / kept < 60 % of >= 60 words
 // Edit mode (edit.rs): the same PolishPrompt shape for every backend; the selection sits between
 // <text> tags and is data, the instruction is carried out.
 pub const EDIT_MAX_CHARS: usize = 4_000;

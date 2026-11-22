@@ -66,6 +66,14 @@ const TIMEOUT_BASE_MS: u64 = 2_500;
 /// Apple Intelligence rewrites the whole text, so its time grows with the words: warm, with the
 /// prompt prepared, 88 words took 2.7 s, 183 words 5.5 s and 336 words 9.4 s (T242).
 const TIMEOUT_PER_WORD_MS: u64 = 30;
+/// From this many transcript words a reply must keep [`MIN_KEPT_PERCENT`] of them. Below it a
+/// self-correction or a run of fillers may rightly be most of the text (the correction example
+/// formats 21 words to 11), and T288 saw no loss up to 120 words.
+const LOSS_GUARD_MIN_WORDS: usize = 60;
+/// Share of a long transcript's words the reply must keep. The whole pass changes about 2 % of
+/// the words of 61-250-word dictations, yet on ~360 words Apple Intelligence returned only
+/// 147-198 (41-55 % kept) and lost the rest of the text (T288).
+const MIN_KEPT_PERCENT: usize = 60;
 
 // Chat models are tuned to answer the last user turn. Without a task framing that says the
 // transcript is someone else's speech, qwen3 answered dictated questions ("who is the prime
@@ -317,6 +325,13 @@ pub fn accept_polish(input: &str, output: &str, finished: bool) -> PolishOutcome
     if output_words.saturating_mul(2) > input_words.saturating_mul(3).saturating_add(20) {
         return PolishOutcome::Skipped("output grew beyond the transcript".to_owned());
     }
+    if input_words >= LOSS_GUARD_MIN_WORDS
+        && output_words.saturating_mul(100) < input_words.saturating_mul(MIN_KEPT_PERCENT)
+    {
+        return PolishOutcome::Skipped(format!(
+            "the reply kept {output_words} of {input_words} words"
+        ));
+    }
     PolishOutcome::Polished(output.to_owned())
 }
 
@@ -560,6 +575,50 @@ mod tests {
         assert_eq!(
             accept_polish(&input, &over, true),
             PolishOutcome::Skipped("output grew beyond the transcript".into())
+        );
+    }
+
+    /// T288: on ~360-word dictations Apple Intelligence returned 147-198 words.
+    #[test]
+    fn a_long_reply_that_drops_most_of_the_words_is_rejected() {
+        let input = "word ".repeat(360);
+        let reply = "Word ".repeat(198);
+        assert_eq!(
+            accept_polish(&input, &reply, true),
+            PolishOutcome::Skipped("the reply kept 198 of 360 words".into())
+        );
+    }
+
+    #[test]
+    fn a_long_reply_keeping_most_of_the_words_is_accepted() {
+        // Fillers and false starts removed: 72 of 120 words is the least still accepted.
+        let input = "word ".repeat(120);
+        for kept in [72, 100, 118] {
+            let reply = "Word ".repeat(kept);
+            assert_eq!(
+                accept_polish(&input, &reply, true),
+                PolishOutcome::Polished(reply.trim().to_owned()),
+                "{kept}"
+            );
+        }
+        assert_eq!(
+            accept_polish(&input, &"Word ".repeat(71), true),
+            PolishOutcome::Skipped("the reply kept 71 of 120 words".into())
+        );
+    }
+
+    #[test]
+    fn a_short_dictation_may_lose_most_of_its_words() {
+        // The self-correction example: 21 words formatted to 11.
+        let reply = "The deploy is on Wednesday, and we should tell the team.";
+        assert_eq!(
+            accept_polish(CORRECTION_SHOT, reply, true),
+            PolishOutcome::Polished(reply.to_owned())
+        );
+        let input = "word ".repeat(59);
+        assert_eq!(
+            accept_polish(&input, "Word word.", true),
+            PolishOutcome::Polished("Word word.".to_owned())
         );
     }
 
