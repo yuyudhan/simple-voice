@@ -186,6 +186,24 @@ a password manager, outside this repository: a lost certificate means the next r
 signed with a new one and every user re-grants permissions once. codesign uses the certificate
 without it being trusted, so no trust setting is needed.
 
+**Headless build Mac (macminim4).** Nobody sits at that Mac to answer keychain prompts, so the
+identity is not in its login keychain. It lives in a dedicated keychain,
+`~/Library/Keychains/simple-voice-signing.keychain-db`, which is on the user's keychain search
+list. That keychain has its own random password, stored only in
+`~/.config/simple-voice/signing-keychain.pass` (mode 600, directory 700; never print it or
+commit it). Its key partition list includes `apple-tool:,apple:,codesign:`, so codesign signs
+without a dialog. The keychain never auto-locks, but it is locked again after a reboot or
+logout, and it may be locked in an ssh security session. Unlock it before `build.sh`:
+
+```sh
+security unlock-keychain -p "$(cat ~/.config/simple-voice/signing-keychain.pass)" \
+    ~/Library/Keychains/simple-voice-signing.keychain-db
+```
+
+Without the unlock, `build.sh` still finds the identity, but codesign then fails or waits on a
+prompt. `signing-identity.sh show` checks the dedicated keychain when run with
+`SIGNING_KEYCHAIN=~/Library/Keychains/simple-voice-signing.keychain-db`.
+
 The self-signed certificate has no Team ID, and under the hardened runtime dyld loads a
 non-system library only when it carries the process's Team ID. The engine helper links
 `llama.framework` from `Contents/Frameworks`, so it is refused even when signed with the same
