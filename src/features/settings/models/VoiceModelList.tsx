@@ -19,6 +19,12 @@ export function ProviderMark({ provider }: { provider: ModelProvider }) {
                     N
                 </span>
             );
+        case "canary":
+            return (
+                <span className="sv-provider sv-provider--nvidia" aria-label="NVIDIA Canary">
+                    N
+                </span>
+            );
         case "apple":
             return (
                 <span className="sv-provider sv-provider--apple" aria-label="Apple">

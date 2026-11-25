@@ -984,6 +984,7 @@ Model ids (the only ones the helper knows):
 | `fluid-speech-pico`      | voice, 25 European languages, macOS 15+ | yes | 161,208,320 B tar (CC-BY-4.0, credit FluidVoice; models.fluidvoice.app `fluid-pico/1.1.1`, pinned SHA-256: Parakeet TDT v3 compressed, encoder in 4 pieces) |
 | `whisper-large-v3-turbo` | voice                        | no      | argmaxinc/whisperkit-coreml                                                                                                     |
 | `whisper-hinglish`       | voice                        | no      | vbhar/whisperkit-hindi2hinglish-prime-coreml                                                                                    |
+| `indic-hinglish`         | voice, Hindi as Roman Hinglish, macOS 15+ | no | Indic-Transcribe-Flex (Bodhan AI / AI4Bharat, Canary-1B-v2 fine-tune) in FluidAudio's Canary Core ML int4 layout; Indic Open Model License v1.0; public HF repo pinned by revision, built by `scripts/models/indic-flex/publish.sh` |
 | `apple-speech`           | voice, macOS 26+             | yes     | macOS assets per locale; `SpeechTranscriber` has no server path                                                                 |
 | `apple-intelligence`     | text, macOS 26+              | —       | built into macOS (Foundation Models); never downloads                                                                           |
 | `qwen3-4b-instruct`      | text, any Apple Silicon Mac  | —       | 2,497,281,120 B (Apache-2.0; unsloth/Qwen3-4B-Instruct-2507-GGUF, Q4_K_M, pinned revision), run by llama.cpp (MIT) on Metal     |
@@ -1004,28 +1005,29 @@ Speech.
 ### Smart Select (`src-tauri/src/features/models/smart_select.rs`)
 
 Each local transcription model in the catalog declares what it covers (`CatalogEntry.covers`):
-a list of registry tags (Parakeet TDT v2: `en`; Parakeet TDT v3: its 25 languages; Hinglish
-Whisper: `en`, `hi-Latn`) or every language in its own script (Whisper Turbo: every registry tag
+a list of registry tags (Parakeet TDT v2: `en`; Parakeet TDT v3: its 25 languages; Indic
+(Hinglish) and Hinglish Whisper: `en`, `hi-Latn`) or every language in its own script (Whisper Turbo: every registry tag
 that is not a romanised variant). Models without coverage (Parakeet Flash, Apple Speech, the
 language models, the diarizer) are never Smart Select candidates. The dictation languages rank
 every candidate that covers at least one selected tag: most selected tags covered first, ties
 to the higher accuracy, then the smaller download. The plan and the preloaded model are the top
 of that ranking: `en` → `parakeet-tdt-v2`, `de, fr` → `parakeet-tdt-v3`, `en, hi` →
-`whisper-large-v3-turbo`, `en, hi-Latn` → `whisper-hinglish`, `ja` → `whisper-large-v3-turbo`.
+`whisper-large-v3-turbo`, `en, hi-Latn` → `indic-hinglish` (same coverage and accuracy as
+Hinglish Whisper, the smaller download), `ja` → `whisper-large-v3-turbo`.
 Adding a local model is one catalog entry; nothing here names a language.
 
 When the chosen model leaves a selected tag uncovered, the plan carries a notice built from
 registry names: if another selected tag with the same base is covered, "Offline, {uncovered} is
 written in {covered's script}. Remove {covered} to get {uncovered's script} offline." (`en, hi,
-hi-Latn` → `whisper-hinglish` with "Offline, Hindi is written in Roman script. Remove Hinglish to
+hi-Latn` → `indic-hinglish` with "Offline, Hindi is written in Roman script. Remove Hinglish to
 get Devanagari offline."); otherwise "{model} can't transcribe {A, B and C} offline."
 
 Tags reach the helper as their base (`hi-Latn` → `hi`). The route is the ranking narrowed to
 ready models (`ready_route`); nothing ready is the error "No voice model is ready. Download one
 in Settings → Transcription". The first ready model runs. At most one retry follows, once and
 sequentially. The next ready model in the ranking that covers every selected tag the first one
-covers (a retry never writes a chosen language worse; for `en, hi, hi-Latn` with Hinglish
-Whisper first there is none, since Whisper Turbo cannot write Hinglish) runs when the first
+covers (a retry never writes a chosen language worse; for `en, hi, hi-Latn` Indic runs first and
+Hinglish Whisper is its retry, while Whisper Turbo, which cannot write Hinglish, never is) runs when the first
 model fails, or (`smartRetry` on, 3+ words) when its Whisper quality is below the floor
 (`avgLogprob < -1.0` or `compressionRatio > 2.4`, except silence: `noSpeechProb > 0.6` with
 `avgLogprob < -1.0`). A result of 3+ words (`smartRetry` on) in the wrong script retries on

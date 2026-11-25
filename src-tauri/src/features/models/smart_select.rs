@@ -287,7 +287,7 @@ fn join_names(names: &[&str]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sv_domain::models::{PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
+    use sv_domain::models::{INDIC_HINGLISH, PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
 
     use super::*;
 
@@ -319,9 +319,9 @@ mod tests {
             (&["et", "sl"], PARAKEET_TDT_V3),
             (&["en", "hi"], WHISPER_TURBO),
             (&["hi"], WHISPER_TURBO),
-            (&["en", "hi-Latn"], WHISPER_HINGLISH),
-            (&["hi-Latn"], WHISPER_HINGLISH),
-            (DEFAULT_SET, WHISPER_HINGLISH),
+            (&["en", "hi-Latn"], INDIC_HINGLISH),
+            (&["hi-Latn"], INDIC_HINGLISH),
+            (DEFAULT_SET, INDIC_HINGLISH),
             (&["ja"], WHISPER_TURBO),
             (&["en", "ja"], WHISPER_TURBO),
             (&["en", "hi", "hi-Latn", "ja"], WHISPER_TURBO),
@@ -336,6 +336,7 @@ mod tests {
         assert_eq!(
             route(&langs(DEFAULT_SET)),
             [
+                INDIC_HINGLISH,
                 WHISPER_HINGLISH,
                 WHISPER_TURBO,
                 PARAKEET_TDT_V2,
@@ -346,19 +347,23 @@ mod tests {
             route(&langs(&["fr", "de"])),
             [PARAKEET_TDT_V3, WHISPER_TURBO]
         );
-        // Nothing writes Hinglish but the Hinglish model.
-        assert_eq!(route(&langs(&["hi-Latn"])), [WHISPER_HINGLISH]);
+        // Nothing writes Hinglish but the Hinglish models; Indic first, the smaller download.
+        assert_eq!(
+            route(&langs(&["hi-Latn"])),
+            [INDIC_HINGLISH, WHISPER_HINGLISH]
+        );
     }
 
     #[test]
     fn only_ready_models_run_and_a_retry_never_covers_less() {
         let defaults = langs(DEFAULT_SET);
-        // Hinglish first; Turbo would write Hinglish in Devanagari, so it is no retry for it.
+        // Indic first, Hinglish Whisper (same languages) its retry; Turbo would write Hinglish
+        // in Devanagari, so it is no retry for it.
         assert_eq!(
             ready_route(&defaults, |_| true).unwrap(),
             ReadyRoute {
-                first: WHISPER_HINGLISH,
-                retry: None
+                first: INDIC_HINGLISH,
+                retry: Some(WHISPER_HINGLISH)
             }
         );
         // Only Parakeet downloaded: it still transcribes the English it covers.
@@ -399,10 +404,10 @@ mod tests {
         let cases: &[(&[&str], &str, Option<&str>)] = &[
             (&["en"], PARAKEET_TDT_V2, None),
             (&["en", "hi"], WHISPER_TURBO, None),
-            (&["en", "hi-Latn"], WHISPER_HINGLISH, None),
+            (&["en", "hi-Latn"], INDIC_HINGLISH, None),
             (
                 DEFAULT_SET,
-                WHISPER_HINGLISH,
+                INDIC_HINGLISH,
                 Some("Hindi is written in Roman script. Remove Hinglish to get Devanagari."),
             ),
             (
@@ -412,8 +417,8 @@ mod tests {
             ),
             (
                 &["en", "hi-Latn", "ja"],
-                WHISPER_HINGLISH,
-                Some("Hinglish Whisper can't transcribe Japanese."),
+                INDIC_HINGLISH,
+                Some("Indic (Hinglish) can't transcribe Japanese."),
             ),
             (
                 &["en", "hi-Latn", "ja", "ko"],
@@ -433,7 +438,7 @@ mod tests {
     #[test]
     fn plan_shows_the_model_that_runs_now_and_still_recommends_the_best_one() {
         let defaults = langs(DEFAULT_SET);
-        // Hinglish Whisper missing, Parakeet v3 and Turbo downloaded: Turbo runs, as the
+        // The Hinglish models missing, Parakeet v3 and Turbo downloaded: Turbo runs, as the
         // dictation route would choose, and its own limits are what the notice explains.
         let qa = |model: &str| model == PARAKEET_TDT_V3 || model == WHISPER_TURBO;
         let shown = plan(&defaults, qa);
@@ -442,7 +447,7 @@ mod tests {
             Some(shown.local.as_str()),
             ready_route(&defaults, qa).ok().map(|route| route.first)
         );
-        assert_eq!(shown.recommended, WHISPER_HINGLISH);
+        assert_eq!(shown.recommended, INDIC_HINGLISH);
         assert!(shown.ready);
         assert_eq!(
             shown.notice.as_deref(),
@@ -450,7 +455,7 @@ mod tests {
         );
         // Nothing downloaded: the recommendation is shown, marked not ready.
         let none = plan(&defaults, |_| false);
-        assert_eq!(none.local, WHISPER_HINGLISH);
+        assert_eq!(none.local, INDIC_HINGLISH);
         assert!(!none.ready);
     }
 
@@ -569,19 +574,29 @@ mod tests {
                 hindi,
                 &["en", "hi-Latn"],
                 WHISPER_TURBO,
-                &[WHISPER_HINGLISH],
+                &[INDIC_HINGLISH, WHISPER_HINGLISH],
             ),
-            (mixed, DEFAULT_SET, WHISPER_TURBO, &[WHISPER_HINGLISH]),
+            (
+                mixed,
+                DEFAULT_SET,
+                WHISPER_TURBO,
+                &[INDIC_HINGLISH, WHISPER_HINGLISH],
+            ),
             (romanised, &["hi"], WHISPER_HINGLISH, &[WHISPER_TURBO]),
             // The first model is never its own retry.
             (romanised, &["hi"], WHISPER_TURBO, &[]),
-            (mixed, DEFAULT_SET, WHISPER_HINGLISH, &[]),
+            (mixed, DEFAULT_SET, WHISPER_HINGLISH, &[INDIC_HINGLISH]),
             // Several candidates: most accurate first, then the smaller download.
             (
                 hindi,
                 &["en"],
                 WHISPER_TURBO,
-                &[PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH],
+                &[
+                    PARAKEET_TDT_V2,
+                    PARAKEET_TDT_V3,
+                    INDIC_HINGLISH,
+                    WHISPER_HINGLISH,
+                ],
             ),
             // Written as chosen: nothing to retry.
             (romanised, &["hi-Latn"], PARAKEET_TDT_V3, &[]),

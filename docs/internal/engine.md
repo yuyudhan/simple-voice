@@ -110,6 +110,7 @@ Local models are stored under the `--models-dir` the app passes (by default
 | `fluid-speech-pico` | not Hugging Face: FluidVoice's tar `https://models.fluidvoice.app/parakeet/fluid-pico/1.1.1/fluid-parakeet-pico-coreml.tar` (161,208,320 B, SHA-256 `542f74f6…df21512` pinned; CC-BY-4.0, credit "Fluid Speech Pico by FluidVoice") | `Preprocessor`, `Encoder-1`…`Encoder-4`, `Decoder`, `JointDecision` (`.mlmodelc`), `parakeet_vocab.json`, plus the pack's `config.json`/`manifest.json` (154 MB) |
 | `whisper-large-v3-turbo` | `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder`, `TextDecoderContextPrefill` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (1.64 GB) |
 | `whisper-hinglish` | `vbhar/whisperkit-hindi2hinglish-prime-coreml` (Apache-2.0 Core ML conversion of `Oriserve/Whisper-Hindi2Hinglish-Prime`), folder `Oriserve_Whisper-Hindi2Hinglish-Prime_fp16/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (3.1 GB) |
+| `indic-hinglish` | `simple-voice/indic-transcribe-flex-coreml` at revision `2a7051a5` (tag `flex-ecba9bac9013`; Indic Open Model License v1.0 Core ML int4 conversion of `bodhan-ai/indic-transcribe-flex` at `ecba9bac`, built by `scripts/models/indic-flex/publish.sh`) | `Preprocessor`, `EncoderInt4`, `DecoderInt4`, `Projection` (`.mlmodelc`), `vocab.json`, `Indic_Open_Model_License.md`, `NOTICE.md` (698 MB) |
 | `parakeet-vocabulary` | `FluidInference/parakeet-ctc-110m-coreml` at commit `accdafd8` (CC-BY-4.0 Core ML conversion of `nvidia/parakeet-tdt_ctc-110m`) | `MelSpectrogram`, `AudioEncoder` (`.mlmodelc`), `vocab.json`, `tokenizer.json` (103 MB) |
 
 - `download_model` lists the repository through the Hugging Face API
@@ -144,6 +145,17 @@ Local models are stored under the `--models-dir` the app passes (by default
   SHA-256, size, piece count). Pico's joint has no top-K outputs, so no language hint is passed
   (the hint goes only to joints reporting `top_k_ids`). Its pieces use macOS 15 Core ML
   operations: on macOS 14 `model_status` is `unsupported`.
+- Indic (`Indic.swift`): FluidAudio's Canary runtime (`CanaryModels.load(precision: .int4)`,
+  `CanaryManager`) decodes with Flex's Hindi `<|romanized|>` prompt
+  (`EngineCore/IndicPack.swift`), so the model writes Roman Hinglish itself; no language is
+  reported, like Hinglish Whisper. FluidAudio force-casts `vocab.json`, so the pack's vocabulary
+  is checked first (an id → piece object with Flex's prompt tokens at their ids). int4 weights
+  need macOS 15: on macOS 14 `model_status` is `unsupported`. Batch only (no live stream).
+  The encoder, decoder and projection are wrapped in `EngineCore/Float32Outputs.swift`: they
+  return float16, and FluidAudio 0.17.4's own float16 reader traps (unsigned overflow) on any
+  value under 1, so their outputs reach it as float32.
+  A new upstream version: run `scripts/models/indic-flex/publish.sh <upstream sha>` and pin the
+  revision it prints in `ModelCatalog.swift`.
 - Whisper (`Whisper.swift`): the language is pinned when `language` is sent; otherwise the helper
   runs WhisperKit's language detection with a sampler restricted to the `languages` tokens (all
   languages when none are sent; skipped when exactly one is allowed), then decodes with `prompt`

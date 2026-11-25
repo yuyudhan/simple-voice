@@ -143,7 +143,7 @@ actor ParakeetEngine {
             model = .tdt(manager, .v3, models)
         case .parakeetFlash:
             model = .flash(try await FlashTranscriber.load(from: directory))
-        case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence, .qwen3Instruct,
+        case .whisperLargeV3Turbo, .whisperHinglish, .indicHinglish, .appleSpeech, .appleIntelligence, .qwen3Instruct,
             .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a Parakeet model")
         }

@@ -285,7 +285,8 @@ export interface ModelInsights {
  * booster. */
 export type ModelKind =
     "transcription" | "post_processing" | "diarization" | "translation" | "vocabulary";
-export type ModelProvider = "parakeet" | "whisper" | "apple" | "llm" | "diarizer" | "translator";
+export type ModelProvider =
+    "parakeet" | "canary" | "whisper" | "apple" | "llm" | "diarizer" | "translator";
 export type ModelStatus = "ready" | "not_downloaded" | "downloading" | "unsupported";
 
 export interface ModelInfo {

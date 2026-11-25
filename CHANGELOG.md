@@ -17,6 +17,11 @@ Release notes for each version are also on the
 - Fluid Speech Pico, FluidVoice's compressed Parakeet (161 MB, a third of Parakeet TDT v3), as a
   voice model in Settings → Transcription on macOS 15+. Choose it like any other model; it uses
   the Dictionary booster like Parakeet TDT. CC-BY-4.0, credit FluidVoice.
+- Indic (Hinglish): Hindi and Hindi-English dictation written in Roman letters ("main kal office
+  aaunga") by Indic-Transcribe-Flex, the model FluidVoice's Indic option is built on, on this Mac
+  (macOS 15+, 698 MB download, no account needed). Smart Select now runs it first for Hinglish,
+  with Hinglish Whisper as its retry. Built with Indic-Transcribe-Flex from Bodhan AI / AI4Bharat
+  (Indic Open Model License v1.0).
 
 ### Changed
 

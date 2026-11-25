@@ -56,7 +56,7 @@ extension Engine {
                 ChatTurn.conversation(system: system, shots: shots, user: user), maxTokens: maxTokens,
                 temperature: temperature, progress: progress)
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .whisperLargeV3Turbo, .whisperHinglish,
-            .appleSpeech, .speakerDiarization, .madlad, .parakeetVocabulary:
+            .indicHinglish, .appleSpeech, .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) is not a text model")
         }
     }

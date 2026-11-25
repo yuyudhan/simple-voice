@@ -418,9 +418,7 @@ mod tests {
 
     #[test]
     fn preload_follows_the_chosen_model_or_the_smart_select_route() {
-        use sv_domain::models::{
-            PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH, WHISPER_TURBO,
-        };
+        use sv_domain::models::{INDIC_HINGLISH, PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_TURBO};
         let all = |_: &str| true;
         assert_eq!(
             preload_target(&settings(PARAKEET_TDT_V3, &["en"]), all),
@@ -428,13 +426,13 @@ mod tests {
         );
         assert_eq!(
             preload_target(&settings(SMART_SELECT, &["en", "hi", "hi-Latn"]), all),
-            Some(WHISPER_HINGLISH)
+            Some(INDIC_HINGLISH)
         );
         assert_eq!(
             preload_target(&settings(SMART_SELECT, &["en"]), all),
             Some(PARAKEET_TDT_V2)
         );
-        // The QA install: Hinglish Whisper not downloaded, Parakeet v3 and Turbo ready. The
+        // The QA install: no Hinglish model downloaded, Parakeet v3 and Turbo ready. The
         // model that actually runs is preloaded, never the missing recommendation.
         let qa = |model: &str| model == PARAKEET_TDT_V3 || model == WHISPER_TURBO;
         assert_eq!(

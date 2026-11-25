@@ -20,6 +20,8 @@ checkSpellingGate()
 await checkPromptCache()
 checkModelArchive()
 await checkSplitEncoder()
+checkIndicPack()
+checkFloat32Outputs()
 await checkHubTransfer()
 
 if failures.isEmpty {

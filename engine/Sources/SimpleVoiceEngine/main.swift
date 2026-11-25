@@ -15,6 +15,7 @@ final class Engine: Sendable {
     private let store: ModelStore
     private let parakeet: ParakeetEngine
     private let whisper: WhisperEngine
+    private let indic: IndicEngine
     let languageModel: LocalLanguageModel
     private let translator: LocalTranslator
     private let diarizer: SpeakerDiarizer
@@ -30,6 +31,7 @@ final class Engine: Sendable {
         self.store = store
         parakeet = ParakeetEngine(store: store)
         whisper = WhisperEngine(store: store)
+        indic = IndicEngine(store: store)
         languageModel = LocalLanguageModel(store: store)
         translator = LocalTranslator(store: store)
         diarizer = SpeakerDiarizer(store: store)
@@ -203,10 +205,11 @@ final class Engine: Sendable {
     private func baseStatus(_ id: ModelID, language: String?) async -> ModelStatusResult {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .whisperLargeV3Turbo,
-            .whisperHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
-            // Fluid Speech Pico's Core ML pieces use macOS 15 operations.
-            if id == .fluidSpeechPico, #unavailable(macOS 15) {
-                return .unsupported("Fluid Speech Pico requires macOS 15 or later")
+            .whisperHinglish, .indicHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+            // Fluid Speech Pico's Core ML pieces and the Indic model's int4 weights use macOS 15.
+            if id == .fluidSpeechPico || id == .indicHinglish, #unavailable(macOS 15) {
+                let name = id == .fluidSpeechPico ? "Fluid Speech Pico" : "Indic (Hinglish)"
+                return .unsupported("\(name) requires macOS 15 or later")
             }
             guard let hub = HubModel.forModel(id) else { return .unsupported("unknown model") }
             return store.status(of: hub)
@@ -224,7 +227,7 @@ final class Engine: Sendable {
     private func download(_ id: ModelID, language: String?, progress: ProgressSink) async throws {
         switch id {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .whisperLargeV3Turbo,
-            .whisperHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+            .whisperHinglish, .indicHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             let hub = try hubModel(id)
             try await store.download(hub, progress: progress)
         case .appleSpeech:
@@ -252,6 +255,9 @@ final class Engine: Sendable {
             await whisper.unload(id)
             let hub = try hubModel(id)
             try await store.delete(hub)
+        case .indicHinglish:
+            await indic.unload()
+            try await store.delete(try hubModel(id))
         case .qwen3Instruct:
             await languageModel.unload()
             try await store.delete(try hubModel(id))
@@ -277,6 +283,8 @@ final class Engine: Sendable {
             try await parakeet.preloadVocabulary()
         case .whisperLargeV3Turbo, .whisperHinglish:
             try await whisper.preload(id)
+        case .indicHinglish:
+            try await indic.preload()
         case .qwen3Instruct:
             try await languageModel.preload()
         case .speakerDiarization:
@@ -313,6 +321,8 @@ final class Engine: Sendable {
                 timestamps: timestamps
             )
             return try await whisper.transcribe(id, samples: samples, request: request)
+        case .indicHinglish:
+            return try await indic.transcribe(samples: try AudioLoader.loadSamples(path: params.wavPath))
         case .appleSpeech:
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             return try await AppleSpeech.transcribe(
@@ -341,8 +351,8 @@ final class Engine: Sendable {
         case .appleSpeech:
             guard #available(macOS 26, *) else { throw EngineError("Apple Speech requires macOS 26 or later") }
             recognizer = try await AppleSpeech.live(language: params.language)
-        case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
-            .madlad, .parakeetVocabulary:
+        case .whisperLargeV3Turbo, .whisperHinglish, .indicHinglish, .appleIntelligence, .qwen3Instruct,
+            .speakerDiarization, .madlad, .parakeetVocabulary:
             throw EngineError("\(id.rawValue) does not support live transcription")
         }
         let streamId = await live.start(recognizer, overlay: params.overlay ?? false)

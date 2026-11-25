@@ -38,8 +38,8 @@ struct FluidSpeechPack: Sendable {
                 bytes: 161_208_320,
                 encoderPieces: 4
             )
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech,
-            .appleIntelligence, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish, .indicHinglish,
+            .appleSpeech, .appleIntelligence, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             nil
         }
     }

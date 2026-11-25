@@ -34,3 +34,7 @@ chalenge = "chalenge"
 # The heard side of a pack rule (crates/sv-text/src/packs/backend.rs): how Parakeet spells a
 # spoken "Postgres".
 postgress = "postgress"
+# Apple Neural Engine (scripts/models/indic-flex/): Core ML's accelerator and the Hugging Face tag
+# the published Indic model card carries.
+ANE = "ANE"
+ane = "ane"

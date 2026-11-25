@@ -235,6 +235,28 @@ struct HubModel: Sendable {
                     archive: pack.archive
                 )
             }
+        case .indicHinglish:
+            // Converted and published by scripts/models/indic-flex/publish.sh; a new upstream
+            // version is a new tagged revision of this repository, pinned here.
+            HubModel(
+                id: id,
+                sources: [
+                    HubSource(
+                        repo: "simple-voice/indic-transcribe-flex-coreml",
+                        subdirectory: "",
+                        entries: IndicEngine.requiredEntries,
+                        revision: Self.indicRevision
+                    )
+                ],
+                catalog: ModelCatalog(
+                    license: "Indic Open Model License v1.0 (Built with Indic-Transcribe-Flex from Bodhan AI / "
+                        + "AI4Bharat; on NVIDIA Canary-1B-v2, CC-BY-4.0)",
+                    source: "https://huggingface.co/simple-voice/indic-transcribe-flex-coreml (Core ML int4 "
+                        + "conversion of https://huggingface.co/bodhan-ai/indic-transcribe-flex at "
+                        + "ecba9bac9013c0340fe814b336897ee51ed80be9)",
+                    revision: Self.indicRevision,
+                    downloadBytes: 697_999_772
+                ))
         case .appleSpeech, .appleIntelligence:
             nil
         }
@@ -247,6 +269,9 @@ struct HubModel: Sendable {
         subdirectory: "",
         entries: ["tokenizer.json", "tokenizer_config.json"]
     )
+
+    /// `flex-ecba9bac9013` of simple-voice/indic-transcribe-flex-coreml.
+    private static let indicRevision = "2a7051a572d8ca1f4c9e86e82b693bc39d19ad35"
 }
 
 /// The download facts of a catalog model, reported by `model_status` so the user sees licence,

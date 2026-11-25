@@ -164,6 +164,9 @@ enum ModelID: String, Sendable, CaseIterable {
     case fluidSpeechPico = "fluid-speech-pico"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperHinglish = "whisper-hinglish"
+    /// Indic (Hinglish): Bodhan AI / AI4Bharat's Indic-Transcribe-Flex (Canary-1B-v2 fine-tune,
+    /// Indic Open Model License v1.0) writing Hindi in Roman letters.
+    case indicHinglish = "indic-hinglish"
     case appleSpeech = "apple-speech"
     case appleIntelligence = "apple-intelligence"
     /// Local text generation (llama.cpp, Qwen3 4B Instruct 2507, Apache-2.0).
@@ -181,8 +184,8 @@ enum ModelID: String, Sendable, CaseIterable {
         switch self {
         case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .appleSpeech:
             true
-        case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
-            .madlad, .parakeetVocabulary:
+        case .whisperLargeV3Turbo, .whisperHinglish, .indicHinglish, .appleIntelligence, .qwen3Instruct,
+            .speakerDiarization, .madlad, .parakeetVocabulary:
             false
         }
     }

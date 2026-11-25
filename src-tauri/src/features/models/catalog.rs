@@ -7,9 +7,9 @@
 
 use sv_domain::languages::Language;
 use sv_domain::models::{
-    APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, FLUID_SPEECH_PICO, LOCAL_LLM, PARAKEET_FLASH,
-    PARAKEET_TDT_V2, PARAKEET_TDT_V3, PARAKEET_VOCABULARY, TRANSLATOR, WHISPER_HINGLISH,
-    WHISPER_TURBO,
+    APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, FLUID_SPEECH_PICO, INDIC_HINGLISH, LOCAL_LLM,
+    PARAKEET_FLASH, PARAKEET_TDT_V2, PARAKEET_TDT_V3, PARAKEET_VOCABULARY, TRANSLATOR,
+    WHISPER_HINGLISH, WHISPER_TURBO,
 };
 use sv_domain::{ModelKind, ModelProvider};
 
@@ -122,6 +122,19 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 92,
         languages: "Hindi, Hinglish (romanised) and English",
         size_mb: Some(3100),
+        covers: Some(Coverage::Tags(&["en", "hi-Latn"])),
+    },
+    // Indic-Transcribe-Flex decoded with its <|romanized|> prompt: Roman Hinglish from the model
+    // itself. The licence (Indic Open Model License v1.0) asks for this credit wherever it runs.
+    CatalogEntry {
+        id: INDIC_HINGLISH,
+        kind: ModelKind::Transcription,
+        provider: ModelProvider::Canary,
+        subtitle: "Built with Indic-Transcribe-Flex from Bodhan AI / AI4Bharat",
+        speed: 85,
+        accuracy: 92,
+        languages: "Hindi, Hinglish (romanised) and English",
+        size_mb: Some(698),
         covers: Some(Coverage::Tags(&["en", "hi-Latn"])),
     },
     CatalogEntry {

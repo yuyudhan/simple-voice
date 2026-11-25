@@ -18,6 +18,9 @@ pub const SMART_SELECT: &str = "smart-select";
 pub const WHISPER_TURBO: &str = "whisper-large-v3-turbo";
 /// Whisper fine-tuned to write Hindi and Hinglish speech in romanised Hinglish.
 pub const WHISPER_HINGLISH: &str = "whisper-hinglish";
+/// Indic (Hinglish): Bodhan AI / AI4Bharat's Indic-Transcribe-Flex, writing Hindi and
+/// Hindi-English speech in Roman letters (the model itself, no transliteration step).
+pub const INDIC_HINGLISH: &str = "indic-hinglish";
 pub const APPLE_INTELLIGENCE: &str = "apple-intelligence";
 /// The downloadable local language model (formatting, edit mode, learning, meetings).
 pub const LOCAL_LLM: &str = "qwen3-4b-instruct";
@@ -73,6 +76,7 @@ pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
     APPLE_SPEECH,
     WHISPER_TURBO,
     WHISPER_HINGLISH,
+    INDIC_HINGLISH,
 ];
 
 /// The Parakeet TDT models, which check their transcript against the Dictionary's names when
@@ -90,6 +94,7 @@ pub const DOWNLOADABLE_MODELS: &[&str] = &[
     APPLE_SPEECH,
     WHISPER_TURBO,
     WHISPER_HINGLISH,
+    INDIC_HINGLISH,
     LOCAL_LLM,
     DIARIZER,
     TRANSLATOR,
@@ -104,6 +109,7 @@ pub fn model_name(id: &str) -> Option<&'static str> {
         SMART_SELECT => Some("Smart Select"),
         WHISPER_TURBO => Some("Whisper Turbo"),
         WHISPER_HINGLISH => Some("Hinglish Whisper"),
+        INDIC_HINGLISH => Some("Indic (Hinglish)"),
         PARAKEET_TDT_V3 => Some("Parakeet TDT v3"),
         PARAKEET_TDT_V2 => Some("Parakeet TDT v2"),
         PARAKEET_FLASH => Some("Flash Dictation (Beta)"),
@@ -149,6 +155,8 @@ pub enum ModelKind {
 #[serde(rename_all = "snake_case")]
 pub enum ModelProvider {
     Parakeet,
+    /// NVIDIA Canary attention encoder-decoder models (Indic-Transcribe-Flex).
+    Canary,
     Apple,
     Whisper,
     /// The downloadable local language model.
@@ -219,6 +227,14 @@ mod tests {
         assert!(LOCAL_TRANSCRIPTION_MODELS.contains(&FLUID_SPEECH_PICO));
         assert!(DOWNLOADABLE_MODELS.contains(&FLUID_SPEECH_PICO));
         assert_eq!(model_name(FLUID_SPEECH_PICO), Some("Fluid Speech Pico"));
+    }
+
+    #[test]
+    fn indic_hinglish_is_a_local_downloadable_voice_model() {
+        assert!(LOCAL_TRANSCRIPTION_MODELS.contains(&INDIC_HINGLISH));
+        assert!(DOWNLOADABLE_MODELS.contains(&INDIC_HINGLISH));
+        assert_eq!(model_name(INDIC_HINGLISH), Some("Indic (Hinglish)"));
+        assert!(!boosts_dictionary(INDIC_HINGLISH));
     }
 
     #[test]
