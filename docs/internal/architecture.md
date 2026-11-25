@@ -981,6 +981,7 @@ Model ids (the only ones the helper knows):
 | `parakeet-tdt-v3`        | voice, 25 European languages | yes     | FluidInference/parakeet-tdt-0.6b-v3-coreml                                                                                      |
 | `parakeet-tdt-v2`        | voice, English               | yes     | FluidInference/parakeet-tdt-0.6b-v2-coreml                                                                                      |
 | `parakeet-flash`         | voice, English               | yes     | FluidInference/parakeet-realtime-eou-120m-coreml                                                                                |
+| `fluid-speech-pico`      | voice, 25 European languages, macOS 15+ | yes | 161,208,320 B tar (CC-BY-4.0, credit FluidVoice; models.fluidvoice.app `fluid-pico/1.1.1`, pinned SHA-256: Parakeet TDT v3 compressed, encoder in 4 pieces) |
 | `whisper-large-v3-turbo` | voice                        | no      | argmaxinc/whisperkit-coreml                                                                                                     |
 | `whisper-hinglish`       | voice                        | no      | vbhar/whisperkit-hindi2hinglish-prime-coreml                                                                                    |
 | `apple-speech`           | voice, macOS 26+             | yes     | macOS assets per locale; `SpeechTranscriber` has no server path                                                                 |

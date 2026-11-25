@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use sv_domain::languages::model_language;
 use sv_domain::models::{
-    model_name, APPLE_SPEECH, DOWNLOADABLE_MODELS, LOCAL_TRANSCRIPTION_MODELS, PARAKEET_TDT_V2,
-    PARAKEET_TDT_V3, PARAKEET_VOCABULARY, SMART_SELECT,
+    boosts_dictionary, model_name, APPLE_SPEECH, DOWNLOADABLE_MODELS, LOCAL_TRANSCRIPTION_MODELS,
+    PARAKEET_VOCABULARY, SMART_SELECT,
 };
 use sv_domain::{
     AppError, AppResult, ModelInfo, ModelKind, ModelProgress, ModelProgressStatus, ModelProvider,
@@ -309,7 +309,7 @@ pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
         return;
     };
     preload(app, &model).await;
-    let boosted = model == PARAKEET_TDT_V3 || model == PARAKEET_TDT_V2;
+    let boosted = boosts_dictionary(&model);
     if boosted && is_ready(&state, settings, PARAKEET_VOCABULARY).await {
         preload(app, PARAKEET_VOCABULARY).await;
     }
@@ -318,9 +318,8 @@ pub(crate) async fn preload_selected(app: &AppHandle, settings: &Settings) {
 /// Whether the settings let the booster download by themselves: the user has not switched it
 /// off and Parakeet TDT may transcribe.
 fn may_fetch_booster(settings: &Settings) -> bool {
-    settings.booster_auto_download
-        && [PARAKEET_TDT_V3, PARAKEET_TDT_V2, SMART_SELECT]
-            .contains(&settings.transcription_model.as_str())
+    let model = settings.transcription_model.as_str();
+    settings.booster_auto_download && (boosts_dictionary(model) || model == SMART_SELECT)
 }
 
 /// Downloads Parakeet's dictionary booster when the settings allow it
@@ -450,8 +449,9 @@ mod tests {
 
     #[test]
     fn the_booster_downloads_by_itself_only_for_parakeet_and_never_when_switched_off() {
-        use sv_domain::models::{PARAKEET_TDT_V3, WHISPER_TURBO};
+        use sv_domain::models::{FLUID_SPEECH_PICO, PARAKEET_TDT_V3, WHISPER_TURBO};
         assert!(may_fetch_booster(&settings(PARAKEET_TDT_V3, &["en"])));
+        assert!(may_fetch_booster(&settings(FLUID_SPEECH_PICO, &["en"])));
         assert!(may_fetch_booster(&settings(SMART_SELECT, &["en"])));
         assert!(!may_fetch_booster(&settings(WHISPER_TURBO, &["en"])));
         for model in [PARAKEET_TDT_V3, SMART_SELECT] {

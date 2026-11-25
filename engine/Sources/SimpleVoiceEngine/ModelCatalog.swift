@@ -1,6 +1,7 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/ModelCatalog.swift
 // What each downloadable model is made of and where it comes from: the Hugging Face files the
-// loader needs, plus the licence, provenance, pinned revision and size shown before download.
+// loader needs, or the pinned archive a publisher hosts itself, plus the licence, provenance,
+// pinned revision and size shown before download.
 
 import Foundation
 
@@ -25,6 +26,16 @@ struct HubSource: Sendable {
     }
 }
 
+/// A model its publisher ships as one tar on its own host, pinned by SHA-256. Its entries share
+/// one top-level folder, which is dropped on unpacking.
+struct ArchiveSource: Sendable {
+    let url: String
+    let sha256: String
+    let bytes: Int64
+    /// Files or `.mlmodelc` directories the loader needs, checked after unpacking.
+    let entries: [String]
+}
+
 /// Everything one local model needs, possibly gathered from several repositories. Every source
 /// lands at the top of the same model directory, so their local paths must not overlap.
 struct HubModel: Sendable {
@@ -33,6 +44,8 @@ struct HubModel: Sendable {
     /// What the user is told before downloading: licence and origin, plus the pinned revision and
     /// exact size where the catalog fixes them.
     let catalog: ModelCatalog
+    /// Set instead of `sources` for a model shipped as one archive.
+    var archive: ArchiveSource? = nil
 
     static func forModel(_ id: ModelID) -> HubModel? {
         switch id {
@@ -205,6 +218,23 @@ struct HubModel: Sendable {
                     revision: "accdafd8cf8a2ff1cabe3c11e54416b405d409aa",
                     downloadBytes: 102_802_455
                 ))
+        case .fluidSpeechPico:
+            FluidSpeechPack.forModel(id).map { pack in
+                HubModel(
+                    id: id,
+                    sources: [],
+                    catalog: ModelCatalog(
+                        license: "CC-BY-4.0 (credit: Fluid Speech Pico by FluidVoice, built on NVIDIA Parakeet TDT "
+                            + "0.6B v3 and Moondream Parakeet Ultra)",
+                        source: pack.archive.url
+                            + " (FluidVoice, https://fluidvoice.com; compressed from https://huggingface.co/nvidia/"
+                            + "parakeet-tdt-0.6b-v3 by distillation from Moondream Parakeet Ultra)",
+                        revision: "1.1.1",
+                        downloadBytes: pack.archive.bytes
+                    ),
+                    archive: pack.archive
+                )
+            }
         case .appleSpeech, .appleIntelligence:
             nil
         }

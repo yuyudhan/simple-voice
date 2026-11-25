@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub const PARAKEET_TDT_V3: &str = "parakeet-tdt-v3";
 pub const PARAKEET_TDT_V2: &str = "parakeet-tdt-v2";
 pub const PARAKEET_FLASH: &str = "parakeet-flash";
+/// FluidVoice's Fluid Speech Pico: Parakeet TDT v3 compressed to a third of its size.
+pub const FLUID_SPEECH_PICO: &str = "fluid-speech-pico";
 pub const APPLE_SPEECH: &str = "apple-speech";
 /// Picks the voice model per dictation from the languages and what is downloaded.
 pub const SMART_SELECT: &str = "smart-select";
@@ -67,16 +69,24 @@ pub const LOCAL_TRANSCRIPTION_MODELS: &[&str] = &[
     PARAKEET_TDT_V3,
     PARAKEET_TDT_V2,
     PARAKEET_FLASH,
+    FLUID_SPEECH_PICO,
     APPLE_SPEECH,
     WHISPER_TURBO,
     WHISPER_HINGLISH,
 ];
+
+/// The Parakeet TDT models, which check their transcript against the Dictionary's names when
+/// the dictionary booster (`PARAKEET_VOCABULARY`) is downloaded.
+pub fn boosts_dictionary(model: &str) -> bool {
+    matches!(model, PARAKEET_TDT_V3 | PARAKEET_TDT_V2 | FLUID_SPEECH_PICO)
+}
 
 /// Model ids with files the helper downloads and deletes on request.
 pub const DOWNLOADABLE_MODELS: &[&str] = &[
     PARAKEET_TDT_V3,
     PARAKEET_TDT_V2,
     PARAKEET_FLASH,
+    FLUID_SPEECH_PICO,
     APPLE_SPEECH,
     WHISPER_TURBO,
     WHISPER_HINGLISH,
@@ -97,6 +107,7 @@ pub fn model_name(id: &str) -> Option<&'static str> {
         PARAKEET_TDT_V3 => Some("Parakeet TDT v3"),
         PARAKEET_TDT_V2 => Some("Parakeet TDT v2"),
         PARAKEET_FLASH => Some("Flash Dictation (Beta)"),
+        FLUID_SPEECH_PICO => Some("Fluid Speech Pico"),
         APPLE_SPEECH => Some("Apple Speech"),
         APPLE_INTELLIGENCE => Some("Apple Intelligence"),
         LOCAL_LLM => Some("Qwen3 4B Instruct"),
@@ -197,4 +208,32 @@ pub struct SmartSelectPlan {
     pub ready: bool,
     /// Set only when the local model can't write a selected language the way it was chosen.
     pub notice: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fluid_speech_pico_is_a_local_downloadable_voice_model() {
+        assert!(LOCAL_TRANSCRIPTION_MODELS.contains(&FLUID_SPEECH_PICO));
+        assert!(DOWNLOADABLE_MODELS.contains(&FLUID_SPEECH_PICO));
+        assert_eq!(model_name(FLUID_SPEECH_PICO), Some("Fluid Speech Pico"));
+    }
+
+    #[test]
+    fn only_parakeet_tdt_models_take_the_dictionary_booster() {
+        for model in [PARAKEET_TDT_V3, PARAKEET_TDT_V2, FLUID_SPEECH_PICO] {
+            assert!(boosts_dictionary(model), "{model}");
+        }
+        for model in [
+            PARAKEET_FLASH,
+            WHISPER_TURBO,
+            WHISPER_HINGLISH,
+            APPLE_SPEECH,
+            SMART_SELECT,
+        ] {
+            assert!(!boosts_dictionary(model), "{model}");
+        }
+    }
 }

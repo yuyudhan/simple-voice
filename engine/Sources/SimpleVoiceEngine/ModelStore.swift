@@ -1,10 +1,12 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/ModelStore.swift
-// Local model files on disk: status, Hugging Face downloads and deletion.
+// Local model files on disk: status, downloads (Hugging Face files or one pinned archive) and
+// deletion.
 //
 // Layout: `<models-dir>/<model-id>/` holds exactly the files the loader needs plus a completion
 // marker. Downloads land in `<model-id>.partial/` and are renamed into place only once every file
 // is present, so a crash or a lost connection never leaves a directory that looks ready.
 
+import EngineCore
 import Foundation
 
 actor ModelStore {
@@ -59,7 +61,14 @@ actor ModelStore {
         let destination = directory(for: model.id)
         let partial = root.appendingPathComponent(model.id.rawValue + ".partial", isDirectory: true)
         let task = Task {
-            try await HubDownload(model: model, destination: destination, partial: partial, progress: progress).run()
+            if let archive = model.archive {
+                try await ArchiveDownload(
+                    model: model, archive: archive, destination: destination, partial: partial, progress: progress
+                ).run()
+            } else {
+                try await HubDownload(model: model, destination: destination, partial: partial, progress: progress)
+                    .run()
+            }
         }
         downloads[model.id] = task
         do {
@@ -96,9 +105,15 @@ actor ModelStore {
         return Int64(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    fileprivate static func writeMarker(in directory: URL, totalBytes: Int64) throws {
-        let marker = directory.appendingPathComponent(markerName)
+    /// Marks `partial` complete and moves it into place, replacing any older copy.
+    fileprivate static func install(_ partial: URL, at destination: URL, totalBytes: Int64) throws {
+        let marker = partial.appendingPathComponent(markerName)
         try String(totalBytes).write(to: marker, atomically: true, encoding: .utf8)
+        let manager = FileManager.default
+        if manager.fileExists(atPath: destination.path) {
+            try manager.removeItem(at: destination)
+        }
+        try manager.moveItem(at: partial, to: destination)
     }
 }
 
@@ -158,11 +173,7 @@ private struct HubDownload {
         }
 
         await progress.report(1, "Finishing", force: true)
-        try ModelStore.writeMarker(in: partial, totalBytes: total)
-        if manager.fileExists(atPath: destination.path) {
-            try manager.removeItem(at: destination)
-        }
-        try manager.moveItem(at: partial, to: destination)
+        try ModelStore.install(partial, at: destination, totalBytes: total)
         Log.info("downloaded \(model.id.rawValue) (\(total) bytes)")
     }
 
@@ -227,6 +238,52 @@ private struct HubDownload {
             return URL(string: String(part[part.index(after: open)..<close]))
         }
         return nil
+    }
+}
+
+// MARK: - Archive transfer
+
+/// One pinned tar from the publisher's host. The tar is kept inside the partial directory until
+/// it is unpacked, so an interrupted download keeps it for the retry and deleting the model
+/// removes it.
+private struct ArchiveDownload {
+    let model: HubModel
+    let archive: ArchiveSource
+    let destination: URL
+    let partial: URL
+    let progress: ProgressSink
+
+    func run() async throws {
+        guard let url = URL(string: archive.url) else { throw EngineError("invalid download URL \(archive.url)") }
+        let manager = FileManager.default
+        try manager.createDirectory(at: partial, withIntermediateDirectories: true)
+        let tar = partial.appendingPathComponent(".download.tar")
+        let counter = ByteCounter(total: archive.bytes, progress: progress)
+        let kept = (try? manager.attributesOfItem(atPath: tar.path))?[.size] as? NSNumber
+        if kept?.int64Value != archive.bytes {
+            try Task.checkCancellation()
+            let transfer = FileTransfer(counter: counter)
+            let session = URLSession(configuration: .default, delegate: transfer, delegateQueue: nil)
+            defer { session.finishTasksAndInvalidate() }
+            try await transfer.fetch(url, to: tar, using: session)
+        }
+        counter.finishFile(archive.bytes)
+
+        await progress.report(1, "Unpacking", force: true)
+        do {
+            try ModelArchive.verify(tar, sha256: archive.sha256)
+        } catch {
+            // A corrupt or changed archive is never kept for a retry.
+            try? manager.removeItem(at: tar)
+            throw EngineError("\(model.id.rawValue) download is not the published file: \(error)")
+        }
+        try ModelArchive.extract(tar, into: partial)
+        try manager.removeItem(at: tar)
+        for entry in archive.entries where !manager.fileExists(atPath: partial.appendingPathComponent(entry).path) {
+            throw EngineError("\(archive.url) no longer contains \(entry); update Simple Voice")
+        }
+        try ModelStore.install(partial, at: destination, totalBytes: archive.bytes)
+        Log.info("downloaded \(model.id.rawValue) (\(archive.bytes) bytes)")
     }
 }
 

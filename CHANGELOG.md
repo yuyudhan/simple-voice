@@ -14,6 +14,9 @@ Release notes for each version are also on the
   formatting pass while you are still talking, so after you stop only the last part is
   formatted. The pasted text still comes from the whole recording; a formatted sentence is kept
   only where its words match it exactly.
+- Fluid Speech Pico, FluidVoice's compressed Parakeet (161 MB, a third of Parakeet TDT v3), as a
+  voice model in Settings → Transcription on macOS 15+. Choose it like any other model; it uses
+  the Dictionary booster like Parakeet TDT. CC-BY-4.0, credit FluidVoice.
 
 ### Changed
 

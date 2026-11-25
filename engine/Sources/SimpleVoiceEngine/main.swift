@@ -15,7 +15,7 @@ final class Engine: Sendable {
     private let store: ModelStore
     private let parakeet: ParakeetEngine
     private let whisper: WhisperEngine
-    private let languageModel: LocalLanguageModel
+    let languageModel: LocalLanguageModel
     private let translator: LocalTranslator
     private let diarizer: SpeakerDiarizer
     private let flashStreaming: FlashStreamingModel
@@ -202,8 +202,12 @@ final class Engine: Sendable {
 
     private func baseStatus(_ id: ModelID, language: String?) async -> ModelStatusResult {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish,
-            .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .whisperLargeV3Turbo,
+            .whisperHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+            // Fluid Speech Pico's Core ML pieces use macOS 15 operations.
+            if id == .fluidSpeechPico, #unavailable(macOS 15) {
+                return .unsupported("Fluid Speech Pico requires macOS 15 or later")
+            }
             guard let hub = HubModel.forModel(id) else { return .unsupported("unknown model") }
             return store.status(of: hub)
         case .appleSpeech:
@@ -219,8 +223,8 @@ final class Engine: Sendable {
 
     private func download(_ id: ModelID, language: String?, progress: ProgressSink) async throws {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish,
-            .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .whisperLargeV3Turbo,
+            .whisperHinglish, .qwen3Instruct, .speakerDiarization, .madlad, .parakeetVocabulary:
             let hub = try hubModel(id)
             try await store.download(hub, progress: progress)
         case .appleSpeech:
@@ -237,7 +241,7 @@ final class Engine: Sendable {
 
     private func delete(_ id: ModelID) async throws {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .parakeetVocabulary:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .parakeetVocabulary:
             await parakeet.unload(id)
             if id == .parakeetFlash {
                 await flashStreaming.unload()
@@ -267,7 +271,7 @@ final class Engine: Sendable {
 
     private func preload(_ id: ModelID, language: String?) async throws {
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico:
             try await parakeet.preload(id)
         case .parakeetVocabulary:
             try await parakeet.preloadVocabulary()
@@ -295,7 +299,7 @@ final class Engine: Sendable {
         let id = try ModelID.parse(params.model)
         let timestamps = params.timestamps ?? false
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico:
             let samples = try AudioLoader.loadSamples(path: params.wavPath)
             return try await parakeet.transcribe(
                 id, samples: samples, language: params.language, timestamps: timestamps,
@@ -329,7 +333,7 @@ final class Engine: Sendable {
         await live.cancelAll()
         let recognizer: any LiveRecognizer
         switch id {
-        case .parakeetTdtV3, .parakeetTdtV2:
+        case .parakeetTdtV3, .parakeetTdtV2, .fluidSpeechPico:
             let (models, version) = try await parakeet.tdtModels(id)
             recognizer = try await SlidingWindowLive.start(models: models, version: version, language: params.language)
         case .parakeetFlash:
@@ -343,78 +347,6 @@ final class Engine: Sendable {
         }
         let streamId = await live.start(recognizer, overlay: params.overlay ?? false)
         return StreamStartResult(streamId: streamId)
-    }
-
-    // MARK: - Text generation
-
-    private func polish(_ params: PolishParams, progress: ProgressSink) async throws -> PolishResult {
-        let id = try ModelID.parse(params.model ?? ModelID.appleIntelligence.rawValue)
-        if id == .appleIntelligence {
-            guard #available(macOS 26, *) else {
-                throw EngineError("Apple Intelligence requires macOS 26 or later")
-            }
-            return try await AppleIntelligence.polish(params)
-        }
-        // A rewrite is about as long as its input: roughly a token per three bytes, plus room.
-        let budget = min(2_048, params.user.utf8.count / 3 + 256)
-        return try await generate(
-            id, system: params.system, shots: params.shots, user: params.user, maxTokens: budget, temperature: 0,
-            progress: progress)
-    }
-
-    private func generate(_ params: GenerateParams, progress: ProgressSink) async throws -> PolishResult {
-        if let maxTokens = params.maxTokens, maxTokens < 1 {
-            throw EngineError("generate: `maxTokens` must be at least 1")
-        }
-        return try await generate(
-            try ModelID.parse(params.model),
-            system: params.system,
-            shots: params.shots ?? [],
-            user: params.user,
-            maxTokens: params.maxTokens ?? 1_024,
-            temperature: params.temperature ?? 0.2,
-            progress: progress
-        )
-    }
-
-    private func generate(
-        _ id: ModelID,
-        system: String,
-        shots: [PolishShot],
-        user: String,
-        maxTokens: Int,
-        temperature: Double,
-        progress: ProgressSink
-    ) async throws -> PolishResult {
-        switch id {
-        case .appleIntelligence:
-            guard #available(macOS 26, *) else {
-                throw EngineError("Apple Intelligence requires macOS 26 or later")
-            }
-            return try await AppleIntelligence.generate(
-                system: system, shots: shots, user: user, maxTokens: maxTokens, temperature: temperature)
-        case .qwen3Instruct:
-            return try await languageModel.generate(
-                ChatTurn.conversation(system: system, shots: shots, user: user), maxTokens: maxTokens,
-                temperature: temperature, progress: progress)
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech,
-            .speakerDiarization, .madlad, .parakeetVocabulary:
-            throw EngineError("\(id.rawValue) is not a text model")
-        }
-    }
-
-    /// Readies a text model for a `generate` that starts with these instructions and examples.
-    private func prepareGenerate(_ params: PrepareParams) async throws {
-        let shots = params.shots ?? []
-        switch try ModelID.parse(params.model) {
-        case .appleIntelligence:
-            guard #available(macOS 26, *) else { throw EngineError("Apple Intelligence requires macOS 26 or later") }
-            try await AppleIntelligence.prepare(system: params.system, shots: shots)
-        case .qwen3Instruct:
-            try await languageModel.prepare(ChatTurn.conversation(system: params.system, shots: shots, user: nil))
-        default:
-            throw EngineError("\(params.model) is not a text model")
-        }
     }
 
     private func hubModel(_ id: ModelID) throws -> HubModel {

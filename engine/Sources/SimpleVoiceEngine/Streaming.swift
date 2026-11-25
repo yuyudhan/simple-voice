@@ -327,7 +327,7 @@ actor SlidingWindowLive: LiveRecognizer {
             confirmationThreshold: 0.80,
             tdtConfig: TdtConfig(blankId: version.blankId)
         )
-        if version == .v3, let hint = code.flatMap({ Language(rawValue: $0) }) {
+        if models.filtersScript, let hint = code.flatMap({ Language(rawValue: $0) }) {
             config = config.applying(language: hint)
         }
         let manager = SlidingWindowAsrManager(config: config)

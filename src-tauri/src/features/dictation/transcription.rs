@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use sv_domain::languages::model_languages;
 use sv_domain::models::{
-    GROQ_WHISPER, PARAKEET_TDT_V2, PARAKEET_TDT_V3, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO,
+    boosts_dictionary, GROQ_WHISPER, SMART_SELECT, WHISPER_HINGLISH, WHISPER_TURBO,
 };
 use sv_domain::{
     AppError, AppResult, RetryReason, Settings, TranscriptQuality, TranscriptionProvider,
@@ -422,7 +422,7 @@ pub(super) async fn engine_transcribe(
     } else {
         String::new()
     };
-    let boost = if model == PARAKEET_TDT_V3 || model == PARAKEET_TDT_V2 {
+    let boost = if boosts_dictionary(model) {
         vocabulary.boost_terms()
     } else {
         Vec::new()
@@ -465,7 +465,7 @@ pub(super) async fn discard_audio(audio: &Audio) {
 
 #[cfg(test)]
 mod tests {
-    use sv_domain::models::WHISPER_HINGLISH;
+    use sv_domain::models::{PARAKEET_TDT_V2, PARAKEET_TDT_V3, WHISPER_HINGLISH};
 
     use super::*;
 

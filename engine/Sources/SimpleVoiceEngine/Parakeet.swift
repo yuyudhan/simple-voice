@@ -1,5 +1,6 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/Parakeet.swift
-// Parakeet TDT v3 / v2 batch transcription through FluidAudio, with models kept resident.
+// Parakeet TDT v3 / v2 and Fluid Speech Pico batch transcription through FluidAudio, with models
+// kept resident.
 
 import FluidAudio
 import Foundation
@@ -72,11 +73,12 @@ actor ParakeetEngine {
         let model = try await model(for: id)
         let code = LanguageCode.primary(language)
         switch model {
-        case .tdt(let manager, let version, _):
+        case .tdt(let manager, let version, let models):
             let booster = vocabulary.isEmpty ? nil : await vocabularyBooster()
             let decoded = try await gate.run {
                 let decoded = try await Self.transcribeTdt(
-                    manager: manager, version: version, samples: samples, code: code)
+                    manager: manager, version: version, filtersScript: models.filtersScript, samples: samples,
+                    code: code)
                 guard let booster else { return decoded }
                 return await Self.boost(decoded, booster: booster, samples: samples, vocabulary: vocabulary)
             }
@@ -134,6 +136,11 @@ actor ParakeetEngine {
             let manager = AsrManager(config: .default)
             try await manager.loadModels(models)
             model = .tdt(manager, version, models)
+        case .fluidSpeechPico:
+            let models = try FluidSpeechPack.load(from: directory)
+            let manager = AsrManager(config: .default)
+            try await manager.loadModels(models)
+            model = .tdt(manager, .v3, models)
         case .parakeetFlash:
             model = .flash(try await FlashTranscriber.load(from: directory))
         case .whisperLargeV3Turbo, .whisperHinglish, .appleSpeech, .appleIntelligence, .qwen3Instruct,
@@ -210,6 +217,7 @@ actor ParakeetEngine {
     private static func transcribeTdt(
         manager: AsrManager,
         version: AsrModelVersion,
+        filtersScript: Bool,
         samples: [Float],
         code: String?
     ) async throws -> TdtDecoded {
@@ -219,8 +227,9 @@ actor ParakeetEngine {
         let minimum = ASRConstants.minimumRequiredSamples(forSampleRate: ASRConstants.sampleRate)
         let audio = samples.count < minimum ? samples + [Float](repeating: 0, count: minimum - samples.count) : samples
         var state = TdtDecoderState.make(decoderLayers: version.decoderLayers)
-        // The language hint filters tokens by script, which only the v3 joint supports.
-        let hint = version == .v3 ? code.flatMap { Language(rawValue: $0) } : nil
+        // The language hint filters tokens by script, which only a joint with top-K outputs
+        // (TDT v3's JointDecisionv3) supports.
+        let hint = filtersScript ? code.flatMap { Language(rawValue: $0) } : nil
         let result = try await manager.transcribe(audio, decoderState: &state, language: hint)
         let confidence = result.confidence.isFinite ? result.confidence : nil
         let timings = result.tokenTimings ?? []
@@ -233,6 +242,13 @@ actor ParakeetEngine {
             words: words,
             tokenTimings: timings
         )
+    }
+}
+
+extension AsrModels {
+    /// Whether the joint reports its top-K tokens, which FluidAudio's script filter needs.
+    var filtersScript: Bool {
+        joint.modelDescription.outputDescriptionsByName["top_k_ids"] != nil
     }
 }
 

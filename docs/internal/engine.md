@@ -107,6 +107,7 @@ Local models are stored under the `--models-dir` the app passes (by default
 | `parakeet-tdt-v3` | `FluidInference/parakeet-tdt-0.6b-v3-coreml`                         | `Preprocessor`, `Encoder`, `Decoder`, `JointDecisionv3` (`.mlmodelc`), `parakeet_vocab.json` |
 | `parakeet-tdt-v2` | `FluidInference/parakeet-tdt-0.6b-v2-coreml`                         | `Preprocessor`, `Encoder`, `Decoder`, `JointDecision` (`.mlmodelc`), `parakeet_vocab.json`   |
 | `parakeet-flash`  | `FluidInference/parakeet-realtime-eou-120m-coreml`, folder `1280ms/` | `streaming_encoder`, `decoder`, `joint_decision` (`.mlmodelc`), `vocab.json`                 |
+| `fluid-speech-pico` | not Hugging Face: FluidVoice's tar `https://models.fluidvoice.app/parakeet/fluid-pico/1.1.1/fluid-parakeet-pico-coreml.tar` (161,208,320 B, SHA-256 `542f74f6…df21512` pinned; CC-BY-4.0, credit "Fluid Speech Pico by FluidVoice") | `Preprocessor`, `Encoder-1`…`Encoder-4`, `Decoder`, `JointDecision` (`.mlmodelc`), `parakeet_vocab.json`, plus the pack's `config.json`/`manifest.json` (154 MB) |
 | `whisper-large-v3-turbo` | `argmaxinc/whisperkit-coreml`, folder `openai_whisper-large-v3-v20240930_turbo/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder`, `TextDecoderContextPrefill` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (1.64 GB) |
 | `whisper-hinglish` | `vbhar/whisperkit-hindi2hinglish-prime-coreml` (Apache-2.0 Core ML conversion of `Oriserve/Whisper-Hindi2Hinglish-Prime`), folder `Oriserve_Whisper-Hindi2Hinglish-Prime_fp16/`; tokenizer from `openai/whisper-large-v3` | `AudioEncoder`, `MelSpectrogram`, `TextDecoder` (`.mlmodelc`), `config.json`, `generation_config.json`, `tokenizer.json`, `tokenizer_config.json` (3.1 GB) |
 | `parakeet-vocabulary` | `FluidInference/parakeet-ctc-110m-coreml` at commit `accdafd8` (CC-BY-4.0 Core ML conversion of `nvidia/parakeet-tdt_ctc-110m`) | `MelSpectrogram`, `AudioEncoder` (`.mlmodelc`), `vocab.json`, `tokenizer.json` (103 MB) |
@@ -123,6 +124,18 @@ Local models are stored under the `--models-dir` the app passes (by default
 - A model may combine files from several repositories: the Whisper models take their tokenizer
   from `openai/whisper-large-v3`, stored at the top of the model directory so WhisperKit loads it
   without the network (the helper never lets WhisperKit download anything).
+- A model shipped as one archive (`fluid-speech-pico`) downloads to `.download.tar` inside
+  `<model-id>.partial/` (kept for a retry when interrupted), must match its pinned SHA-256
+  (otherwise the tar is deleted and the download fails), and is unpacked with `/usr/bin/tar`
+  dropping its single top folder; then the same marker and rename apply.
+- Fluid Speech packs (`FluidSpeechPack.swift`, today Fluid Speech Pico) are Parakeet TDT v3's
+  contract with the encoder as one `Encoder.mlmodelc` or pieces `Encoder-1…N` (`hidden_out` →
+  `hidden_in`, each also taking `mel_length`; Pico has four). `SplitEncoder`, an `MLModel`
+  subclass, runs the pieces back to back so FluidAudio's batch, sliding-window streaming and
+  dictionary-booster paths use them as one encoder; another pack is one `forModel` entry (tar URL,
+  SHA-256, size, piece count). Pico's joint has no top-K outputs, so no language hint is passed
+  (the hint goes only to joints reporting `top_k_ids`). Its pieces use macOS 15 Core ML
+  operations: on macOS 14 `model_status` is `unsupported`.
 - Whisper (`Whisper.swift`): the language is pinned when `language` is sent; otherwise the helper
   runs WhisperKit's language detection with a sampler restricted to the `languages` tokens (all
   languages when none are sent; skipped when exactly one is allowed), then decodes with `prompt`

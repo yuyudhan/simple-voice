@@ -7,8 +7,9 @@
 
 use sv_domain::languages::Language;
 use sv_domain::models::{
-    APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, LOCAL_LLM, PARAKEET_FLASH, PARAKEET_TDT_V2,
-    PARAKEET_TDT_V3, PARAKEET_VOCABULARY, TRANSLATOR, WHISPER_HINGLISH, WHISPER_TURBO,
+    APPLE_INTELLIGENCE, APPLE_SPEECH, DIARIZER, FLUID_SPEECH_PICO, LOCAL_LLM, PARAKEET_FLASH,
+    PARAKEET_TDT_V2, PARAKEET_TDT_V3, PARAKEET_VOCABULARY, TRANSLATOR, WHISPER_HINGLISH,
+    WHISPER_TURBO,
 };
 use sv_domain::{ModelKind, ModelProvider};
 
@@ -86,6 +87,19 @@ pub(crate) const CATALOG: &[CatalogEntry] = &[
         accuracy: 75,
         languages: "English",
         size_mb: Some(250),
+        covers: None,
+    },
+    // Not a Smart Select candidate: its 25-language accuracy is unpublished (FluidVoice reports
+    // English only), so it runs only when chosen.
+    CatalogEntry {
+        id: FLUID_SPEECH_PICO,
+        kind: ModelKind::Transcription,
+        provider: ModelProvider::Parakeet,
+        subtitle: "FluidVoice's compressed Parakeet — a third of the size, as fast",
+        speed: 100,
+        accuracy: 91,
+        languages: "25 European languages",
+        size_mb: Some(161),
         covers: None,
     },
     CatalogEntry {

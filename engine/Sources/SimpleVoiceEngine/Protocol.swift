@@ -160,6 +160,8 @@ enum ModelID: String, Sendable, CaseIterable {
     case parakeetTdtV3 = "parakeet-tdt-v3"
     case parakeetTdtV2 = "parakeet-tdt-v2"
     case parakeetFlash = "parakeet-flash"
+    /// FluidVoice's Fluid Speech Pico (Parakeet TDT v3, compressed; CC-BY-4.0).
+    case fluidSpeechPico = "fluid-speech-pico"
     case whisperLargeV3Turbo = "whisper-large-v3-turbo"
     case whisperHinglish = "whisper-hinglish"
     case appleSpeech = "apple-speech"
@@ -177,7 +179,7 @@ enum ModelID: String, Sendable, CaseIterable {
     /// Models that recognise audio incrementally while it is recorded (`stream_start`).
     var streams: Bool {
         switch self {
-        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .appleSpeech:
+        case .parakeetTdtV3, .parakeetTdtV2, .parakeetFlash, .fluidSpeechPico, .appleSpeech:
             true
         case .whisperLargeV3Turbo, .whisperHinglish, .appleIntelligence, .qwen3Instruct, .speakerDiarization,
             .madlad, .parakeetVocabulary:
