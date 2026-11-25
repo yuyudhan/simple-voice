@@ -15,7 +15,7 @@ use std::process::Command;
 use cpal::traits::HostTrait;
 use sv_domain::{CaptureProblem, InputState};
 
-use crate::devices::{automatic_choice, capture_problem, device_name};
+use crate::devices::{built_in_or_default, capture_problem, device_name};
 
 /// What the audio system offers right now.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,10 +35,10 @@ pub fn input_state(probe: &InputProbe, requested: Option<&str>) -> InputState {
         return InputState::NoSoundServer;
     }
     let names: Vec<&str> = probe.devices.iter().map(String::as_str).collect();
-    let Some(automatic) = automatic_choice(&names, probe.default.as_deref()) else {
+    let Some(fallback) = built_in_or_default(&names, probe.default.as_deref()) else {
         return InputState::NoDevice;
     };
-    let fallback = names.get(automatic).copied().unwrap_or_default().to_owned();
+    let fallback = names.get(fallback).copied().unwrap_or_default().to_owned();
     match requested {
         Some(wanted) if names.contains(&wanted) => InputState::Ready {
             device: wanted.to_owned(),
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn the_automatic_choice_prefers_the_built_in_microphone() {
+    fn no_choice_prefers_the_built_in_microphone() {
         let state = input_state(
             &probe(
                 &["AirPods Pro", "MacBook Pro Microphone"],

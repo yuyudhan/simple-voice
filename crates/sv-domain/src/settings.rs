@@ -177,7 +177,8 @@ pub struct Settings {
     /// Esc cancels a recording in progress. Registering Esc globally takes it from every app
     /// while recording, so it is opt-in.
     pub escape_cancels: bool,
-    /// Input device name; `None` = automatic (built-in microphone preferred).
+    /// Input device name; `None` = the built-in microphone, or the system default input on a
+    /// Mac without one. A named device that is not connected falls back the same way.
     pub microphone: Option<String>,
     /// Allowed dictation languages: tags of [`crate::languages::LANGUAGES`].
     pub languages: Vec<String>,
@@ -357,7 +358,7 @@ impl Settings {
 }
 
 /// Partial update from the UI. `None` = leave unchanged. Derived fields are absent on purpose.
-/// `microphone` is doubly optional: `Some(None)` switches back to automatic selection.
+/// `microphone` is doubly optional: `Some(None)` switches back to the built-in microphone.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SettingsPatch {

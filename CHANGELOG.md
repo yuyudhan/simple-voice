@@ -15,6 +15,14 @@ Release notes for each version are also on the
   formatted. The pasted text still comes from the whole recording; a formatted sentence is kept
   only where its words match it exactly.
 
+### Changed
+
+- Settings → Dictation → Input device no longer has an Automatic entry. It shows the Mac's
+  built-in microphone, selected by default, and connecting Bluetooth headphones never moves
+  dictation to them; choose another input there to keep it. A Mac without a built-in microphone
+  (Mac mini, Mac Studio) shows "System default (…)" and says so. iMac microphones now count as
+  built-in.
+
 ### Fixed
 
 - A long dictation is no longer pasted with most of its words missing: when the AI formatting

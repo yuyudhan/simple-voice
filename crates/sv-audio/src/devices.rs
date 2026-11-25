@@ -1,5 +1,5 @@
 // FilePath: crates/sv-audio/src/devices.rs
-//! Input device discovery and the automatic microphone choice.
+//! Input device discovery and the choice of microphone to record from.
 
 use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
@@ -58,41 +58,33 @@ pub(crate) fn device_name(device: &cpal::Device) -> Option<String> {
         .map(|description| description.name().to_owned())
 }
 
+/// Core Audio names the Mac's own microphone after the model ("MacBook Pro Microphone",
+/// "iMac Microphone"); older systems and other hosts say "Built-in".
 pub(crate) fn is_built_in_name(name: &str) -> bool {
     let lower = name.to_lowercase();
-    lower.contains("macbook") || lower.contains("built-in")
+    lower.contains("built-in")
+        || lower
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|word| word.starts_with("macbook") || word == "imac")
 }
 
-/// Resolves the device to record from and returns it with its name.
-///
-/// Without a request the built-in microphone wins over the system default: a Bluetooth headset
-/// that is the default input drops to the 8 kHz HFP profile the moment it is opened, which ruins
-/// both the call audio and the transcription. A requested device that has gone away (unplugged
-/// headset, renamed interface) falls back to the automatic choice so dictation still works.
+/// Resolves the device to record from (see [`choose_input`]) and returns it with its name.
 pub(crate) fn select_input_device(
     host: &cpal::Host,
     requested: Option<&str>,
 ) -> Result<(cpal::Device, String), CaptureProblem> {
     let mut devices = candidates(host)?;
-
-    let mut chosen = None;
-    if let Some(wanted) = requested {
-        chosen = devices.iter().position(|(_, name)| name == wanted);
-        if chosen.is_none() {
-            tracing::warn!(
-                requested = wanted,
-                "selected microphone is not connected; using the automatic choice"
-            );
-        }
+    let names: Vec<&str> = devices.iter().map(|(_, name)| name.as_str()).collect();
+    if let Some(wanted) = requested.filter(|wanted| !names.contains(wanted)) {
+        tracing::warn!(
+            requested = wanted,
+            "selected microphone is not connected; using the built-in microphone or default"
+        );
     }
-    if chosen.is_none() {
-        let names: Vec<&str> = devices.iter().map(|(_, name)| name.as_str()).collect();
-        let default_name = host
-            .default_input_device()
-            .and_then(|device| device_name(&device));
-        chosen = automatic_choice(&names, default_name.as_deref());
-    }
-    match chosen {
+    let default_name = host
+        .default_input_device()
+        .and_then(|device| device_name(&device));
+    match choose_input(&names, default_name.as_deref(), requested) {
         Some(index) if index < devices.len() => Ok(devices.swap_remove(index)),
         _ => host
             .default_input_device()
@@ -101,8 +93,24 @@ pub(crate) fn select_input_device(
     }
 }
 
-/// Index into `names` of the device to use: first built-in, else the default, else the first.
-pub(crate) fn automatic_choice(names: &[&str], default_name: Option<&str>) -> Option<usize> {
+/// Index into `names` of the device to record from. A connected explicit choice is kept.
+/// Otherwise (no choice, or the chosen device went away) the built-in microphone wins over the
+/// system default: a Bluetooth headset that becomes the default input drops to the 8 kHz HFP
+/// profile the moment it is opened, which ruins both the call audio and the transcription, so
+/// connecting one never moves dictation to it.
+pub(crate) fn choose_input(
+    names: &[&str],
+    default_name: Option<&str>,
+    requested: Option<&str>,
+) -> Option<usize> {
+    requested
+        .and_then(|wanted| names.iter().position(|name| *name == wanted))
+        .or_else(|| built_in_or_default(names, default_name))
+}
+
+/// Index into `names` of the first built-in microphone, else the system default (a Mac mini or
+/// Mac Studio has no built-in microphone), else the first device.
+pub(crate) fn built_in_or_default(names: &[&str], default_name: Option<&str>) -> Option<usize> {
     names
         .iter()
         .position(|name| is_built_in_name(name))
@@ -142,21 +150,45 @@ mod tests {
         assert!(is_built_in_name("MacBook Pro Microphone"));
         assert!(is_built_in_name("macbook air microphone"));
         assert!(is_built_in_name("Built-in Microphone"));
+        assert!(is_built_in_name("iMac Microphone"));
         assert!(!is_built_in_name("AirPods Pro"));
         assert!(!is_built_in_name("Shure MV7"));
+        assert!(!is_built_in_name("Primacoustic VoxGuard"));
     }
 
     #[test]
-    fn automatic_choice_prefers_built_in_over_default() {
-        let names = ["AirPods Pro", "MacBook Pro Microphone", "Shure MV7"];
-        assert_eq!(automatic_choice(&names, Some("AirPods Pro")), Some(1));
+    fn no_choice_records_from_built_in_even_when_bluetooth_is_the_default() {
+        let names = ["WH-XB910N", "MacBook Pro Microphone", "Shure MV7"];
+        assert_eq!(choose_input(&names, Some("WH-XB910N"), None), Some(1));
     }
 
     #[test]
-    fn automatic_choice_falls_back_to_default_then_first() {
-        let names = ["AirPods Pro", "Shure MV7"];
-        assert_eq!(automatic_choice(&names, Some("Shure MV7")), Some(1));
-        assert_eq!(automatic_choice(&names, Some("Gone")), Some(0));
-        assert_eq!(automatic_choice(&[], None), None);
+    fn an_explicit_choice_is_kept_while_connected() {
+        let names = ["WH-XB910N", "MacBook Pro Microphone"];
+        assert_eq!(
+            choose_input(&names, Some("MacBook Pro Microphone"), Some("WH-XB910N")),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn a_choice_that_went_away_falls_back_to_built_in() {
+        let names = ["Shure MV7", "MacBook Pro Microphone"];
+        assert_eq!(
+            choose_input(&names, Some("Shure MV7"), Some("WH-XB910N")),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn without_built_in_the_system_default_is_used_then_the_first() {
+        let names = ["WH-XB910N", "Shure MV7"];
+        assert_eq!(choose_input(&names, Some("Shure MV7"), None), Some(1));
+        assert_eq!(
+            choose_input(&names, Some("Shure MV7"), Some("Gone")),
+            Some(1)
+        );
+        assert_eq!(choose_input(&names, Some("Gone"), None), Some(0));
+        assert_eq!(choose_input(&[], None, Some("WH-XB910N")), None);
     }
 }

@@ -4,6 +4,7 @@
 // and the cues along the way.
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type Microphone } from "../../../lib/api";
+import { isLinux } from "../../../lib/platform";
 import { useSettings } from "../../../app/SettingsContext";
 import { Select, SettingRow, SettingsGroup, Toggle } from "../../../ui";
 import { AccessibilityWarning } from "../permissions/AccessibilityWarning";
@@ -11,17 +12,15 @@ import { ShortcutRecorder } from "../shortcuts/ShortcutRecorder";
 import { ContextGroup } from "./ContextGroup";
 import { FeedbackGroup } from "./FeedbackGroup";
 import { EscapeCancelsRow } from "./EscapeCancelsRow";
+import { BUILT_IN_OR_DEFAULT, microphoneMenu } from "./microphoneMenu";
 import "../common.css";
 import "./dictation.css";
-
-// Select values are strings; the empty string stands for automatic selection (null).
-const AUTOMATIC = "";
 
 const MAX_LENGTH_MINUTES = [1, 2, 5, 10, 15, 30];
 
 function MicrophoneSelect() {
     const { settings, update } = useSettings();
-    const [microphones, setMicrophones] = useState<Microphone[]>([]);
+    const [microphones, setMicrophones] = useState<Microphone[] | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const load = useCallback(
@@ -51,27 +50,18 @@ function MicrophoneSelect() {
         };
     }, [load]);
 
-    const options = [
-        { value: AUTOMATIC, label: "Automatic (built-in microphone recommended)" },
-        ...microphones.map((m) => ({
-            value: m.id,
-            label: m.isBuiltIn ? `${m.name} (built-in)` : m.name,
-        })),
-    ];
-    const current = settings.microphone;
-    if (current !== null && !microphones.some((m) => m.id === current)) {
-        options.push({ value: current, label: `${current} (not connected)` });
-    }
+    const menu = microphoneMenu(microphones, settings.microphone, isLinux);
 
     return (
         <div className="sv-dictation__mic">
             <Select
-                value={current ?? AUTOMATIC}
-                options={options}
+                value={menu.value}
+                options={menu.options}
                 onChange={(value) => {
-                    void update({ microphone: value === AUTOMATIC ? null : value });
+                    void update({ microphone: value === BUILT_IN_OR_DEFAULT ? null : value });
                 }}
             />
+            {menu.note && <p className="sv-dictation__mic-note">{menu.note}</p>}
             {error && (
                 <p className="sv-inline-error" role="alert">
                     {error}
@@ -99,7 +89,11 @@ function RecordingGroup() {
         <SettingsGroup title="Recording">
             <SettingRow
                 title="Input device"
-                description="Bluetooth headsets drop to a low-quality mode while recording, so the built-in microphone is preferred."
+                description={
+                    isLinux
+                        ? "Simple Voice records from the input chosen in your desktop's sound settings."
+                        : "Simple Voice records from the built-in microphone unless you choose another device. Bluetooth headsets drop to a low-quality mode while recording, so connecting one never switches the input."
+                }
             >
                 <MicrophoneSelect />
             </SettingRow>

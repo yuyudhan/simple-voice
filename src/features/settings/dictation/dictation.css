@@ -12,6 +12,12 @@
     width: 100%;
 }
 
+.sv-dictation__mic-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
 /* Shortcut rows: the fn-key note, hint and error run full width under the row instead of
    wrapping into a narrow right-aligned column beside the keys. */
 .sv-setting-row:has(.sv-shortcut-rec) {
