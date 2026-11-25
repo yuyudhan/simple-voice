@@ -119,19 +119,6 @@ actor ModelStore {
 
 // MARK: - Hugging Face transfer
 
-private struct HubEntry: Decodable {
-    struct LargeFile: Decodable {
-        let size: Int64
-    }
-
-    let type: String
-    let path: String
-    let size: Int64?
-    let lfs: LargeFile?
-
-    var byteCount: Int64 { lfs?.size ?? size ?? 0 }
-}
-
 private struct PlannedFile {
     let repo: String
     let revision: String
@@ -168,7 +155,11 @@ private struct HubDownload {
             }
             try Task.checkCancellation()
             let url = try resolveURL(repo: file.repo, revision: file.revision, path: file.remotePath)
-            try await transfer.fetch(url, to: target, using: session)
+            let what = "\(file.remotePath) of \(file.repo)"
+            try await RetryPolicy().run {
+                try await transfer.fetch(url, to: target, using: session, what: what)
+                try HubReply.verifySize(of: target, bytes: file.size, what: what)
+            }
             counter.finishFile(file.size)
         }
 
@@ -187,17 +178,9 @@ private struct HubDownload {
     }
 
     private func plan(_ source: HubSource) async throws -> [PlannedFile] {
-        var entries: [HubEntry] = []
-        var next: URL? = try listingURL(source)
-        while let url = next {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            let http = response as? HTTPURLResponse
-            guard let http, (200..<300).contains(http.statusCode) else {
-                throw EngineError("Hugging Face listing failed (HTTP \(http?.statusCode ?? 0)) for \(source.repo)")
-            }
-            entries += try JSONDecoder().decode([HubEntry].self, from: data)
-            next = nextPage(http)
-        }
+        let entries = try await HubListing.entries(
+            from: try listingURL(source), repo: source.repo, policy: RetryPolicy(),
+            fetch: { url in try await URLSession.shared.data(from: url) })
 
         let files = entries.compactMap { entry -> PlannedFile? in
             guard entry.type == "file", let local = source.localPath(forRepoPath: entry.path) else { return nil }
@@ -227,18 +210,6 @@ private struct HubDownload {
         guard let url = URL(string: text) else { throw EngineError("invalid download URL \(text)") }
         return url
     }
-
-    /// The listing API pages large repositories with `Link: <url>; rel="next"`.
-    private func nextPage(_ response: HTTPURLResponse) -> URL? {
-        guard let link = response.value(forHTTPHeaderField: "Link") else { return nil }
-        for part in link.split(separator: ",") where part.contains("rel=\"next\"") {
-            guard let open = part.firstIndex(of: "<"), let close = part.firstIndex(of: ">"), open < close else {
-                continue
-            }
-            return URL(string: String(part[part.index(after: open)..<close]))
-        }
-        return nil
-    }
 }
 
 // MARK: - Archive transfer
@@ -265,7 +236,11 @@ private struct ArchiveDownload {
             let transfer = FileTransfer(counter: counter)
             let session = URLSession(configuration: .default, delegate: transfer, delegateQueue: nil)
             defer { session.finishTasksAndInvalidate() }
-            try await transfer.fetch(url, to: tar, using: session)
+            let what = "the \(model.id.rawValue) archive"
+            try await RetryPolicy().run {
+                try await transfer.fetch(url, to: tar, using: session, what: what)
+                try HubReply.verifySize(of: tar, bytes: archive.bytes, what: what)
+            }
         }
         counter.finishFile(archive.bytes)
 
@@ -342,13 +317,15 @@ private final class FileTransfer: NSObject, URLSessionDownloadDelegate, @uncheck
     private var destination: URL?
     private var failure: (any Error)?
     private var current: URLSessionDownloadTask?
+    private var what = "file"
 
     init(counter: ByteCounter) {
         self.counter = counter
     }
 
     /// A cancelled request (`cancel`) stops the transfer; the partial directory stays for a retry.
-    func fetch(_ url: URL, to destination: URL, using session: URLSession) async throws {
+    /// `what` names the file in failure messages.
+    func fetch(_ url: URL, to destination: URL, using session: URLSession, what: String) async throws {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
                 let task = session.downloadTask(with: url)
@@ -357,6 +334,7 @@ private final class FileTransfer: NSObject, URLSessionDownloadDelegate, @uncheck
                     self.destination = destination
                     self.failure = nil
                     self.current = task
+                    self.what = what
                 }
                 task.resume()
             }
@@ -377,14 +355,14 @@ private final class FileTransfer: NSObject, URLSessionDownloadDelegate, @uncheck
 
     // The temporary file is deleted when this returns, so it is moved synchronously here.
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        let target = lock.withLock { destination }
+        let (target, what) = lock.withLock { (destination, self.what) }
         do {
-            let status = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
-            let name = downloadTask.originalRequest?.url?.lastPathComponent ?? "file"
-            guard (200..<300).contains(status) else {
-                throw EngineError("download of \(name) failed (HTTP \(status))")
+            guard let response = downloadTask.response as? HTTPURLResponse else {
+                throw DownloadFailure("\(what) came back without an HTTP reply", isTransient: true)
             }
-            guard let target else { throw EngineError("download of \(name) has no destination") }
+            // A WAF challenge or error page must never be saved in place of a model file.
+            if let failure = HubReply.failure(for: response, what: what) { throw failure }
+            guard let target else { throw EngineError("download of \(what) has no destination") }
             let manager = FileManager.default
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             if manager.fileExists(atPath: target.path) {

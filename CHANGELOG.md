@@ -31,6 +31,12 @@ Release notes for each version are also on the
 - A long dictation is no longer pasted with most of its words missing: when the AI formatting
   pass returns under 60 % of the words of a dictation of 60 words or more, the unformatted text
   is pasted instead and History says why.
+- Downloading a voice model (Parakeet TDT v3 and the others from Hugging Face) no longer fails
+  with "The data couldn't be read because it isn't in the correct format" when Hugging Face's bot
+  check or a network filter answers instead of the file list. Simple Voice now tries again after
+  a few seconds (also after rate limits, server errors and dropped connections), and if it still
+  fails it says what failed, with the HTTP status and what to try. A file that arrives short or
+  replaced is never installed.
 
 ## v0.4.1 - 2026-11-12
 

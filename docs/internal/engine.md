@@ -118,6 +118,14 @@ Local models are stored under the `--models-dir` the app passes (by default
   complete in a leftover `.partial` directory are reused, so an interrupted download resumes.
   When every file is present a `.simple-voice-complete` marker (holding the total size) is written
   and the directory is renamed to `<models-dir>/<model-id>/`.
+- Only an HTTP 200 reply is used (`EngineCore/HubTransfer.swift`). huggingface.co's AWS WAF
+  answers a client it flags with HTTP 202, `x-amzn-waf-action` and an empty body; that, HTTP 408,
+  429 (honouring `Retry-After`, at most 60 s) and 5xx, a listing body that is not the JSON list
+  (a captive portal or proxy page), a file shorter or longer than the listing says, and dropped
+  connections are retried after 2, 4 and 8 s; after the fourth attempt, or at once for 401, 403
+  and 404, the download fails with a message naming the host, the HTTP status and the file (for a
+  non-JSON listing also its content type and first characters), never the decoder's "isn't in the
+  correct format" (T2794). A failed file is deleted, so no partial or substituted file is installed.
 - `model_status` is `ready` only when the marker exists; `sizeBytes` is the downloaded size.
 - `preload` loads a model into memory; loaded models stay resident until `delete_model`, which
   unloads the model and removes both directories.

@@ -19,6 +19,7 @@ var failures: [String] = []
 checkSpellingGate()
 await checkPromptCache()
 checkModelArchive()
+await checkHubTransfer()
 
 if failures.isEmpty {
     print("engine-core-checks: OK")
