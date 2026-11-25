@@ -184,4 +184,49 @@ mod tests {
         );
         assert_eq!(out.text, "Haan matlab we need an index");
     }
+
+    #[test]
+    fn default_packs_write_famous_ai_and_dev_names_as_their_brands_do() {
+        let packs = sv_domain::vocabulary_packs::default_vocabulary_packs();
+        let vocab = crate::Vocabulary::new(&[], &packs);
+        let cases = [
+            (
+                "push the weights to hugging phase",
+                "Push the weights to Hugging Face",
+            ),
+            (
+                "we run qwen and gemma on nvidia gpus",
+                "We run Qwen and Gemma on NVIDIA GPUs",
+            ),
+            (
+                "load it in l m studio with mlx",
+                "Load it in LM Studio with MLX",
+            ),
+            (
+                "whisper kit and core ml on the mac",
+                "WhisperKit and Core ML on the mac",
+            ),
+            (
+                "join over tail scale and net bird",
+                "Join over Tailscale and NetBird",
+            ),
+            ("open t mux from ray cast", "Open tmux from Raycast"),
+            (
+                "sarvam and ai for bharat models",
+                "Sarvam and AI4Bharat models",
+            ),
+            (
+                "check open sanctions in atlassian",
+                "Check OpenSanctions in Atlassian",
+            ),
+            (
+                "deploy to versel and supa base",
+                "Deploy to Vercel and Supabase",
+            ),
+        ];
+        for (heard, written) in cases {
+            let out = crate::formatting::format(heard, &vocab, sv_domain::Style::Formal);
+            assert_eq!(out.text, written, "{heard}");
+        }
+    }
 }
