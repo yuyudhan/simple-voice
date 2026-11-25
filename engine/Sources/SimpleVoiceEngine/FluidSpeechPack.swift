@@ -8,6 +8,7 @@
 // `forModel` plus its catalog licence and source.
 
 @preconcurrency import CoreML
+import EngineCore
 import FluidAudio
 import Foundation
 
@@ -93,56 +94,5 @@ struct FluidSpeechPack: Sendable {
             throw EngineError("\(url.lastPathComponent) lacks tokens below the blank id \(blank)")
         }
         return vocabulary
-    }
-}
-
-/// Runs the encoder pieces as one Core ML model. FluidAudio reads the encoder's input names
-/// from `modelDescription` (the first piece's) and calls the async `prediction`, which Core ML
-/// sends to `predictionFromFeatures:options:completionHandler:`. Its base implementation queues
-/// the request on the model's own engine, which a subclass does not have (the helper crashed
-/// there), so every prediction entry point is overridden and runs the pieces synchronously.
-final class SplitEncoder: MLModel, @unchecked Sendable {
-    private let pieces: [MLModel]
-
-    init(pieces: [MLModel]) throws {
-        guard pieces.count > 1 else { throw EngineError("a split encoder needs at least two pieces") }
-        self.pieces = pieces
-        super.init()
-    }
-
-    override var modelDescription: MLModelDescription {
-        pieces[0].modelDescription
-    }
-
-    override func prediction(from input: any MLFeatureProvider) throws -> any MLFeatureProvider {
-        try prediction(from: input, options: MLPredictionOptions())
-    }
-
-    override func __prediction(
-        fromFeatures input: any MLFeatureProvider, options: MLPredictionOptions,
-        completionHandler: @escaping ((any MLFeatureProvider)?, (any Error)?) -> Void
-    ) {
-        do {
-            completionHandler(try prediction(from: input, options: options), nil)
-        } catch {
-            completionHandler(nil, error)
-        }
-    }
-
-    override func prediction(
-        from input: any MLFeatureProvider, options: MLPredictionOptions
-    ) throws -> any MLFeatureProvider {
-        guard let melLength = input.featureValue(for: "mel_length") else {
-            throw EngineError("encoder input lacks mel_length")
-        }
-        var output = try pieces[0].prediction(from: input, options: options)
-        for piece in pieces.dropFirst() {
-            guard let hidden = output.featureValue(for: "hidden_out") else {
-                throw EngineError("an encoder piece produced no hidden_out")
-            }
-            let next = try MLDictionaryFeatureProvider(dictionary: ["hidden_in": hidden, "mel_length": melLength])
-            output = try piece.prediction(from: next, options: options)
-        }
-        return output
     }
 }
