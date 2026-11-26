@@ -19,9 +19,10 @@ Release notes for each version are also on the
   the Dictionary booster like Parakeet TDT. CC-BY-4.0, credit FluidVoice.
 - Indic (Hinglish): Hindi and Hindi-English dictation written in Roman letters ("main kal office
   aaunga") by Indic-Transcribe-Flex, the model FluidVoice's Indic option is built on, on this Mac
-  (macOS 15+, 698 MB download, no account needed). Smart Select now runs it first for Hinglish,
-  with Hinglish Whisper as its retry. Built with Indic-Transcribe-Flex from Bodhan AI / AI4Bharat
-  (Indic Open Model License v1.0).
+  (macOS 15+, 698 MB download, no account needed). It runs on the GPU, is ready about two
+  seconds after you choose it, and writes 9 s of speech in about a second on an M5. Smart Select
+  now runs it first for Hinglish, with Hinglish Whisper as its retry. Built with
+  Indic-Transcribe-Flex from Bodhan AI / AI4Bharat (Indic Open Model License v1.0).
 
 ### Changed
 

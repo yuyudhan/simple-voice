@@ -1,8 +1,10 @@
 // FilePath: engine/Sources/SimpleVoiceEngine/Indic.swift
 // Indic (Hinglish): Bodhan AI's Indic-Transcribe-Flex (Canary-1B-v2 fine-tune) in FluidAudio's
 // Canary Core ML layout, decoding Hindi with the romanized prompt so it writes Roman Hinglish
-// itself, with no transliteration step. Kept resident like the other local models.
+// itself, with no transliteration step. Kept resident like the other local models, on the GPU
+// (see IndicPack.computeUnits), and warmed up while it loads.
 
+import CoreML
 import EngineCore
 import FluidAudio
 import Foundation
@@ -48,7 +50,7 @@ actor IndicEngine {
             throw EngineError("\(ModelID.indicHinglish.rawValue) has no download source")
         }
         let directory = try store.readyDirectory(for: hub)
-        let task = Task { try Self.load(from: directory) }
+        let task = Task { try await Self.load(from: directory) }
         loading = task
         do {
             let manager = try await task.value
@@ -66,23 +68,34 @@ actor IndicEngine {
         }
     }
 
-    private static func load(from directory: URL) throws -> CanaryManager {
+    private static func load(from directory: URL) async throws -> CanaryManager {
         let id = ModelID.indicHinglish.rawValue
         Log.info("loading \(id) from \(directory.path)")
         let started = ContinuousClock.now
         // FluidAudio force-casts vocab.json, so a malformed pack is turned away here instead.
         let vocabulary = directory.appendingPathComponent(ModelNames.Canary.vocabularyFile)
         try IndicPack.validateVocabulary(try Data(contentsOf: vocabulary))
-        let loaded = try CanaryModels.load(from: directory, precision: .int4)
-        // The int4 parts return float16, which FluidAudio 0.17.4's Canary decode loop cannot read
-        // without trapping (see Float32Outputs), so they are handed on as float32.
+        // Loaded here rather than through CanaryModels.load, which pins the parts to the Neural
+        // Engine. The int4 parts return float16, which FluidAudio 0.17.4's Canary decode loop
+        // cannot read without trapping (see Float32Outputs), so they are handed on as float32.
         let models = CanaryModels(
-            preprocessor: loaded.preprocessor,
-            encoder: Float32Outputs(loaded.encoder),
-            decoder: Float32Outputs(loaded.decoder),
-            projection: Float32Outputs(loaded.projection),
-            tokenizer: loaded.tokenizer)
+            preprocessor: try part(.preprocessor, ModelNames.Canary.preprocessor, in: directory),
+            encoder: Float32Outputs(try part(.encoder, ModelNames.Canary.encoderInt4, in: directory)),
+            decoder: Float32Outputs(try part(.decoder, ModelNames.Canary.decoderInt4, in: directory)),
+            projection: Float32Outputs(try part(.projection, ModelNames.Canary.projection, in: directory)),
+            tokenizer: try Tokenizer(vocabPath: vocabulary))
+        let manager = CanaryManager(models: models, prompt: IndicPack.hinglishPrompt)
+        // Core ML prepares each part on its first prediction (about a second on the GPU), so one
+        // pass over a second of silence runs here and the first dictation does not pay for it.
+        _ = try await manager.transcribe(audio: [Float](repeating: 0, count: CanaryConfig.sampleRate))
         Log.info("loaded \(id) in \(ContinuousClock.now - started)")
-        return CanaryManager(models: models, prompt: IndicPack.hinglishPrompt)
+        return manager
+    }
+
+    private static func part(_ part: IndicPack.Part, _ name: String, in directory: URL) throws -> MLModel {
+        let configuration = MLModelConfiguration()
+        configuration.computeUnits = IndicPack.computeUnits(for: part)
+        let url = directory.appendingPathComponent("\(name).mlmodelc")
+        return try MLModel(contentsOf: url, configuration: configuration)
     }
 }

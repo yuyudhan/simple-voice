@@ -145,15 +145,23 @@ Local models are stored under the `--models-dir` the app passes (by default
   SHA-256, size, piece count). Pico's joint has no top-K outputs, so no language hint is passed
   (the hint goes only to joints reporting `top_k_ids`). Its pieces use macOS 15 Core ML
   operations: on macOS 14 `model_status` is `unsupported`.
-- Indic (`Indic.swift`): FluidAudio's Canary runtime (`CanaryModels.load(precision: .int4)`,
-  `CanaryManager`) decodes with Flex's Hindi `<|romanized|>` prompt
-  (`EngineCore/IndicPack.swift`), so the model writes Roman Hinglish itself; no language is
-  reported, like Hinglish Whisper. FluidAudio force-casts `vocab.json`, so the pack's vocabulary
-  is checked first (an id → piece object with Flex's prompt tokens at their ids). int4 weights
-  need macOS 15: on macOS 14 `model_status` is `unsupported`. Batch only (no live stream).
-  The encoder, decoder and projection are wrapped in `EngineCore/Float32Outputs.swift`: they
-  return float16, and FluidAudio 0.17.4's own float16 reader traps (unsigned overflow) on any
-  value under 1, so their outputs reach it as float32.
+- Indic (`Indic.swift`): FluidAudio's Canary runtime (`CanaryManager`) decodes with Flex's Hindi
+  `<|romanized|>` prompt (`EngineCore/IndicPack.swift`), so the model writes Roman Hinglish
+  itself; no language is reported, like Hinglish Whisper. FluidAudio force-casts `vocab.json`, so
+  the pack's vocabulary is checked first (an id → piece object with Flex's prompt tokens at their
+  ids). int4 weights need macOS 15: on macOS 14 `model_status` is `unsupported`. Batch only (no
+  live stream). The encoder, decoder and projection are wrapped in
+  `EngineCore/Float32Outputs.swift`: they return float16, and FluidAudio 0.17.4's own float16
+  reader traps (unsigned overflow) on any value under 1, so their outputs reach it as float32.
+  The parts are loaded by `Indic.swift` itself, not `CanaryModels.load`, which pins them to the
+  Neural Engine: there Core ML runs every op of the int4 encoder on the CPU (174 ms a pass) and
+  the decoder step takes 24 ms with erratic spikes, and the first load compiles for about a
+  minute. `IndicPack.computeUnits` puts the encoder and decoder on the GPU (21 ms, 12 ms a step,
+  loaded in about 1.5 s), the float32 preprocessor on the CPU and the projection on the Neural
+  Engine. The load ends with one pass over a second of silence, so the first dictation does not
+  pay Core ML's first-prediction setup. The decoder has no KV cache: every token re-runs the
+  whole 256-token sequence, so a dictation costs about 12 ms per output token (about 1.1 s for
+  9 s of speech on an M5).
   A new upstream version: run `scripts/models/indic-flex/publish.sh <upstream sha>` and pin the
   revision it prints in `ModelCatalog.swift`.
 - Whisper (`Whisper.swift`): the language is pinned when `language` is sent; otherwise the helper
@@ -164,7 +172,9 @@ Local models are stored under the `--models-dir` the app passes (by default
   compression ratio) are left out. Hinglish Whisper labels romanised Hindi as `en`.
 - The first load of a Whisper model compiles it for the Neural Engine: about 110 s for Whisper
   Turbo and about 240 s for Hinglish Whisper on an M-series Mac; later loads take 1–2 s. The app
-  preloads the Smart Select model after its download so this never lands on a dictation.
+  preloads the Smart Select model after its download so this never lands on a dictation. On an
+  M5 the GPU is no faster for either (T3026: encoder 249 vs 275 ms, decoder steps no faster), so
+  WhisperKit's default Neural Engine placement stays.
 - Parakeet TDT returns `quality.confidence` (FluidAudio's `ASRResult.confidence`, 0.1–1.0).
 - Parakeet TDT takes a `vocabulary` (personal dictionary names, `Vocabulary::boost_terms`) in
   `transcribe`. When `parakeet-vocabulary` is downloaded (`VocabularyBoost.swift`), FluidAudio's

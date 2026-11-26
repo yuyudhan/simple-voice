@@ -3,6 +3,7 @@
 // reads its vocab.json as an id -> piece object (a list crashes it) and decodes with a prompt of
 // Flex's own token ids, so a pack is checked for both before it is loaded.
 
+import CoreML
 import EngineCore
 import Foundation
 
@@ -31,6 +32,16 @@ import Foundation
     expectRejection(
         try vocabularyObject(Array(pieces.prefix(89))), mentioning: "<|hi|>",
         "a vocabulary missing the prompt's language token")
+
+    // Measured on an M5 (T3026): with the Neural Engine allowed, Core ML runs every op of the
+    // int4 encoder on the CPU (174 ms a pass) and the decoder takes 24 ms a step; on the GPU they
+    // take 21 ms and 12 ms, and the parts load in about a second instead of a minute.
+    check(IndicPack.computeUnits(for: .encoder) == .cpuAndGPU, "the Indic encoder runs on the GPU")
+    check(IndicPack.computeUnits(for: .decoder) == .cpuAndGPU, "the Indic decoder runs on the GPU")
+    check(
+        IndicPack.computeUnits(for: .preprocessor) == .cpuOnly,
+        "the mel preprocessor stays on the CPU in float32 (its power spectrum overflows float16)")
+    check(IndicPack.computeUnits(for: .projection) == .cpuAndNeuralEngine, "the projection stays on the Neural Engine")
 }
 
 /// Flex's first special tokens at their real ids, padded with plain pieces up to `<|hi|>` (89).

@@ -2,6 +2,7 @@
 // The Indic (Hinglish) model: Bodhan AI's Indic-Transcribe-Flex in FluidAudio's Canary Core ML
 // layout. Flex has its own 7,152-piece tokenizer, so its prompt ids are not Canary-1B-v2's.
 
+import CoreML
 import Foundation
 
 public enum IndicPack {
@@ -32,6 +33,23 @@ public enum IndicPack {
             throw Failure(
                 description: "vocab.json has \(pieces[String(id)].map { "\"\($0)\"" } ?? "nothing") at \(id), "
                     + "not \(piece): it is not Indic-Transcribe-Flex's tokenizer")
+        }
+    }
+
+    /// The four Core ML parts of the pack.
+    public enum Part: Sendable {
+        case preprocessor, encoder, decoder, projection
+    }
+
+    /// Where each part runs. With the Neural Engine allowed, Core ML places every op of the int4
+    /// encoder on the CPU and the Neural Engine decoder is half as fast as the GPU's, so both run
+    /// on the GPU, which also loads them without the Neural Engine's minute-long compile. The mel
+    /// preprocessor needs float32 (its power spectrum overflows float16), so it stays on the CPU.
+    public static func computeUnits(for part: Part) -> MLComputeUnits {
+        switch part {
+        case .preprocessor: .cpuOnly
+        case .encoder, .decoder: .cpuAndGPU
+        case .projection: .cpuAndNeuralEngine
         }
     }
 
